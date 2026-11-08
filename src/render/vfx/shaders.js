@@ -32,6 +32,8 @@ ${FETCH}
 varying vec2 vUv; varying vec4 vA; varying vec4 vB; varying vec3 vWorld; varying vec3 vR; varying vec3 vU; varying vec3 vF;
 varying vec2 vRot; varying float vSize; varying float vViewZ; varying vec4 vC;
 ${NOISE}
+vec2 bzLean; // VOLUME: the fire's lean (per metre of height, world x / z)
+float bzLv; // VOLUME: its burn level
 void main(){
   camAxes();
   int i=int(pidx+0.5);
@@ -61,6 +63,26 @@ void main(){
     vec3 lean=(vec3(uWind.x,0.0,uWind.z)+gustPush(pos,9.0,1.0)*1.2)*0.16*d5.w; float ll=length(lean); if(ll>0.9) lean*=0.9/ll;
     wp=pos+R_*c.x*size*(1.0-0.35*h01)+vec3(0.0,1.0,0.0)*h01*H+U_*0.0+lean*h01*h01*H;
     wp+=R_*c.x*0.0;
+  } else if(mode==4){
+    // VOLUME (sustained fire): the screen rectangle of the fire's box — base on the fuel, half-size rx × rz turned by its
+    // yaw (d4.w), height Ht, sheared downwind by the fire-level lean (gusts at its foot); the fragment raymarches it
+    pos=d0.xyz;
+    // the burn level over the fire's age (blaze.js blazeLevel: catches over d1.x s, holds to d1.y, dies down to a smoulder
+    // by 0.86·burn (d1.z), smoulders on) — one long-lived particle per bed, so its level is computed, not re-emitted
+    float fa=age+d4.y, lv=min(1.0,0.25+0.75*fa/max(d1.x,1e-3)), bn=d1.z; // (d4.y: the fire's age at this particle's birth)
+    if(bn>0.0){ float e1=bn*0.86, e0=min(d1.y,e1-1e-3);
+      if(fa>=e1) lv*=max(0.08,0.12-0.04*(fa-e1)/max(bn-e1,1e-3)); else if(fa>e0) lv*=1.0-0.88*pow((fa-e0)/max(e1-e0,1e-3),0.85); }
+    bzLv=lv;
+    float rx=size, rz=size*d5.z, Ht=size*d6.w*(0.5+0.5*lv), yaw=d4.w; // (a dying fire's box is lower: fewer pixels to march)
+    vec3 ex=vec3(cos(yaw),0.0,-sin(yaw)), ez=vec3(sin(yaw),0.0,cos(yaw));
+    vec3 lean=(vec3(uWind.x,0.0,uWind.z)+gustPush(pos,9.0,1.0))*0.08*d6.y; float ll=length(lean); if(ll>0.45) lean*=0.45/ll;
+    float r0=1e9, r1=-1e9, u0=1e9, u1=-1e9;
+    for(int k=0;k<8;k++){
+      vec3 q=pos+ex*(rx*((k&1)==1?1.0:-1.0))+ez*(rz*((k&2)==2?1.0:-1.0))+((k&4)==4?(vec3(0.0,Ht,0.0)+lean*Ht):vec3(0.0));
+      float a1=dot(q,R_), b1=dot(q,U_); r0=min(r0,a1); r1=max(r1,a1); u0=min(u0,b1); u1=max(u1,b1);
+    }
+    wp=R_*mix(r0,r1,c.x+0.5)+U_*mix(u0,u1,c.y+0.5)+F_*dot(pos,F_);
+    bzLean=lean.xz;
   } else {
     // puffs: billboard, optionally stretched along screen-space velocity (dirt jets, fast smoke)
     vec2 sv=vec2(dot(vel,R_),dot(vel,U_)); float sl=length(sv);
@@ -74,7 +96,19 @@ void main(){
   vRot=vec2(cos(ang),sin(ang));
   vUv=c; vA=vec4(d3.rgb, d3.a*fin*fout); vB=vec4(T,x,float(mode),seed);
   vC=vec4(d6.x, d6.y, age, d6.w);
+  if(mode==4){
+    // per volume, not per pixel: the fire's breathing (puffing ~1.5/sqrt(D) Hz, fire-level: the same curve drives its light,
+    // blaze.js blazePuff) → vB.w, and the uneven fuel bed (slow, large-scale: taller flames over some parts) → vC.y
+    float fz=d3.r, ph=d3.g, Sa=dot(pos,R_);
+    vB.w=0.5*sin(6.2832*fz*uTime+ph)+0.3*sin(10.9*fz*uTime+2.3*ph)+0.2*sin(3.1*fz*uTime+0.6*ph);
+    vC.y=clamp(0.5+0.28*sin(Sa*0.5+ph)+0.16*sin(Sa*1.25-uTime*0.31+2.0*ph)+0.1*sin(uTime*0.17+Sa*0.21),0.0,1.0);
+  }
   vWorld=wp; vR=R_; vU=U_; vF=F_; vSize=size;
+  if(mode==4){
+    vB.x=d4.x; // (core temperature: no cooling)
+    vR=pos; vU=vec3(bzLean,d4.w); vF=vec3(bzLv,vB.w,size*d6.w/1.6); vRot=vec2(size,size*d5.z); vSize=size*d6.w*(0.5+0.5*bzLv);
+    vA.a=d3.a*fin*(1.0-step(0.75,seed)*smoothstep(life-1.5,life,age)); // (only the fire's last volume fades out)
+  }
   vec4 mv=viewMatrix*vec4(wp,1.0); vViewZ=mv.z;
   gl_Position=projectionMatrix*mv;
 }`;
@@ -84,6 +118,7 @@ precision highp float;
 uniform sampler2D uPuff; uniform sampler2D uDetail; uniform float uTime;
 uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uSkyColor; uniform vec3 uGroundColor;
 uniform vec4 uLightPos[6]; uniform vec3 uLightCol[6]; uniform float uFireGain; uniform float uSoftK; uniform float uFlameGain;
+uniform highp sampler3D uVol; uniform float uVolSteps;
 ${DEPTH}
 ${FOG}
 varying vec2 vUv; varying vec4 vA; varying vec4 vB; varying vec3 vWorld; varying vec3 vR; varying vec3 vU; varying vec3 vF;
@@ -92,6 +127,35 @@ ${BLACKBODY}
 float softFade(float fadeDist){
   float sz=sceneViewZ(gl_FragCoord.xy/uRes);
   return clamp((vViewZ-sz)/max(fadeDist,0.05),0.0,1.0);
+}
+// VOLUME fire (mode 4): the box and the field, set by main, read by flameD
+vec3 gB, gEx, gEz; float gKz, gFx, gFz, gHs, gTt, gRx, gRz, gHt;
+// flame density at pu (box frame: base-relative, lean removed), > 0 inside a flame; hh = height / flame height,
+// nf = the tongue noise (brightness), ws = the slow warp field (soot)
+float gBs, gWv; // (flameD: the last sample's envelope term — how central and low it is in the fire —, its slow field)
+float flameD(vec3 pu, out float hh, out float nf, out float ws){
+  float y=pu.y; hh=max(y,0.0)/gHs;
+  float lx=dot(pu,gEx), lz=dot(pu,gEz);
+  float env=1.0-length(vec2(lx/gFx,lz/gFz));
+  float edge=max(max(abs(lx)/gRx,abs(lz)/gRz),y/gHt);
+  float base=0.9*env*(1.0-hh)+0.15-1.2*hh-smoothstep(0.82,0.98,edge)*3.0;
+  gBs=0.9*max(env,0.0)*(1.0-min(hh,1.0))+0.15-1.2*hh;
+  // rise: xi = ∫dY/v with v ≈ 1.2 m/s at the fuel, 3 m/s at 3 m. Tongues about twice as tall as wide at the fuel and at
+  // most ~3× at the top (the linear term caps the stretch: more read as vertical streaks over big fires)
+  float xi=(0.5*log(1.0+max(y,0.0)*1.25)+0.2*max(y,0.0))*gKz;
+  vec3 wq=(gB+pu)*gKz;
+  vec3 w=texture(uVol,vec3(wq.x*0.33+0.13,(xi-gTt*0.55)*0.42,wq.z*0.33+0.71)).rgb-0.5; // slow warp, rising at half speed
+  ws=w.g*2.0+0.4*env; gWv=w.g;                                       // (soot density; a tongue's own heat, ±0.5)
+  nf=0.5;
+  if(base<-1.45) return base;                                        // (no noise can lift it — but for a >2.5σ fleck: skip the lookup)
+  // flicker: the slow warp field's third channel rises at half the flames' speed, so tongues pass through stronger and
+  // weaker patches of it — they flare and fall back independently (no extra lookup)
+  float fl=w.b;
+  vec4 n=texture(uVol,vec3(wq.x*0.8+w.x*0.7,(xi-gTt)*0.6+w.y*0.35,wq.z*0.8+w.z*0.7));
+  nf=n.r;
+  // fbm bodies + ridged turbulence (creases, flamelets; weaker over big fires: bigger tongues)
+  // (the ridged channel's finest octave crinkles the flame skin at zoom 2: kept light, a little more at the tips)
+  return base+(n.r-0.5)*2.4+fl*0.45*(0.3+hh)+(n.g-0.32)*(0.1+0.3*hh)*min(1.0,gKz*1.15);
 }
 vec3 fxLights(vec3 N, float wrapK){
   vec3 fl=vec3(0.0);
@@ -127,6 +191,72 @@ void main(){
     float Tl=mix(1500.0,T+150.0,clamp(core*(0.8+0.3*n),0.0,1.0));
     vec3 em=fireEmit(Tl)*uFireGain*uFlameGain*a*soft*(1.0-fogK);
     gl_FragColor=vec4(em, 0.0);
+    return;
+  }
+  if(mode==4){
+    // VOLUME — a sustained fire raymarched through its box (art/realistic-flames; the user: "Fire looks like billboards,
+    // more volumetric please"). The flames are the inside of a turbulent density field: domain-warped fbm stretched
+    // upward (tongue bodies) + ridged turbulence (creases, flamelets), advected upward with buoyant acceleration
+    // (xi = ∫dY/v) while its warp rises at half the speed (the tongues deform as they rise, nothing scrolls), against a
+    // threshold that rises with height — solid over the fuel, separate tongues with dark gaps between them higher up,
+    // breaking off into flamelets at the top. The ray finds each tongue's surface (coarse march + bisection: crisp
+    // edges, no sampling noise), then measures how much flame it crosses behind it: thin tips are translucent and deep
+    // red, thick flame near the fuel opaque and yellow-white (up to two tongues deep). Above the flames the gas is soot,
+    // dark and lit by the fire from below. The opaque scene ends the ray (exact occlusion, soft where it touches).
+    vec3 wpos=vWorld; vec2 lean=vU.xy; float yaw=vU.z, lvl=vF.x, puff=vF.y, Hf=vF.z;
+    gB=vR; gRx=vRot.x; gRz=vRot.y; gHt=vSize; gKz=vC.x>0.0?vC.x:1.0; gFx=gRx/1.2; gFz=gRz/1.2; gTt=mod(uTime,50.0);
+    vec3 Fw=vec3(viewMatrix[0][2],viewMatrix[1][2],viewMatrix[2][2]);
+    vec3 rd=uOrtho>0.5 ? -Fw : normalize(wpos-cameraPosition);
+    gEx=vec3(cos(yaw),0.0,-sin(yaw)); gEz=vec3(sin(yaw),0.0,cos(yaw));
+    vec3 o=wpos-gB; o.xz-=lean*o.y; vec3 d=rd; d.xz-=lean*d.y;       // box frame: base-relative, lean removed
+    vec3 ol=vec3(dot(o,gEx),o.y,dot(o,gEz)), dl=vec3(dot(d,gEx),d.y,dot(d,gEz));
+    dl=(step(0.0,dl)*2.0-1.0)*max(abs(dl),vec3(1e-5));
+    vec3 ta=(vec3(-gRx,0.0,-gRz)-ol)/dl, tb=(vec3(gRx,gHt,gRz)-ol)/dl, tmn=min(ta,tb), tmx=max(ta,tb);
+    float t0=max(max(tmn.x,tmn.y),tmn.z), t1=min(min(tmx.x,tmx.y),tmx.z);
+    float tS=(sceneViewZ(gl_FragCoord.xy/uRes)-vViewZ)/dot(rd,Fw);    // where the opaque scene stops the ray
+    float tE=min(t1,tS);
+    if(tE<=t0) discard;
+    // uneven fuel: taller flames over some parts of the bed (a slow, large-scale field at the ray's entry)
+    vec3 pe=(gB+o+d*t0)*gKz;
+    float fuel=clamp((texture(uVol,vec3(pe.x*0.09,gTt*0.02,pe.z*0.09)).b-0.5)*2.5+0.5,0.0,1.0);
+    gHs=Hf*1.1*(1.0+0.15*puff)*(0.4+0.6*lvl)*(0.75+0.5*fuel);
+    float sootK=vA.b, Tc=T, dtc=clamp(0.09+0.022*Hf,0.09,0.2), ds=dtc*0.5; // (the depth samples span ~1.5 steps: smooth)
+    int N=int(clamp(ceil((tE-t0)/dtc),4.0,uVolSteps)); dtc=(tE-t0)/float(N);
+    float jit=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715)))+fract(uTime*60.0)*0.618034);
+    vec3 amb=uSkyColor*0.9+uSunColor*0.25, glow=vec3(1.0,0.36,0.09)*1.6*lvl, col=vec3(0.0);
+    float tr=1.0, t=t0+dtc*(0.2+0.6*jit), tp=t0, Dp=-1.0, hh, nf, ws; int layers=0;
+    for(int i=0;i<48;i++){
+      if(i>=N || tr<0.03 || t>=tE) break;
+      vec3 pu=o+d*t;
+      float D=flameD(pu,hh,nf,ws);
+      // soot: soft, above the flames, thick where the flames feed it, dissolving higher up
+      float sm=sootK*smoothstep(0.5,1.05,hh)*smoothstep(-0.25,0.45,ws)*(1.0-smoothstep(1.15,1.5,pu.y/Hf));
+      if(sm>0.001){ float as=1.0-exp(-sm*2.4*dtc); col+=tr*as*vec3(0.035,0.031,0.028)*(amb+glow*0.45*(1.0-smoothstep(0.7,1.3,hh))); tr*=1.0-as; }
+      if(D>0.0 && Dp<=0.0){
+        // into a tongue: its surface (3 bisection steps), then the flame the ray crosses behind it
+        float a=tp, b=t;
+        for(int k=0;k<3;k++){ float m=(a+b)*0.5; float hm,nm,wm; if(flameD(o+d*m,hm,nm,wm)>0.0) b=m; else a=m; }
+        float tau=0.0, hs=hh, bs=0.0, wv=0.0;
+        for(int k=0;k<3;k++){ float h2,n2,w2; float Dk=flameD(o+d*(b+(float(k)+0.5)*ds),h2,n2,w2); tau+=max(Dk,0.0); if(k==0){ hs=h2; bs=gBs; wv=gWv; } }
+        float soft=smoothstep(0.0,0.25,tS-b);                       // soft where it touches the geometry
+        float af=(1.0-exp(-tau*ds*16.0))*soft;
+        // temperature: hot deep in the flame near the fuel, falling with height and towards the flame's skin
+        // temperature by height in the fire and how central the flame is: yellow-white low over the fuel, orange body, deep
+        // red tips; each tongue a little hotter or cooler (the slow field: smooth across a tongue, no specks)
+        // (+ how deep the ray goes into this tongue — averaged over its 3 samples, so it follows the tongue's shape without
+        // picking out isolated specks: tongue centres hotter and brighter than their translucent edges)
+        float dep=smoothstep(0.05,0.8,tau/3.0);
+        float hot=(1.0-smoothstep(0.0,0.6,hs))*(0.4+0.6*clamp(bs,0.0,1.0));
+        float Tl=mix(1250.0,Tc,pow(clamp(hot*0.85+dep*0.3,0.0,1.0),1.2))+200.0*wv*(0.3+hot);
+        col+=tr*af*fireEmit(Tl)*uFireGain*uFlameGain*(0.62+0.55*dep)*(0.88+0.3*wv);
+        tr*=1.0-af;
+        if(++layers>=2 || af>0.55) break;                              // (a second tongue only through a translucent one)
+        t=b+3.0*ds; tp=t; Dp=flameD(o+d*t,hh,nf,ws); t+=dtc; continue;
+      }
+      Dp=D; tp=t; t+=dtc;
+    }
+    float k=vA.a*(1.0-fogK);
+    gl_FragColor=vec4(mix(col,uFogColor*(1.0-tr),fogK)*k,(1.0-tr)*k);
     return;
   }
   // SMOKE / FIRE puffs

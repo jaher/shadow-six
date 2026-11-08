@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { MODE, HOT } from './pool.js';
 import { tornShellGeometry } from './debris.js';
+import { blaze, forkRng } from './blaze.js';
 
 export const SOOT = [0.05, 0.044, 0.039], GREY = [0.32, 0.31, 0.3], DUST = [0.36, 0.3, 0.22], DIRT = [0.2, 0.15, 0.1];
 /** A drum's torn shell / lid flying off a fuel blast (debris.addHero): painted steel glowing as it cools. */
@@ -157,6 +158,76 @@ export function dirtFountain(vfx, pos, rng, o = {}) {
 
 const handle = (...parts) => ({ stop() { for (const p of parts) if (p) { if (p.stop) p.stop(); else p.stopped = true; } } });
 
+/** The sustained-fire recipes as they were before art/realistic-flames, verbatim. A blast that leaves a fire (drum,
+ *  fuel tank, tanker) runs its old fire DRY on the blast's own rng — no particles, lights, haze or decals — for `sec`
+ *  seconds (as long as the blast itself still draws from that rng), so every later draw of the blast (its secondary
+ *  fireballs, smoke burst and column) is exactly what it was: the explosions are untouched. The fire itself is the
+ *  new one (blaze.js) on its own stream. */
+const LEGACY_FIRE = {
+  burning_wreck(vfx, pos, o, rng) {
+    const [sx, sz] = o.size ?? [2.2, 5.5], dur = o.dur ?? 1e6, top = pos.clone().setY(pos.y + (o.h ?? 1.6));
+    const yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()); const lx = Math.cos(a) * q * sx * 0.42, lz = Math.sin(a) * q * sz * 0.38; return [lx * cy + lz * sy, -lx * sy + lz * cy]; };
+    const e1 = vfx.addEmitter({ dur, rate: 34, fn: () => flames(vfx, top, rng, { sampler, size: 1.25, tall: 1.15 }) });
+    const e2 = vfx.addEmitter({ dur, rate: 9, fn: () => flames(vfx, top, rng, { sampler: (r) => sampler(r).map((v) => v * 0.6), size: 1.8, tall: 1.2, tmax: 2250, puffFrac: 0.35 }) });
+    const e3 = smokeColumn(vfx, top.clone().setY(top.y + 1.8), rng, { dur, rate: 4.5, decay: 1e9, spread: 0.7, s0: 1.8, s1: 10, lmin: 13, lmax: 19, buoy: 2.6, vy: 3.5, op: 0.9, temp: 950, cool: 0.5, wisp: 0.25 });
+    const e4 = vfx.addEmitter({ dur, rate: 4, fn: () => embers(vfx, top, rng, 1, 1.0, { lmin: 2, lmax: 5 }) });
+    const fl = fireLightAndHaze(vfx, top, rng, { intensity: 110, dur, radius: 11, hazeR: 3, h: 1.4 });
+    return handle(e1, e2, e3, e4, fl);
+  },
+  fuel_pool_fire(vfx, pos, o, rng) {
+    const R = o.radius ?? 2, dur = o.dur ?? 20, fadeT = Math.min(3, dur * 0.3);
+    const lobes = Array.from({ length: 5 }, () => [rr(rng, -0.8, 0.8) * R, rr(rng, -0.8, 0.8) * R, rr(rng, 0.3, 0.65) * R]);
+    const sampler = (r) => { const L = lobes[(r() * lobes.length) | 0], a = r() * 6.283, q = Math.sqrt(r()) * L[2]; return [L[0] * 0.8 + Math.cos(a) * q, L[1] * 0.8 + Math.sin(a) * q]; };
+    const fade = (a) => Math.min(1, a / 0.3) * (a < dur - fadeT ? 1 : Math.max(0, (dur - a) / fadeT));
+    const k = Math.sqrt(R / 2);
+    const e1 = vfx.addEmitter({ dur, rate: (a) => 40 * R * fade(a), fn: () => flames(vfx, pos, rng, { sampler, size: 1.0 * k, tall: 1.2, tmin: 1650, tmax: 2100 }) });
+    const e2 = vfx.addEmitter({ dur, rate: (a) => 7 * R * fade(a), fn: () => flames(vfx, pos, rng, { sampler, size: 1.7 * k, tall: 1.25, tmin: 1700, tmax: 2050, puffFrac: 0.4, lifeK: 1.2 }) });
+    const e3 = smokeColumn(vfx, pos.clone().setY(pos.y + 2.2 * k), rng, { dur, rate: 2.2 * R * (o.smokeK ?? 1), decay: 1e9, fade, spread: 0.4 * R, s0: 1.5 * k, s1: 7.5 * k, lmin: 10, lmax: 16, buoy: 2.8, vy: 3.5, temp: 1000, cool: 0.5 });
+    const e4 = vfx.addEmitter({ dur, rate: (a) => 3 * R * fade(a), fn: () => embers(vfx, pos, rng, 1, 0.7 * R) });
+    const fl = fireLightAndHaze(vfx, pos, rng, { intensity: 60 * R, dur, radius: 5 * R, fade, hazeR: 1.5 * R, haze: 1.3 });
+    for (const L of lobes) vfx.decal(V3(pos.x + L[0] * 0.8, 0, pos.z + L[1] * 0.8), L[2] * 2.6, 'fuel', { rot: rng() * 6, fade: 2 });
+    return handle(e1, e2, e3, e4, fl);
+  },
+  fuel_tank_fire(vfx, pos, o, rng) {
+    const [sw, sl] = o.size ?? [2.4, 7], dur = o.dur ?? 60, yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const fadeT = Math.min(6, dur * 0.25), fade = (a) => Math.min(1, a / 0.4) * (a < dur - fadeT ? 1 : Math.max(0, (dur - a) / fadeT));
+    const rot = (lx, lz) => [lx * cy + lz * sy, -lx * sy + lz * cy];
+    const ell = (kx, kz) => (r) => { const a = r() * 6.283, q = Math.sqrt(r()); return rot(Math.cos(a) * q * sw * kx, Math.sin(a) * q * sl * kz); };
+    const top = pos.clone().setY(pos.y + (o.h ?? 2) * 0.75), base = pos.clone();
+    const R = o.poolR ?? Math.max(sw, sl) * 0.4, k = Math.sqrt(Math.max(1, R) / 2);
+    const tongue = { lean: 0.12, tall: 0.42, w1: 1.35, tmin: 1700, tmax: 2150, puffFrac: 0.06, lifeK: 0.9 };
+    // tongues from the rupture along the shell top, and from the pool ring at the base
+    const e1 = vfx.addEmitter({ dur, rate: (a) => 40 * k * fade(a), fn: () => flames(vfx, top, rng, { ...tongue, sampler: ell(0.32, 0.4), size: 1.2 * k }) });
+    const e2 = vfx.addEmitter({ dur, rate: (a) => 46 * k * fade(a), fn: () => flames(vfx, base, rng, { ...tongue, sampler: ell(0.62, 0.58), size: 1.0 * k, tall: 0.38 }) });
+    // flame sheets: wide, slow, hot puffs low in the fire (the body the tongues lick out of)
+    const sheet = (at, smp, sz) => () => {
+      const [dx, dz] = smp(rng);
+      vfx.emit({ x: at.x + dx, y: at.y + 0.35 * sz, z: at.z + dz, vx: rr(rng, -0.15, 0.15), vy: rr(rng, 0.4, 1.0), vz: rr(rng, -0.15, 0.15),
+        life: rr(rng, 0.7, 1.2), s0: rr(rng, 0.9, 1.3) * sz, s1: rr(rng, 1.6, 2.2) * sz, drag: 2.2, buoy: rr(rng, 1.2, 2.0),
+        ...mixCol(SOOT, rng), op: 0.75, temp: rr(rng, 1650, 1950), cool: rr(rng, 0.5, 0.8), noise: 0.4, rot: rr(rng, -1, 1),
+        mode: MODE.FIRE, wind: 0.25, seed: rng(), erode: 0.12, fin: 0.12 });
+    };
+    const e3 = vfx.addEmitter({ dur, rate: (a) => 12 * k * fade(a), fn: sheet(top, ell(0.28, 0.35), 1.2 * k) });
+    const e4 = vfx.addEmitter({ dur, rate: (a) => 10 * k * fade(a), fn: sheet(base, ell(0.55, 0.5), 1.0 * k) });
+    const e5 = vfx.addEmitter({ dur, rate: (a) => 2.5 * k * fade(a), fn: () => embers(vfx, top, rng, 1, 0.8 * k, { lmin: 1.5, lmax: 3.5, size: 0.03 }) });
+    const e6 = smokeColumn(vfx, top.clone().setY(top.y + 1.6 * k), rng, { dur, rate: 3.2 * k * (o.smokeK ?? 1), decay: 1e9, fade, spread: 0.6 * k,
+      s0: 1.8 * k, s1: 9 * k, lmin: 12, lmax: 18, buoy: 2.7, vy: 3.5, op: 0.9, temp: 950, cool: 0.5, wisp: 0.25 });
+    const fl = fireLightAndHaze(vfx, top, rng, { intensity: 90 * k, dur, radius: 10 * k, fade, hazeR: 2.5 * k, h: 1.2 });
+    vfx.decal(base, R * 2.4, 'fuel', { rot: rng() * 6, fade: 2 });
+    return handle(e1, e2, e3, e4, e5, e6, fl);
+  },
+};
+/** The library seen by a dry run: it draws and schedules as usual but emits nothing (emitters it adds end after `sec`). */
+const dryOf = (vfx, sec = 1e9) => Object.create(vfx, { emit: { value: () => -1 }, light: { value: (q) => q }, heatSource: { value: (q) => q },
+  decal: { value: () => null }, addEmitter: { value: (e) => { e.dur = Math.min(e.dur, sec); return vfx.addEmitter(e); } } });
+/** explosion_large's residual ground fire turns into a sustained fire this long after the blast (its fireball is soot by then). */
+export const RESIDUAL_CUT = 2.5;
+function blastFire(kind, vfx, pos, o, rng, sec) {
+  LEGACY_FIRE[kind](dryOf(vfx, sec), pos, o, rng);
+  return RECIPES[kind](vfx, pos, o, forkRng(pos, vfx.time, kind.length));
+}
+
 export const RECIPES = {
   /** Blown-out window panes (bodies-design §A.8): pale glass chips thrown out of the frame (debris: 2 s, no CCD). */
   glass_shards(vfx, pos, o, rng) {
@@ -189,8 +260,12 @@ export const RECIPES = {
     shockwave(vfx, pos, rng, 22 * s, Math.round(60 * s), 1.6 * s, surf(o).dust);
     vfx.decal(pos, 13 * s, 'scorch', { rot: rng() * 6 });
     vfx.heatSource({ pos: up(4 * s), radius: 7 * s, dur: 16, strength: 1.3, fn: (a) => Math.exp(-a / 6) });
-    const burn = pos.clone(); // residual burning debris field
-    vfx.addEmitter({ dur: 18, rate: (a) => 30 * s * Math.exp(-a / 7), fn: () => flames(vfx, burn, rng, { rx: 2.5 * s, rz: 2.5 * s, size: 0.8 }) });
+    // residual burning debris field: the blast's own tongues for its first RESIDUAL_CUT s, then the ground keeps burning
+    // as a sustained fire (art/realistic-flames); the old emitter keeps drawing the blast's rng, dry, so the rest of the
+    // blast (its column, light, haze) is exactly what it was
+    const burn = pos.clone(), dryV = dryOf(vfx);
+    vfx.addEmitter({ dur: 18, rate: (a) => 30 * s * Math.exp(-a / 7), fn: (a) => flames(a < RESIDUAL_CUT ? vfx : dryV, burn, rng, { rx: 2.5 * s, rz: 2.5 * s, size: 0.8 }) });
+    vfx.at(RESIDUAL_CUT, () => RECIPES._residual_fire(vfx, burn, { scale: s }, forkRng(burn, vfx.time, 3)));
     fireLightAndHaze(vfx, burn, rng, { intensity: 90 * s, dur: 18, fade: (a) => Math.exp(-a / 7), radius: 10 });
     vfx.addShake(1.1 * s);
     vfx.blast(pos, 14 * s, rng);
@@ -232,44 +307,38 @@ export const RECIPES = {
     vfx.blast(pos, 4 * s, rng);
   },
 
-  /** E3 persistent burning wreck. opts: {size:[x,z] (m), h: height of the burning top (m), dur, yaw} */
+  /** E3 persistent burning wreck: a volumetric fire (blaze.js) over the wreck top (oriented footprint, `h` = top height).
+   *  opts: {size:[x,z] (m), h (m), dur, burn (s the game burns it; the fire dies down towards it — default dur when
+   *  finite), yaw, fuel 'oil' (vehicles, guns) | 'wood' (buildings)} */
   burning_wreck(vfx, pos, o, rng) {
     const [sx, sz] = o.size ?? [2.2, 5.5], dur = o.dur ?? 1e6, top = pos.clone().setY(pos.y + (o.h ?? 1.6));
     const yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()); const lx = Math.cos(a) * q * sx * 0.42, lz = Math.sin(a) * q * sz * 0.38; return [lx * cy + lz * sy, -lx * sy + lz * cy]; };
-    const e1 = vfx.addEmitter({ dur, rate: 34, fn: () => flames(vfx, top, rng, { sampler, size: 1.25, tall: 1.15 }) });
-    const e2 = vfx.addEmitter({ dur, rate: 9, fn: () => flames(vfx, top, rng, { sampler: (r) => sampler(r).map((v) => v * 0.6), size: 1.8, tall: 1.2, tmax: 2250, puffFrac: 0.35 }) });
-    const e3 = smokeColumn(vfx, top.clone().setY(top.y + 1.8), rng, { dur, rate: 4.5, decay: 1e9, spread: 0.7, s0: 1.8, s1: 10, lmin: 13, lmax: 19, buoy: 2.6, vy: 3.5, op: 0.9, temp: 950, cool: 0.5, wisp: 0.25 });
-    const e4 = vfx.addEmitter({ dur, rate: 4, fn: () => embers(vfx, top, rng, 1, 1.0, { lmin: 2, lmax: 5 }) });
-    const fl = fireLightAndHaze(vfx, top, rng, { intensity: 110, dur, radius: 11, hazeR: 3, h: 1.4 });
-    return handle(e1, e2, e3, e4, fl);
+    return blaze(vfx, rng, { at: top, sampler, box: { rx: sx * 0.42, rz: sz * 0.38, yaw }, D: Math.sqrt(sx * sz), dur, burn: o.burn ?? (dur < 1e5 ? dur : 0), hold: 0.65, fuel: o.fuel ?? 'oil', ramp: 1.5 });
   },
 
-  /** Campfire / small fire (wood): short tongues, embers, thin grey-white wood smoke plume. */
+  /** Campfire / small fire (wood): a small volumetric fire (short licks over a glowing bed), embers, a thin grey-white wood-smoke
+   *  plume (the chimney recipe), scorch. opts {scale, dur} (a finite dur dies down towards its end) */
   fire_small(vfx, pos, o, rng) {
     const s = o.scale ?? 1, dur = o.dur ?? 1e6;
-    const e1 = vfx.addEmitter({ dur, rate: 18 * s, fn: () => flames(vfx, pos, rng, { rx: 0.25 * s, rz: 0.25 * s, size: 0.62 * s, tall: 1.0, puffFrac: 0.12, tmin: 1500, tmax: 1950 }) });
+    const f = blaze(vfx, rng, { at: pos, D: 0.55 * s, L: 0.85 * s, W: 0.42 * s, dur, burn: dur < 1e5 ? dur : 0, fuel: 'wood', ramp: 0.6, smoke: false,
+      intensity: 14 * s, radius: 6, hazeR: 0.8, haze: 0.7, lean: 0.8, tips: 0.35 });
     const e2 = RECIPES.chimney_smoke(vfx, pos.clone().setY(pos.y + 0.9 * s), { dur, rate: 8, col: [0.55, 0.55, 0.57], op: 0.24, s1: 2.6, vary: false, ambient: false }, rng);
-    const e3 = vfx.addEmitter({ dur, rate: 2, fn: () => embers(vfx, pos, rng, 1, 0.15, { lmin: 1, lmax: 3, size: 0.03 }) });
-    const fl = fireLightAndHaze(vfx, pos, rng, { intensity: 14 * s, dur, radius: 6, hazeR: 0.8, h: 0.7, haze: 0.7, color: [1, 0.5, 0.18] });
-    vfx.decal(pos, 1.3 * s, 'scorch', { rot: rng() * 6, fade: 1 });
-    return handle(e1, e2, e3, fl);
+    // (a short flare-up — M15's smouldering ruin spawns one every few seconds — leaves no scorch: the decals are a ring of
+    // 128 and would push out the blasts' and the bodies')
+    if (dur > 10) vfx.decal(pos, 1.3 * s, 'scorch', { rot: rng() * 6, fade: 1 });
+    return handle(f, e2);
   },
 
-  /** Burning fuel spill: irregular lobed pool of tall tongues under a black column. opts {radius, dur} */
+  /** Burning fuel spill: an irregular lobed pool (5 lobes) of volumetric flames under a black column; it dies down over
+   *  its second half (lower, redder, sootier) and smoulders out. opts {radius, dur, smokeK, hold (fraction of dur at full height), tall} */
   fuel_pool_fire(vfx, pos, o, rng) {
-    const R = o.radius ?? 2, dur = o.dur ?? 20, fadeT = Math.min(3, dur * 0.3);
+    const R = o.radius ?? 2, dur = o.dur ?? 20;
     const lobes = Array.from({ length: 5 }, () => [rr(rng, -0.8, 0.8) * R, rr(rng, -0.8, 0.8) * R, rr(rng, 0.3, 0.65) * R]);
     const sampler = (r) => { const L = lobes[(r() * lobes.length) | 0], a = r() * 6.283, q = Math.sqrt(r()) * L[2]; return [L[0] * 0.8 + Math.cos(a) * q, L[1] * 0.8 + Math.sin(a) * q]; };
-    const fade = (a) => Math.min(1, a / 0.3) * (a < dur - fadeT ? 1 : Math.max(0, (dur - a) / fadeT));
-    const k = Math.sqrt(R / 2);
-    const e1 = vfx.addEmitter({ dur, rate: (a) => 40 * R * fade(a), fn: () => flames(vfx, pos, rng, { sampler, size: 1.0 * k, tall: 1.2, tmin: 1650, tmax: 2100 }) });
-    const e2 = vfx.addEmitter({ dur, rate: (a) => 7 * R * fade(a), fn: () => flames(vfx, pos, rng, { sampler, size: 1.7 * k, tall: 1.25, tmin: 1700, tmax: 2050, puffFrac: 0.4, lifeK: 1.2 }) });
-    const e3 = smokeColumn(vfx, pos.clone().setY(pos.y + 2.2 * k), rng, { dur, rate: 2.2 * R * (o.smokeK ?? 1), decay: 1e9, fade, spread: 0.4 * R, s0: 1.5 * k, s1: 7.5 * k, lmin: 10, lmax: 16, buoy: 2.8, vy: 3.5, temp: 1000, cool: 0.5 });
-    const e4 = vfx.addEmitter({ dur, rate: (a) => 3 * R * fade(a), fn: () => embers(vfx, pos, rng, 1, 0.7 * R) });
-    const fl = fireLightAndHaze(vfx, pos, rng, { intensity: 60 * R, dur, radius: 5 * R, fade, hazeR: 1.5 * R, haze: 1.3 });
+    const f = blaze(vfx, rng, { at: pos, sampler, box: { rx: 0.95 * R, rz: 0.95 * R, yaw: rng() * 6.283 }, D: 1.7 * R, L: (o.tall ?? 1) * 1.5 * (1.7 * R) ** 0.72, dur, burn: dur, hold: o.hold ?? 0.5, fuel: 'oil', ramp: 0.35, smokeK: o.smokeK ?? 1, y0: 0.02 });
     for (const L of lobes) vfx.decal(V3(pos.x + L[0] * 0.8, 0, pos.z + L[1] * 0.8), L[2] * 2.6, 'fuel', { rot: rng() * 6, fade: 2 });
-    return handle(e1, e2, e3, e4, fl);
+    return handle(f);
   },
 
   /** Generic persistent smoke column. opts {color:'black'|'grey'|'white'|[r,g,b], rate, dur, scale} */
@@ -488,7 +557,9 @@ export const RECIPES = {
     chunks(vfx, pos, rng, Math.round(14 * s), { vmin: 5, vmax: 16, smin: 0.06, smax: 0.18, trail: 0.4, burn: 0.3, colors: [[0.24, 0.28, 0.16], [0.12, 0.1, 0.08]] });
     // burning fuel spill
     const poolDur = o.poolDur ?? 10;
-    vfx.at(0.15, () => RECIPES.fuel_pool_fire(vfx, pos, { radius: (chain ? 1.1 : 1.5) * s, dur: poolDur, smokeK: ck }, rng));
+    // (the drum's own last draw is its smoke burst at 0.45 s: the old spill runs dry until then — a tanker's drums share
+    // the tanker's rng with its 20 s column, so it passes dryFor: the whole spill)
+    vfx.at(0.15, () => blastFire('fuel_pool_fire', vfx, pos, { radius: (chain ? 1.1 : 1.5) * s, dur: poolDur, smokeK: ck }, rng, o.dryFor ?? 0.4));
     vfx.decal(pos, 5 * s, 'scorch', { rot: rng() * 6 });
     sparks(vfx, up(0.6 * s), rng, Math.round(110 * s * ck), { vmin: 8, vmax: 26, tmin: 1800, tmax: 2500 });
     embers(vfx, up(2 * s), rng, Math.round(50 * s), 1.5 * s, { lmin: 3, lmax: 7 });
@@ -511,42 +582,28 @@ export const RECIPES = {
     }));
     sparks(vfx, up(1.2), rng, Math.round(30 * s), { vmin: 5, vmax: 14, lmin: 0.3, lmax: 0.9, stretch: 0.012 });
     embers(vfx, up(2), rng, Math.round(40 * s), 1.6 * s, { lmin: 3, lmax: 7 });
-    vfx.at(0.35, () => RECIPES.fuel_tank_fire(vfx, pos, o, rng));
+    vfx.at(0.35, () => blastFire('fuel_tank_fire', vfx, pos, o, rng, 21)); // (its explosion_large column draws for 20 s)
     vfx.decal(pos, Math.max(size[0], size[1]) * 0.9, 'scorch', { rot: yaw });
     vfx.addShake(0.6 * s);
     vfx.blast(pos, (o.chainRadius ?? 8) * s, rng);
   },
 
-  /** Licking fire of a burst fuel tank: short, upright flame tongues (little wind lean, no streaks) rising from the
-   *  ruptured shell and from the burning pool around its base, wide flame sheets low in the fire for body, embers,
-   *  and the dark smoke column. opts {size:[w,d] (long axis d), yaw, h (top of the wreck), dur, poolR, smokeK} */
+  /** Fire of a burst fuel tank: volumetric flames rising from the ruptured shell and from the burning pool round its base
+   *  (one breathing fire: both beds share their puffing), the dark column, embers, light; it dies down over its last
+   *  40 % and smoulders out. opts {size:[w,d] (long axis d), yaw, h (top of the wreck), roof (structure height), dur, poolR, smokeK} */
   fuel_tank_fire(vfx, pos, o, rng) {
     const [sw, sl] = o.size ?? [2.4, 7], dur = o.dur ?? 60, yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const fadeT = Math.min(6, dur * 0.25), fade = (a) => Math.min(1, a / 0.4) * (a < dur - fadeT ? 1 : Math.max(0, (dur - a) / fadeT));
     const rot = (lx, lz) => [lx * cy + lz * sy, -lx * sy + lz * cy];
     const ell = (kx, kz) => (r) => { const a = r() * 6.283, q = Math.sqrt(r()); return rot(Math.cos(a) * q * sw * kx, Math.sin(a) * q * sl * kz); };
-    const top = pos.clone().setY(pos.y + (o.h ?? 2) * 0.75), base = pos.clone();
-    const R = o.poolR ?? Math.max(sw, sl) * 0.4, k = Math.sqrt(Math.max(1, R) / 2);
-    const tongue = { lean: 0.12, tall: 0.42, w1: 1.35, tmin: 1700, tmax: 2150, puffFrac: 0.06, lifeK: 0.9 };
-    // tongues from the rupture along the shell top, and from the pool ring at the base
-    const e1 = vfx.addEmitter({ dur, rate: (a) => 40 * k * fade(a), fn: () => flames(vfx, top, rng, { ...tongue, sampler: ell(0.32, 0.4), size: 1.2 * k }) });
-    const e2 = vfx.addEmitter({ dur, rate: (a) => 46 * k * fade(a), fn: () => flames(vfx, base, rng, { ...tongue, sampler: ell(0.62, 0.58), size: 1.0 * k, tall: 0.38 }) });
-    // flame sheets: wide, slow, hot puffs low in the fire (the body the tongues lick out of)
-    const sheet = (at, smp, sz) => () => {
-      const [dx, dz] = smp(rng);
-      vfx.emit({ x: at.x + dx, y: at.y + 0.35 * sz, z: at.z + dz, vx: rr(rng, -0.15, 0.15), vy: rr(rng, 0.4, 1.0), vz: rr(rng, -0.15, 0.15),
-        life: rr(rng, 0.7, 1.2), s0: rr(rng, 0.9, 1.3) * sz, s1: rr(rng, 1.6, 2.2) * sz, drag: 2.2, buoy: rr(rng, 1.2, 2.0),
-        ...mixCol(SOOT, rng), op: 0.75, temp: rr(rng, 1650, 1950), cool: rr(rng, 0.5, 0.8), noise: 0.4, rot: rr(rng, -1, 1),
-        mode: MODE.FIRE, wind: 0.25, seed: rng(), erode: 0.12, fin: 0.12 });
-    };
-    const e3 = vfx.addEmitter({ dur, rate: (a) => 12 * k * fade(a), fn: sheet(top, ell(0.28, 0.35), 1.2 * k) });
-    const e4 = vfx.addEmitter({ dur, rate: (a) => 10 * k * fade(a), fn: sheet(base, ell(0.55, 0.5), 1.0 * k) });
-    const e5 = vfx.addEmitter({ dur, rate: (a) => 2.5 * k * fade(a), fn: () => embers(vfx, top, rng, 1, 0.8 * k, { lmin: 1.5, lmax: 3.5, size: 0.03 }) });
-    const e6 = smokeColumn(vfx, top.clone().setY(top.y + 1.6 * k), rng, { dur, rate: 3.2 * k * (o.smokeK ?? 1), decay: 1e9, fade, spread: 0.6 * k,
-      s0: 1.8 * k, s1: 9 * k, lmin: 12, lmax: 18, buoy: 2.7, vy: 3.5, op: 0.9, temp: 950, cool: 0.5, wisp: 0.25 });
-    const fl = fireLightAndHaze(vfx, top, rng, { intensity: 90 * k, dur, radius: 10 * k, fade, hazeR: 2.5 * k, h: 1.2 });
-    vfx.decal(base, R * 2.4, 'fuel', { rot: rng() * 6, fade: 2 });
-    return handle(e1, e2, e3, e4, e5, e6, fl);
+    // (the burst shell burns up through its frame: the upper bed sits at the top of the structure — M8's tanks are roofed by
+    // their walkway deck at 4.5 m — so the flames rise over it, as in footage of tank-farm fires)
+    const top = pos.clone().setY(pos.y + Math.max((o.h ?? 2) * 0.75, (o.roof ?? 0) - 0.3)), R = o.poolR ?? Math.max(sw, sl) * 0.4;
+    const D = Math.sqrt(sw * sl) * 0.75, ph = rng() * 6.283, f = Math.min(2.4, Math.max(0.6, 1.5 / Math.sqrt(D)));
+    const a = blaze(vfx, rng, { at: top, sampler: ell(0.32, 0.4), box: { rx: sw * 0.32, rz: sl * 0.4, yaw }, D, dur, burn: dur, hold: 0.6, fuel: 'oil', ramp: 0.6, f, ph, smokeK: o.smokeK ?? 1 });
+    const b = blaze(vfx, rng, { at: pos, sampler: ell(0.62, 0.58), box: { rx: sw * 0.5, rz: sl * 0.5, yaw }, D: Math.max(D, R), L: 0.9 * R ** 0.72, dur, burn: dur, hold: 0.6, fuel: 'oil', ramp: 0.9, f, ph,
+      smoke: false, light: false, density: 0.8 });
+    vfx.decal(pos, R * 2.4, 'fuel', { rot: rng() * 6, fade: 2 });
+    return handle(a, b);
   },
 
   /** E6b: Opel Blitz fuel tanker (~3,000 L). Sequential ruptures along the tank + big spill + burning wreck. opts {yaw, dur} */
@@ -554,8 +611,22 @@ export const RECIPES = {
     const yaw = o.yaw ?? 0, ax = V3(Math.sin(yaw), 0, Math.cos(yaw));
     const size = o.size ?? [2.3, 6], span = Math.max(1.6, size[1] * 0.27);   // opts {scale, size, h}: fuel-tank structures (fx.js)
     RECIPES.explosion_large(vfx, pos.clone().setY(pos.y + 1.5), { scale: o.scale ?? 1.2, dur: 20, surface: o.surface }, rng);
-    [-span, 0, span].forEach((k, i) => vfx.at(0.18 + i * 0.22, () => RECIPES.barrel_explosion(vfx, pos.clone().addScaledVector(ax, k), { scale: 1.7, poolDur: 16, color: 0x39402a, chainRadius: 10 }, rng)));
-    vfx.at(1.5, () => RECIPES.burning_wreck(vfx, pos, { size, dur: o.dur ?? 60, h: o.h ?? 1.4, yaw }, rng));
+    [-span, 0, span].forEach((k, i) => vfx.at(0.18 + i * 0.22, () => RECIPES.barrel_explosion(vfx, pos.clone().addScaledVector(ax, k), { scale: 1.7, poolDur: 16, color: 0x39402a, chainRadius: 10, dryFor: 16 }, rng)));
+    // the burning wreck (the blast's rng is still drawn by its column for 20 s); the returned handle stops it (fx.js:
+    // the game's 'fire' off), also before it has started
+    const fire = { h: null, stopped: false, stop() { this.stopped = true; this.h?.stop(); } };
+    vfx.at(1.5, () => { fire.h = blastFire('burning_wreck', vfx, pos, { size, dur: o.dur ?? 60, h: o.h ?? 1.4, yaw, burn: o.burn }, rng, 19); if (fire.stopped) fire.h.stop(); });
+    return fire;
+  },
+
+  /** explosion_large's burning debris field after RESIDUAL_CUT: low volumetric flames over the blast disc, dying
+   *  away with the blast's own residual light (exp(-t/7), 18 s); the blast keeps its smoke, light and haze. */
+  _residual_fire(vfx, pos, o, rng) {
+    const s = o.scale ?? 1, t0 = RESIDUAL_CUT, R = 2.5 * s;
+    const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()) * R; return [Math.cos(a) * q, Math.sin(a) * q]; };
+    // (it dies away like the blast's residual light, exp(-t/7): held briefly, down to a smoulder by 13 s, out at 18 s)
+    return blaze(vfx, rng, { at: pos, sampler, box: { rx: 0.8 * R, rz: 0.8 * R, yaw: 0 }, D: 2.4 * s, L: 1.5 * s, W: 0.85 * s, dur: 18 - t0, fuel: 'wood', smoke: false, light: false, y0: -0.1,
+      ramp: 0.5, burn: 18 - t0, hold: 0.1 });
   },
 
   /** Debris smoke trails in flight; smouldering fire+smoke once resting. */

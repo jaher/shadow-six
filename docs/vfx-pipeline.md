@@ -77,9 +77,9 @@ against world surfaces in every theater.
 | `grenade` (E2) | NO fireball. 50 ms flash + 1-frame light, **dirt fountain**: 16 ballistic jets (10–18 m/s, cone ≤ 0.5 rad) of velocity-stretched dark clods (surface-dependent colour) plus 22 instanced clods. Grey-brown dust body (delayed 60 ms so the jets read first), dust skirt, crater decal |
 | `barrel_explosion` (E6, hero) | Rupture flash, sooty fuel fireball (1700–2300 K, strong buoyancy → rolling mushroom in 3 waves), torn shell + lid (hero meshes, tumbling, smouldering flames when resting, glowing edges decay), chunks, then `fuel_pool_fire`. Chained barrels (`chainFrom`) get 60% fireball, no extra smoke burst and a smaller pool, so a 4-drum chain does not fog the screen |
 | `tanker_explosion` | E1 (×1.2) + 3 sequential barrel ruptures along the tank + a 60 s `burning_wreck` |
-| `burning_wreck` (E3) | Flame tongues sampled on the wreck **top** (oriented footprint, `h` = top height): 34/s normal + 9/s large, so the flames rise 1.5–3 m above the hull instead of hiding inside it. Soot column (narrow base, widening, wind-bent), embers, flickering light + haze. Returns a handle |
-| `fuel_pool_fire` | 5 random lobes (irregular pool), tall tongues (40·R/s) + large tongues with detaching hot puffs, black column, embers, light, haze, dark fuel-stain decals |
-| `fire_small` | Campfire: short tongues, embers, thin grey-white wood-smoke plume (the chimney recipe), 14 cd flicker light, scorch |
+| `burning_wreck` (E3) | A sustained volumetric fire (below) on the wreck **top** (oriented footprint, `h` = top height), sized by the footprint; `fuel` oil (vehicles, guns: black smoke) or wood (buildings); dies down towards `burn` (vehicles: the game's 20 s wreck burn; structures: their 60 s). Returns a handle |
+| `fuel_pool_fire` | A volumetric fire over 5 random lobes (irregular pool), black column, embers, light, haze, dark fuel-stain decals; dies down over its second half (`hold`). M17's burning spill (a legacy `fire` with a radius) is one, 4.5 m and 120 s |
+| `fire_small` | Campfire: a small volumetric timber fire, embers, thin grey-white wood-smoke plume (the chimney recipe), 14 cd breathing light, scorch (not for flare-ups under 10 s) |
 | `chimney_smoke` (E4) | **Ambient** (own pool, readability-limited, §6.4). A thin, continuous plume anchored on the stack top: ~32 faint wisps/s × `activity` (0 cold · 0.45 faint · 1 · 1.5 busy) with a slow draught/stoking modulation (periods 60–140 s). Stack-sized at birth (0.3–0.38 m, born within 12 cm above the stack, 0.12 s fade-in) → ~0.9 m; leave at 1.3–1.6 m/s, rise on buoyancy, bend over with `world.wind` (mean + gust fronts in the shader) and dilute within ~6–10 m of rise in calm air, sooner and flatter in wind (life × 0.45–1; opacity × up to 1.45 in wind so the longer, more diluted plume still reads). One coherent curl-noise field for all ambient wisps whose amplitude grows slowly with age (narrow at the stack, meanders and tears further out); velocity-stretched wisp cells with soft rims; alpha ∝ (1 − age)^1.6. Shading is smooth only (soft dome normal, density self-shadow, Henyey-Greenstein forward scatter on thin edges, bluer as it ages): atlas normal detail on wisps a few dozen pixels wide read as grain and boiled. Light bluish-grey (snow albedo [0.27, 0.3, 0.38], displayed a little darker than the snow; elsewhere [0.33, 0.34, 0.38]) |
 | `smoke_column` | Generic persistent column (`color: black/grey/white`) |
 | `smoke_puff` | Rifle / impact smoke: 5 small torn wisps along `dir` |
@@ -98,6 +98,57 @@ profile and distorts it with two upward-scrolling octaves of the tileable detail
 the top into separate licks. Colour comes from a blackbody ramp (1500 K rim → 1750–2300 K core), and the
 tongue is emissive only (no soot on the tongue itself, which avoided dark "holes"). Many short-lived
 (0.45–0.9 s) overlapping tongues give the flicker.
+Since art/realistic-flames these tongues remain only in the explosions (the residual field of `explosion_large`,
+smouldering debris): the explosions are kept exactly as they were.
+
+**Sustained fire** (`MODE.VOLUME`, `vfx/blaze.js`; the user, 2026-11-08: "Don't touch the explosions but when things
+are in flames, flames should look more realistic", then "Fire looks like billboards, more volumetric please"). Everything
+left burning — `burning_wreck` (vehicles, buildings, guns), `fuel_pool_fire` (drums, the M8 rack store, spills),
+`fuel_tank_fire`, `fire_small`, an explosion's burning ground after its first 2.5 s — is one `blaze()` fire:
+- **The flames are a raymarched volume.** Each fuel bed is one particle whose quad covers the screen rectangle of a box
+  over the footprint (half-size rx × rz turned by the wreck's yaw, height 1.6 × the flame height, sheared downwind by
+  one fire-level lean ≤ 24°). Inside it the flames are where a turbulent density field is positive: domain-warped fbm
+  stretched upward (tongue bodies) plus ridged turbulence (creases, flamelets), advected upward with buoyant
+  acceleration (material coordinate `xi = ∫dY/v`, v ≈ 1.3 m/s at the fuel and 4 m/s at 3 m; one world-coherent field;
+  the stretch it gives the eddies is capped at ~5×, ~10× read as vertical streaks over big fires) while the warp
+  rises at half the speed — the tongues deform and break up as they rise instead of scrolling — against a threshold
+  that rises with height and falls off from the footprint's centre: solid over the fuel, separate tongues with dark gaps
+  higher up (from about a third of the way up), flamelets breaking off at the top, the box faces never reached; the
+  eddies scale with the fire (∝ D^½: a burning gun or house shows bigger tongues than a truck). The ray marches the box (steps of
+  0.09–0.2 m, at most 16 / 24 / 34 / 44 on low / medium / high / ultra) to each tongue's surface, finds it by bisection
+  (crisp edges without sampling noise), and measures the flame it crosses behind it (3 short samples): thin tips are
+  translucent, thick flame near the fuel opaque; up to two tongues deep. Temperature: a small yellow-white core low over
+  the fuel and in the fire's middle, orange body, deep red tips, through the display-fitted `fireEmit` ramp; within a
+  tongue its centre is hotter and brighter than its edges (the ray's depth into it, averaged over its samples: no
+  glitter), and each tongue is a little hotter or cooler than its neighbours (a slow field). Tongues flare and fall back
+  independently (~1 Hz, a slow field over the bed) on top of the whole fire's breathing. Above the flames the gas is soft soot, dark, lit
+  orange from below. The ray ends at the opaque scene, softly where it touches (0.25 m), so flames sit in and around
+  the cab, the roof beams, the deck, and the shape changes with the camera yaw. The noise is a 64³ tileable 3D texture
+  (3 octaves of periodic gradient noise: fbm, ridged turbulence, warp; 1 MB) baked at load; two lookups per sample, none
+  where the envelope rules any flame out.
+- **One particle per bed at a time**, re-emitted every 4 s (handed over in the same sim step: never a frame with two or
+  none, and it comes back after a budget recycle); it carries the fire's age and burn curve, so the shader computes the
+  burn level (the same `blazeLevel` as the CPU, checked by a unit test) and the box shrinks as the fire dies down.
+- **Breathing**: a fire-level puffing curve (~1.5/√D Hz, three incommensurate sines, `blazePuff`) lifts and lowers the
+  flames; the same curve drives the fire light. An uneven fuel bed (a slow, large-scale field) makes some parts burn taller.
+- **Tip puffs** (`MODE.FIRE`): born red-orange in the upper flames, they cool into soot within ~1 s — the flame tips
+  turning into smoke, the column's base glowing from below.
+- **Soot column**: lumpy billows of varied soot (oil and rubber black-brown, timber brown-grey), rising, rolling and
+  widening with the wind; it thins less than the flames as the fire dies.
+- **Embers** drifting up (timber ×3 oil), a deep-orange **light** (42·D^0.9 cd, ≤ 230; never within 2 m of the burning
+  top: closer it burns a white spot into it) above the flames that breathes with them (±28 % on the puffing, ±12 % fast) and wanders a little (its lit pool
+  moves), **heat shimmer** above the flames (a fire haze source: its own wrapped, scrolling noise in the composite).
+- **Lifecycle** (`blazeLevel`): catches over `ramp` s; with a known burn time (structures 60 s, vehicles the game's
+  `wreckBurn` 20 s, spills, tanks, short flare-ups) it holds to `hold`·burn (wrecks 65 %) and then dies down — lower,
+  fewer, redder flames, relatively more smoke, a dimmer light — to a smoulder (12 % at 0.86·burn, 8 % at the end).
+- **Sizes from the fuel**: fire diameter `D` (√ footprint area), flame height `L = 1.15·D^0.72` (a truck ≈ 3 m above the
+  hull, a building ≈ 5 m; spills `1.5·D^0.72`), eddies scaled by √(3.5/D). Counts go through the emitters (quality
+  density × budget pressure); the march steps follow the tier.
+- **The explosions stay byte-identical.** Fires spawned inside a blast (a drum's spill, a fuel tank's fire, a tanker's
+  wreck) used the blast's own random stream; the old recipe now runs DRY on that stream (no particles, lights, haze or
+  decals) for as long as the blast still draws from it, and the new fire has its own stream (`forkRng`).
+  `tests/unit/flames.test.mjs` hashes every blast's particles, light and haze curves, decals, debris and shake over 26 s
+  against the pre-change baseline.
 
 **Mantaflow flame atlas.** The tall-domain re-sim was run as the judges asked: `--kind tongue`, domain
 2.5×2.5×5 m at 128×128×256, no wall contact, 110 frames, packed as `fx/tongue_*`. It gave compact
@@ -231,7 +282,7 @@ In node tests there is no WebGL renderer. The adapter still maps every event and
 |---|---|
 | `explosion` `bomb` | `explosion_large` (scale r/9) |
 | `explosion` `shell` / `grenade` | `explosion_small` / `grenade` (dirt fountain; the surface comes from the terrain cell: sand, snow, grass, mud or dirt) |
-| `explosion` `barrel` (a Barrel entity) | `barrel_explosion` (torn shell, lid, fuel pool fire). A drum set off within 8 m and 2.5 s of another blast gets the lighter `chainFrom` look. The chain itself is gameplay (`Barrel.ignite`, 0.2 s). Drums are registered with `vfx.addExplosive` but never armed, so the VFX never detonates a drum the game did not |
+| `explosion` `barrel` (a Barrel entity) | `barrel_explosion` (torn shell, lid, fuel pool fire; a rack of drums — M8's oil-barrel store — also burns on as a 2.6 m, 50 s oil fire under a heavy black column, with its own seed). A drum set off within 8 m and 2.5 s of another blast gets the lighter `chainFrom` look. The chain itself is gameplay (`Barrel.ignite`, 0.2 s). Drums are registered with `vfx.addExplosive` but never armed, so the VFX never detonates a drum the game did not |
 | `explosion` `structure` | Fuel tank → `tanker_explosion` + a 90 s `fuel_pool_fire`, then a smoke column. Other structures → `explosion_large` + a 60 s `burning_wreck` on the flattened footprint, then a smouldering column for the rest of the mission |
 | `explosion` in water | The water system spawns the `water_splash` column (the FX draws it itself when there is no water system) |
 | `vehicle:destroyed` | `explosion_small` (or `tanker_explosion` for the Opel Blitz tanker) + a `burning_wreck` on the hull top, oriented by the heading. The hull's own `vehicle`/silent `barrel` blasts are folded in rather than drawn twice. When the game's `fire` off event arrives (§3.6 wreck burn, 20 s), the flames stop and a black smouldering `smoke_column` stays. Boats → splash + blast; MG nests → blast + a short column |
@@ -255,6 +306,23 @@ The typical fight is a 5-drum chain, a burning truck wreck, a grenade and 3 chim
 | ultra | 1.97 → 2.21 | 3.3 → 3.4 | 0.15 ms |
 
 The added GPU cost of a fight is about 0.1 to 0.25 ms here, within the lab figures in §4 (×9 on a mid laptop ≈ 1–2 ms).
+
+**Sustained fire (art/realistic-flames)** — `tools/perf/flamebench.mjs --scene=m8`: the heaviest fire case, M8's
+depot going up at once (the six oil-barrel racks and their drums in one chain, both fuel tanks: the racks' 50 s oil
+fires, the drums' spills, 2 tank fires; 3 s in), 1280×720 high, FxPass timer query (median of 120 frames, two runs each), the library's CPU
+timed over batches:
+
+| | FxPass GPU zoom 1 | zoom 2 | CPU advance / tick | CPU frame | particles |
+|---|---|---|---|---|---|
+| before (master 9bae3a038, sprite tongues) | 0.111–0.112 ms | 0.130–0.133 ms | 0.028–0.049 ms | 0.023–0.025 ms | 848 |
+| after (volumetric), the same fires | 0.192 ms | 0.154 ms | 0.037 ms | 0.034 ms | 808 |
+| after, with the racks' own 45 s oil fires | 0.260 ms | 0.208–0.212 ms | 0.053–0.069 ms | 0.041–0.047 ms | 1123 |
+
+The volumes cost +0.08 ms at the default zoom for the whole depot burning (≈ +0.7 ms on a mid laptop at ×9, inside the
+4 ms VFX cap); the racks' new fires (the store burning on, sized to its footprint) add 0.07 ms more and the sort of
+~300 more particles. The march: two texture lookups per sample (none where the envelope rules flames out), steps
+capped per tier, a second tongue only behind a translucent one. No new shader program: the volume is a branch of the particle shader and the fire shimmer a branch of the
+composite, both compiled by the load's warm-up (`vfx.warm`); the noise volume is baked with the other VFX textures.
 
 ### 6.4 Ambient smoke and readability (feat/chimney-smoke)
 
@@ -357,6 +425,13 @@ Integration (game):
 - The M2 fuel-tank screenshot fires the structure blast directly (the M2 tanks are not destroyable interactables yet), so the tank mesh stays intact inside the fireball.
 
 Library:
+- **The baked `detail` noise target samples CLAMP_TO_EDGE.** `textures.js` sets `RepeatWrapping` on the render-target
+  texture after the bake, which three.js never applies to the GL texture (`gl.getTexParameter` → `CLAMP_TO_EDGE`): every
+  lookup outside [0, 1] returns an edge texel. So the explosion tongues (`MODE.FLAME`) get a constant noise (smooth
+  streaks), the smoke erosion (`dt`, `dt2`) is nearly constant and the explosion heat haze is a fixed offset instead of a
+  shimmer. Implicit-LOD lookups inside the per-particle mode branches are also unreliable on ANGLE/NVIDIA. The sustained
+  fire wraps its own lookups (`fract` + `textureGrad` with derivatives taken in uniform control flow) and its haze has
+  its own path; fixing the target itself would change the explosions, which the user asked to keep as they are.
 - **No volumetric layer.** B's raymarched columns (self-shadowed, wind-bent, the art judge's favourite E4 plume) are not
   shipped. At +1–13 ms on a 5090 they blow the 4 ms budget. The particle columns now read as columns, but they are
   sprite smoke: close up, the lighting is a normal-mapped approximation and there is no volumetric self-shadowing.

@@ -7,7 +7,9 @@
 import * as THREE from 'three';
 
 /** Translucent pool modes (sorted, premultiplied, offscreen). */
-export const MODE = { SMOKE: 0, FIRE: 1, FLAME: 2 };
+/** VOLUME (4): a sustained fire's raymarched volume (art/realistic-flames: flames and the soot they feed, in a sheared,
+ *  yawed box over the fuel). */
+export const MODE = { SMOKE: 0, FIRE: 1, FLAME: 2, VOLUME: 4 };
 /** Hot pool modes (additive, full resolution, unsorted). */
 export const HOT = { SPARK: 0, FLASH: 1, MUZZLE: 2, TRACER: 3 };
 
@@ -84,6 +86,7 @@ export class ParticlePool {
   /** CPU mirror of the vertex-shader motion (no curl noise) for sorting. */
   _pos(i, t, wind, out) {
     const row = (i / PER_ROW) | 0, o = (row * ROW_W + (i % PER_ROW) * TEX_PER) * 4, d = this.data;
+    if (d[o + 20] > 3.5) { out[0] = d[o]; out[1] = d[o + 1] + d[o + 8] * d[o + 27] * 0.4; out[2] = d[o + 2]; return; } // VOLUME: anchored (d1 = its burn curve)
     const age = t - d[o + 3], k = Math.max(d[o + 10], 1e-3), e = Math.exp(-k * age);
     const f1 = (1 - e) / k, f2 = (age - f1) / k, wf = d[o + 23];
     out[0] = d[o] + d[o + 4] * f1 + k * wind.x * wf * f2;
@@ -133,6 +136,8 @@ export class ParticlePool {
   }
 
   _ms(i) { const o = (((i / PER_ROW) | 0) * ROW_W + (i % PER_ROW) * TEX_PER) * 4, d = this.data;
+    // VOLUME: its sheared box (half-width max(rx, rz) + up to 0.45 lean × height Ht) must sit inside the FxPass rect margin
+    if (d[o + 20] > 3.5) { const v = (d[o + 8] * Math.max(1, d[o + 22]) + 1.45 * d[o + 8] * d[o + 27]) / 0.75; if (v > this.maxSize) this.maxSize = v; return; }
     const m = Math.max(d[o + 8], d[o + 9]) * (d[o + 20] > 1.5 ? Math.max(d[o + 27], 1) : 1) * (1 + d[o + 22] * 4); if (m > this.maxSize) this.maxSize = m; }
   clear() { this.liveCount = 0; this.free.length = 0; for (let i = this.cap - 1; i >= 0; i--) this.free.push(i); this.geometry.instanceCount = 0; }
   dispose() { this.geometry.dispose(); this.material.dispose(); this.tex.dispose(); }

@@ -13,7 +13,7 @@ test('polish: fire puffs and flame tongues use the display-fitted fire ramp', ()
   assert.match(BLACKBODY, /vec3 fireEmit\(float T\)/);
   assert.match(BLACKBODY, /vec3\(1\.0, a, -0\.14\)/, 'negative blue cancels the AgX inset leak');
   const sh = readFileSync(new URL('src/render/vfx/shaders.js', ROOT), 'utf8');
-  assert.equal((sh.match(/fireEmit\(Tl\)/g) || []).length, 2, 'puffs + flame tongues');
+  assert.equal((sh.match(/fireEmit\(Tl\)/g) || []).length, 3, 'puffs + flame tongues + sustained-fire volumes (art/realistic-flames)');
 });
 
 test('polish: sanitize keeps bounded negatives (wide-gamut fire) but still kills NaN/Inf', () => {

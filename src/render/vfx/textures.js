@@ -104,10 +104,48 @@ void main(){
   gl_FragColor=vec4(col, cov*0.92);
 }`;
 
+// Tileable 3-channel 3D noise for the raymarched fire volumes (art/realistic-flames): R fbm, G ridged turbulence, B a
+// second fbm (warp). Periodic gradient noise (quintic fade) on an integer lattice wrapped every P cells, octaves at
+// P = 4, 8, 16: the texture repeats seamlessly along x, y and z. REPEAT is set on the target's texture before its
+// first use, so three applies it to the GL texture (the 2D `detail` target gets its wrap after the bake: never applied).
+const VOLUME_FRAG = /* glsl */ `
+varying vec2 vUv; uniform float uZ;
+vec3 h3(vec3 c){ c=vec3(dot(c,vec3(127.1,311.7,74.7)),dot(c,vec3(269.5,183.3,246.1)),dot(c,vec3(113.5,271.9,124.6))); return -1.0+2.0*fract(sin(c)*43758.5453123); }
+float gc(vec3 i, vec3 f, vec3 o, float P){ return dot(h3(mod(i+o,P)),f-o); }
+float pn(vec3 p, float P){
+  vec3 i=floor(p), f=fract(p), u=f*f*f*(f*(f*6.0-15.0)+10.0);
+  return mix(mix(mix(gc(i,f,vec3(0,0,0),P),gc(i,f,vec3(1,0,0),P),u.x),mix(gc(i,f,vec3(0,1,0),P),gc(i,f,vec3(1,1,0),P),u.x),u.y),
+             mix(mix(gc(i,f,vec3(0,0,1),P),gc(i,f,vec3(1,0,1),P),u.x),mix(gc(i,f,vec3(0,1,1),P),gc(i,f,vec3(1,1,1),P),u.x),u.y),u.z);
+}
+void main(){
+  vec3 p=vec3(vUv,uZ);
+  float r=0.0,g=0.0,b=0.0,a=0.5,P=4.0;
+  // three octaves (P = 4, 8, 16): the march steps are 0.17-0.3 m, finer eddies would only alias into noise along the rays
+  for(int i=0;i<3;i++){ r+=a*pn(p*P,P); g+=a*abs(pn(p*P+vec3(17.0),P)); b+=a*pn(p*P+vec3(41.0,7.0,23.0),P); P*=2.0; a*=0.5; }
+  gl_FragColor=vec4(clamp(r*1.6+0.5,0.0,1.0), clamp(g*1.75,0.0,1.0), clamp(b*1.6+0.5,0.0,1.0), 1.0);
+}`;
+
+function bakeVolume(renderer, size = 64) {
+  const rt = new THREE.WebGL3DRenderTarget(size, size, size, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, depthBuffer: false });
+  const t = rt.texture;
+  t.wrapS = t.wrapT = t.wrapR = THREE.RepeatWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: VOLUME_FRAG, uniforms: { uZ: { value: 0 } }, depthTest: false, depthWrite: false });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  const scene = new THREE.Scene(); scene.add(quad);
+  const cam = new THREE.Camera();
+  const prevRT = renderer.getRenderTarget(), prevAuto = renderer.autoClear;
+  renderer.autoClear = true;
+  for (let z = 0; z < size; z++) { mat.uniforms.uZ.value = (z + 0.5) / size; renderer.setRenderTarget(rt, z); renderer.render(scene, cam); }
+  renderer.setRenderTarget(prevRT); renderer.autoClear = prevAuto;
+  mat.dispose(); quad.geometry.dispose();
+  return rt;
+}
+
 export function bakeVfxTextures(renderer) {
   const puff = bake(renderer, PUFF_FRAG, 1024);
   const detail = bake(renderer, DETAIL_FRAG, 256);
   detail.texture.wrapS = detail.texture.wrapT = THREE.RepeatWrapping;
   const scorch = bake(renderer, SCORCH_FRAG, 512);
-  return { puff, detail, scorch, dispose() { puff.dispose(); detail.dispose(); scorch.dispose(); } };
+  const vol = bakeVolume(renderer);
+  return { puff, detail, scorch, vol, dispose() { puff.dispose(); detail.dispose(); scorch.dispose(); vol.dispose(); } };
 }

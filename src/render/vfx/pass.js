@@ -118,7 +118,15 @@ void main(){
         float r=length(d)/uHaze[i].z;
         // occlusion: geometry clearly in front of the heat source is not distorted
         float occ=1.0-smoothstep(0.0, uHaze2[i].y*0.5, sz-uHaze2[i].x);
-        if(uHaze2[i].z>0.5){ // expanding shock ring
+        if(uHaze2[i].z>1.5){ // sustained fire (art/realistic-flames): fine shimmer rising through the hot air above it, wrapped
+          // lookups (the baked noise target samples clamp-to-edge), normalised to ~unit contrast, strongest low in the plume
+          vec2 q=uv*vec2(uAspect,1.0)*9.0, qx=dFdx(q), qy=dFdy(q); // (gradients of the unwrapped coordinate: no seam at the wrap)
+          if(r<1.0){
+            float w=(1.0-r)*(1.0-r)*uHaze[i].w*occ;
+            vec2 n=(textureGrad(tNoise,fract(q+vec2(0.0,-mod(uTime,100.0)*0.9)),qx,qy).rg-0.5)*3.0+(textureGrad(tNoise,fract(q*2.1+vec2(0.37,-mod(uTime,100.0)*1.7)),qx*2.1,qy*2.1).gr-0.5)*1.5;
+            off+=w*n*vec2(0.55,0.9);
+          }
+        } else if(uHaze2[i].z>0.5){ // expanding shock ring
           float ring=exp(-pow((r-uHaze2[i].w)/0.12,2.0));
           off+=normalize(d+1e-5)*ring*uHaze[i].w*occ*0.9;
         } else if(r<1.0){

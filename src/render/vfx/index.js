@@ -24,10 +24,10 @@ const disposeVfxTextures = (t) => t.dispose();
 export const FIXED_DT = 1 / 60;
 /** VFX quality tiers, keyed like engine QUALITY_PRESETS. */
 export const VFX_QUALITY = {
-  low: { smokeCap: 9000, hotCap: 3000, ambCap: 2500, density: 0.55, fxMaxHeight: 540, haze: false, debrisCap: 160, softK: 0.5 },
-  medium: { smokeCap: 16000, hotCap: 5000, ambCap: 4500, density: 0.75, fxMaxHeight: 720, haze: true, debrisCap: 300, softK: 0.5 },
-  high: { smokeCap: 26000, hotCap: 8000, ambCap: 7500, density: 1, fxMaxHeight: 900, haze: true, debrisCap: 450, softK: 0.5 },
-  ultra: { smokeCap: 36000, hotCap: 12000, ambCap: 9000, density: 1, fxMaxHeight: 1080, haze: true, debrisCap: 600, softK: 0.5 },
+  low: { smokeCap: 9000, hotCap: 3000, ambCap: 2500, density: 0.55, fxMaxHeight: 540, haze: false, debrisCap: 160, softK: 0.5, volSteps: 14 },
+  medium: { smokeCap: 16000, hotCap: 5000, ambCap: 4500, density: 0.75, fxMaxHeight: 720, haze: true, debrisCap: 300, softK: 0.5, volSteps: 22 },
+  high: { smokeCap: 26000, hotCap: 8000, ambCap: 7500, density: 1, fxMaxHeight: 900, haze: true, debrisCap: 450, softK: 0.5, volSteps: 30 },
+  ultra: { smokeCap: 36000, hotCap: 12000, ambCap: 9000, density: 1, fxMaxHeight: 1080, haze: true, debrisCap: 600, softK: 0.5, volSteps: 38 },
 };
 export { AMBIENT_RULES, displayValue, perceivedChange, capScale } from './ambient.js';
 
@@ -42,7 +42,7 @@ export function createVfx(scene, camera, renderer, opts = {}) {
   if (gl && !RENDERER_ID.has(gl)) RENDERER_ID.set(gl, RENDERER_ID.n = (RENDERER_ID.n || 0) + 1);
   const texKey = `vfx:textures:${RENDERER_ID.get(gl)}`;
   const textures = gl ? sessionCache.memo(texKey, () => bakeVfxTextures(gl), {
-    bytes: (1024 * 1024 + 256 * 256 + 512 * 512) * 4 * 1.34, dispose: disposeVfxTextures,
+    bytes: (1024 * 1024 + 256 * 256 + 512 * 512) * 4 * 1.34 + 64 * 64 * 64 * 4, dispose: disposeVfxTextures,
   }) : bakeVfxTextures(gl);
   const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const u = {
@@ -51,14 +51,14 @@ export function createVfx(scene, camera, renderer, opts = {}) {
     uSkyColor: { value: new THREE.Color(0.55, 0.62, 0.75) }, uGroundColor: { value: new THREE.Color(0.35, 0.28, 0.2) },
     uLightPos: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, -1000, 0, 1)) },
     uLightCol: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) },
-    uFireGain: { value: opts.fireGain ?? 3.0 }, uFlameGain: { value: opts.flameGain ?? 1.5 }, uSoftK: { value: 0.5 },
+    uFireGain: { value: opts.fireGain ?? 3.0 }, uFlameGain: { value: opts.flameGain ?? 1.5 }, uSoftK: { value: 0.5 }, uVolSteps: { value: 30 },
     tDepth: { value: null }, uHasDepth: { value: 0 }, uNear: { value: 1 }, uFar: { value: 1000 }, uOrtho: { value: 1 },
     uFogColor: { value: new THREE.Color(0.7, 0.7, 0.7) }, uFogRange: { value: new THREE.Vector2(0, 0) }, uPxWorld: { value: 0.03 },
     ...WIND_UNIFORMS, // shared WindField set (local gust fronts through plumes, see shaders.js gustPush)
   };
   const premult = { side: THREE.DoubleSide, transparent: true, depthWrite: false, depthTest: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
     blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
-  const smokeMat = new THREE.ShaderMaterial({ uniforms: { ...u, uPuff: { value: textures.puff.texture }, uDetail: { value: textures.detail.texture }, uRes: { value: new THREE.Vector2(1, 1) } },
+  const smokeMat = new THREE.ShaderMaterial({ uniforms: { ...u, uPuff: { value: textures.puff.texture }, uDetail: { value: textures.detail.texture }, uVol: { value: textures.vol.texture }, uRes: { value: new THREE.Vector2(1, 1) } },
     vertexShader: SMOKE_VERT, fragmentShader: SMOKE_FRAG, ...premult });
   const hotMat = new THREE.ShaderMaterial({ uniforms: { ...u, uRes: { value: new THREE.Vector2(1, 1) } },
     vertexShader: HOT_VERT, fragmentShader: HOT_FRAG, ...premult, blendDst: THREE.OneFactor, blendDstAlpha: THREE.OneFactor });
@@ -242,14 +242,14 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
         _v.copy(q.pos).applyMatrix4(c.matrixWorldInverse);
         const ringR = q.ring ? (a / q.dur) : 0;
         U.uHaze.value[n].set(_w.x * 0.5 + 0.5, _w.y * 0.5 + 0.5, q.radius / vh, (q.strength ?? 1) * k);
-        U.uHaze2.value[n].set(_v.z, q.radius * 2, q.ring ? 1 : 0, ringR); n++;
+        U.uHaze2.value[n].set(_v.z, q.radius * 2, q.ring ? 1 : q.fire ? 2 : 0, ringR); n++;
       }
       U.uNH.value = n; return this.quality.haze ? n : 0;
     },
     /** Engine preset name ('low'|'medium'|'high'|'ultra') or a partial VFX_QUALITY object. */
     setQuality(preset) {
       const q = typeof preset === 'string' ? { ...(VFX_QUALITY[preset] || VFX_QUALITY.high), name: preset } : { ...this.quality, ...preset };
-      this.quality = q; u.uSoftK.value = q.softK; debris.cap = q.debrisCap;
+      this.quality = q; u.uSoftK.value = q.softK; debris.cap = q.debrisCap; u.uVolSteps.value = q.volSteps ?? 30;
       return q;
     },
     setDecalScene(s) { decals.clear(); decals.scene = s; },

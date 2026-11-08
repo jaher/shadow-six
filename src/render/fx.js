@@ -35,6 +35,7 @@ import { assetExtents } from '../art/building-props.js';
 import { smokePoints, fluedStackGeometry, sootMaterial } from '../art/chimney-flues.js';
 import { coneAt } from '../ai/perception.js';
 import { due, runSync, runSliced } from '../engine/slice.js';
+import { CONFIG } from '../config.js';
 
 /** Theater → default ground surface (dust / clod colours). */
 const THEATER_SURF = { desert: 'sand', snow: 'snow', temperate: 'grass', coast: 'dirt', night: 'grass', winter: 'snow' };
@@ -182,8 +183,14 @@ export class FX {
    * {stop()}), or the log record headless.
    */
   spawn(kind, x, z, opts = {}) {
-    const k = LEGACY[kind] || kind;
+    let k = LEGACY[kind] || kind;
     const o = { surface: this._surfAt(x, z), ...opts };
+    // legacy stub options (mission scripts): `life` / `duration` (s) bound the fire or smoke (M15's smouldering ruin
+    // spawns a 4 s tongue of fire and a 7 s plume every 1.2 s: unbounded they piled up for the rest of the mission)
+    if ((kind === 'fire' || kind === 'smoke') && o.dur == null && (o.life ?? o.duration) != null) o.dur = o.life ?? o.duration;
+    // a 'fire' with a radius is a burning spill (M17's oil at the gateway, r up to 4.5 m, lethal for its whole burn): a
+    // fuel pool fire that size, holding its height for most of the burn (it was drawn as a 1 m campfire)
+    if (kind === 'fire' && o.r > 0.8) { k = 'fuel_pool_fire'; o.radius ??= o.r; o.hold ??= 0.8; }
     if (kind === 'splash' && o.scale == null) o.scale = o.big ? clamp((o.radius ?? 3) / 3.5, 0.5, 1.5) : clamp((o.radius ?? 0.5) * 0.45, 0.15, 0.6);
     if (kind === 'explosion' && o.scale == null) o.scale = clamp((o.radius ?? 5) / 7, 0.6, 1.5);
     const rec = this._log(k, x, z, o);
@@ -221,6 +228,10 @@ export class FX {
       const ex = src && this._explosives.get(src);
       if (ex?.obj) ex.obj.visible = false;
       this.spawn('barrel_explosion', x, z, from ? { chainFrom: V3(from.x, 0, from.z) } : {});
+      // a rack of oil drums (M8's oil-barrel store) burns on after its blast: a tall fire the size of the rack and its
+      // spill, under a black column, for most of a minute (its own seed: every other effect keeps its seed)
+      const variant = src?.params?.variant ?? src?.params?.structure?.variant ?? src?.variant ?? '';
+      if (/rack/.test(variant)) this.spawn('fuel_pool_fire', x, z, { radius: 1.6, tall: 1.3, dur: 45, hold: 0.55, smokeK: 1.1, seed: (FX._hash(`rack:${x.toFixed(1)}:${z.toFixed(1)}`) * 1e6) | 0 });
       return;
     }
     if (kind === 'grenade') return void this.spawn('grenade', x, z);
@@ -241,7 +252,7 @@ export class FX {
       const long = w >= d, yaw = Math.PI / 2 - (def.rot ?? 0) - (long ? 0 : Math.PI / 2);
       // fireballs bursting along the shell, then licking flame tongues from the rupture and the pool (no spark comets)
       this.spawn('fuel_tank_blast', x, z, { yaw, dur: 90, scale: k.scale, size: [Math.min(w, d) * 0.8, Math.max(w, d) * 0.85],
-        h: Math.min(4.2, (def.h ?? 3) * 0.6), poolR: k.fire, smokeK: k.smoke });
+        h: Math.min(4.2, (def.h ?? 3) * 0.6), roof: def.h ?? 3, poolR: k.fire, smokeK: k.smoke });
       this._afterFire(x, z, 90, Math.min(1.4, 1.2 * k.smoke));
       return;
     }
@@ -259,7 +270,9 @@ export class FX {
     this.spawn('explosion_large', x, z, { scale: clamp(r / 10, 0.7, 1.4) });
     if (['sandbags', 'fence', 'gate', 'wall', 'bridge', 'crater', 'sign', 'lamp_post', 'telegraph_pole'].includes(type)) return;
     const w = def.w ?? (r * 0.9), d = def.d ?? (r * 0.9), h = Math.max(0.6, (def.h ?? 3) * 0.35);
-    this.spawn('burning_wreck', x, z, { size: [Math.min(w, 9) * 0.8, Math.min(d, 9) * 0.8], h, dur: 60, yaw: -(def.rot ?? 0) });
+    // timber, plaster and roofing burn with a brown-grey smoke; guns, vehicles, depots and ammunition with an oily black one
+    const oily = /gun|tank|truck|vehicle|depot|fuel|ammo|bomb|plane|hangar/i.test(`${type} ${def.variant ?? ''}`);
+    this.spawn('burning_wreck', x, z, { size: [Math.min(w, 9) * 0.8, Math.min(d, 9) * 0.8], h, dur: 60, yaw: -(def.rot ?? 0), fuel: oily ? 'oil' : 'wood' });
     this._afterFire(x, z + 0.3, 60, 0.9, h + 1.5);
   }
 
@@ -293,14 +306,14 @@ export class FX {
       this.spawn('smoke_column', v.x, v.z, { color: 'black', rate: 2.5, scale: 0.6, dur: 40 });
       return;
     }
-    if (def.tanker) this.spawn('tanker_explosion', v.x, v.z, { yaw, dur: 1e6 });
-    else this.spawn('explosion_small', v.x, v.z, { scale: clamp(len / 5, 0.8, 1.5) });
+    // the game burns a wreck CONFIG.vehicles.wreckBurn s (§3.6): the fire dies down towards it, the 'fire' off stops it
+    const burn = CONFIG.vehicles.wreckBurn;
+    const blast = def.tanker ? this.spawn('tanker_explosion', v.x, v.z, { yaw, dur: 1e6, burn }) : this.spawn('explosion_small', v.x, v.z, { scale: clamp(len / 5, 0.8, 1.5) });
     const h = def.height ?? (v.model?.library ? Math.min(2.4, (v.model.dims?.h ?? 2) * 0.7) : len > 5.5 ? 1.9 : 1.3);
     const src = v.model?.wreckEmitter?.(v); // the library model's engine-bay / fuel-tank fire point
     const fx0 = src ? (v.x + src.x) / 2 : v.x, fz0 = src ? (v.z + src.z) / 2 : v.z;
-    const handle = def.tanker ? null : this.spawn('burning_wreck', fx0, fz0, { size: [wid, len], h, yaw, dur: 1e6 });
+    const handle = def.tanker ? blast : this.spawn('burning_wreck', fx0, fz0, { size: [wid, len], h, yaw, dur: 1e6, burn });
     this._wrecks.set(v, { handle, x: v.x, z: v.z, sx: src?.x ?? v.x, sz: src?.z ?? v.z, h, tanker: !!def.tanker, len });
-    if (def.tanker) this._afterFire(v.x, v.z, 60, 1.1, 2);
   }
 
   /** Game fire zones: a wreck's fire going out (§3.6 wreck burn) → flames stop, smouldering smoke stays. */
@@ -310,7 +323,7 @@ export class FX {
       if (Math.hypot(w.x - e.x, w.z - e.z) > 1.5 || w.out) continue;
       w.out = true;
       w.handle?.stop?.();
-      if (!w.tanker) this.spawn('smoke_column', w.sx ?? w.x, w.sz ?? w.z, { y: this._y(w.x, w.z) + w.h + 0.6, color: 'black', rate: 1.8, scale: clamp(w.len / 6, 0.5, 1), op: 0.6, dur: 1e6 });
+      this.spawn('smoke_column', w.sx ?? w.x, w.sz ?? w.z, { y: this._y(w.x, w.z) + w.h + 0.6, color: 'black', rate: 1.8, scale: clamp(w.len / 6, 0.5, w.tanker ? 1.1 : 1), op: 0.6, dur: 1e6 });
     }
   }
 
