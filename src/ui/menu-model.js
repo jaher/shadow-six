@@ -241,22 +241,48 @@ export function loadingPhotos(id, theater = 'temperate') {
  * behind. `dust`: the colour the ground throws up there (soil, snow, sand). `grade`: the still's own balance before
  * the front end's one filmic grade (backdrop.js menuGradeFilter): channel gains taking its highlights to the same
  * warm neutral and a saturation factor bringing its colour to the same muted level (the baked stills differ: the
- * harbour near-monochrome, the desert sepia, the river in colour).
+ * harbour near-monochrome, the desert sepia, the river in colour). `sky`: the skyline — the top of the far ground,
+ * the trees, roofs, masts and cranes (fractions of the height at 65 points across, every 1/64 of the width; measured by
+ * tools/ui/still_skyline.py): menu-dogfight.js keeps its fight above it and the hit 109 goes down behind it.
  */
 export const STILL_SCENES = {
-  temperate: { grade: { gain: [1.018, 1.029, 1.092], sat: 0.85 }, dust: [128, 116, 96], fly: [0.05, 0.115], zones: [
+  temperate: { grade: { gain: [1.018, 1.029, 1.092], sat: 0.85 }, dust: [128, 116, 96], fly: [0.05, 0.115], sky: [
+    0.234, 0.229, 0.221, 0.221, 0.219, 0.219, 0.209, 0.235, 0.236, 0.236, 0.236, 0.231, 0.235,
+    0.232, 0.23, 0.23, 0.199, 0.177, 0.205, 0.196, 0.194, 0.224, 0.234, 0.231, 0.225, 0.23,
+    0.229, 0.231, 0.232, 0.23, 0.222, 0.229, 0.231, 0.231, 0.231, 0.231, 0.231, 0.207, 0.192,
+    0.218, 0.206, 0.201, 0.23, 0.196, 0.195, 0.199, 0.194, 0.202, 0.197, 0.192, 0.16, 0.172,
+    0.167, 0.163, 0.184, 0.181, 0.203, 0.194, 0.182, 0.182, 0.181, 0.171, 0.175, 0.2, 0.218,
+  ], zones: [
     { x: [0.06, 0.30], y: 0.300, pxm: 7.0 },  // the wood behind the village
     { x: [0.66, 0.80], y: 0.298, pxm: 7.0 },  // the far bank's fields under the treeline
   ] },
-  snow: { grade: { gain: [1.014, 1.005, 1.015], sat: 1.5 }, dust: [176, 174, 166], fly: [0.05, 0.125], zones: [
+  snow: { grade: { gain: [1.014, 1.005, 1.015], sat: 1.5 }, dust: [176, 174, 166], fly: [0.05, 0.125], sky: [
+    0.2, 0.199, 0.196, 0.214, 0.21, 0.244, 0.237, 0.197, 0.185, 0.192, 0.216, 0.204, 0.215,
+    0.194, 0.188, 0.218, 0.207, 0.196, 0.199, 0.204, 0.201, 0.19, 0.201, 0.197, 0.198, 0.2,
+    0.201, 0.21, 0.215, 0.235, 0.21, 0.205, 0.239, 0.243, 0.263, 0.251, 0.274, 0.229, 0.223,
+    0.251, 0.269, 0.27, 0.27, 0.271, 0.272, 0.273, 0.274, 0.275, 0.276, 0.245, 0.19, 0.185,
+    0.212, 0.28, 0.281, 0.281, 0.276, 0.214, 0.225, 0.244, 0.26, 0.268, 0.286, 0.288, 0.288,
+  ], zones: [
     { x: [0.31, 0.42], y: 0.252, pxm: 6.0 },  // the hillside above the town
     { x: [0.03, 0.17], y: 0.262, pxm: 6.0 },  // the wooded slope above the west houses
   ] },
-  desert: { grade: { gain: [0.985, 1.0, 1.07], sat: 0.78 }, dust: [178, 158, 122], fly: [0.05, 0.10], zones: [
+  desert: { grade: { gain: [0.985, 1.0, 1.07], sat: 0.78 }, dust: [178, 158, 122], fly: [0.05, 0.10], sky: [
+    0.281, 0.28, 0.279, 0.277, 0.276, 0.274, 0.273, 0.271, 0.27, 0.269, 0.268, 0.266, 0.265,
+    0.262, 0.262, 0.258, 0.259, 0.256, 0.256, 0.255, 0.253, 0.251, 0.25, 0.251, 0.252, 0.253,
+    0.264, 0.305, 0.296, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.301, 0.306, 0.31,
+    0.3, 0.3, 0.3, 0.325, 0.329, 0.328, 0.337, 0.33, 0.322, 0.347, 0.292, 0.3, 0.386,
+    0.335, 0.324, 0.304, 0.3, 0.3, 0.3, 0.3, 0.326, 0.3, 0.325, 0.323, 0.329, 0.341,
+  ], zones: [
     { x: [0.67, 0.81], y: 0.293, pxm: 6.5 },  // the open desert beyond the derricks
     { x: [0.05, 0.30], y: 0.272, pxm: 5.5, clip: [[0, 0.283], [0.26, 0.264], [0.27, 0.258], [0.40, 0.256]] }, // behind the fort
   ] },
-  coast: { grade: { gain: [1.047, 1.029, 1.069], sat: 1.1 }, dust: [146, 138, 122], fly: [0.05, 0.12], zones: [
+  coast: { grade: { gain: [1.047, 1.029, 1.069], sat: 1.1 }, dust: [146, 138, 122], fly: [0.05, 0.12], sky: [
+    0.249, 0.253, 0.234, 0.248, 0.249, 0.241, 0.239, 0.235, 0.226, 0.24, 0.226, 0.227, 0.233,
+    0.229, 0.229, 0.229, 0.229, 0.228, 0.222, 0.189, 0.187, 0.184, 0.182, 0.18, 0.178, 0.175,
+    0.172, 0.174, 0.191, 0.221, 0.219, 0.219, 0.22, 0.219, 0.23, 0.23, 0.229, 0.229, 0.229,
+    0.225, 0.228, 0.226, 0.229, 0.229, 0.225, 0.228, 0.219, 0.227, 0.228, 0.214, 0.223, 0.228,
+    0.228, 0.228, 0.233, 0.232, 0.233, 0.221, 0.205, 0.234, 0.234, 0.235, 0.249, 0.229, 0.227,
+  ], zones: [
     { x: [0.56, 0.76], y: 0.240, pxm: 4.5 },  // the headland's top
     { x: [0.80, 0.92], y: 0.342, pxm: 8.0 },  // the far quay
   ] },

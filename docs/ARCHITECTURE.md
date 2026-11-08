@@ -1336,8 +1336,11 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   B1: the theatre the profile last reached as its baked still, in one filmic grade (an SVG filter in its canvas) and
   drifting in a CSS Ken Burns, a dark band behind the column, the badge as a solid lit iron badge rendered from
   `assets/ui/emblem-badge-height.svg` with the card's plain list seated on its disc (`_discLayout`: centred, inside the
-  inner face; the badge grows for a phone's finger rows), and `menu-bombers.js`'s Spitfire flyover in the still's sky band; B2 oxblood
-  frozen frame), `splash-fx.js` (S03 WebGL2 fire
+  inner face; the badge grows for a phone's finger rows), and `menu-bombers.js`'s Spitfire flyover in the still's sky band,
+  followed a few seconds after each pass by `menu-dogfight.js`'s dogfight — Bf 109s and Spitfires from the
+  `assets/ui/keyart/fighters.webp` turntable (`fighter-atlas.js`), flown and seated per form factor by the pure
+  `dogfight-plan.js` (seeded choreographies; placed in the open sky above the still's skyline, `STILL_SCENES.sky`,
+  never over the card's text, as little as can be behind the badge); B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
   + searchlight), `splash-planes.js` (S03 Spitfire passes and their bombs), `splash-plate.js` (S03: the plate's
   cover fit and crop on any stage — the crop slides on narrow screens so the burning tank stands clear of the hero —
   through which the fire, its smoke and light, the planes' horizon, bomb line and sky flash and the fallback fire are

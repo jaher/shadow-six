@@ -94,7 +94,7 @@ function fbm(x, y, seed) {
  * high sun: a pale cap, a shaded underside), in two shapes for soil-dark smoke and for the theatre's dust.
  * @returns {{dark: HTMLCanvasElement[], dust: HTMLCanvasElement[]}}
  */
-function puffSprites(dust) {
+export function puffSprites(dust) {
   const N = 64, make = (rgb, seed) => {
     const c = document.createElement('canvas');
     c.width = c.height = N;
@@ -117,7 +117,8 @@ export class MenuBombers {
   /**
    * @param {HTMLCanvasElement} canvas the layer inside the backdrop's scene (its box is the viewport's)
    * @param {{audio: () => object|null, still?: () => boolean, visible?: () => boolean, theater?: () => string|null,
-   *   grade?: string, avoid?: () => {left:number, top:number, right:number, bottom:number}[]}} o
+   *   grade?: string, avoid?: () => {left:number, top:number, right:number, bottom:number}[], passed?: () => void}} o —
+   *   passed(): once a pass is over — the section gone, every bomb burst and its boom heard (menu-dogfight.js follows)
    */
   constructor(canvas, o) {
     this.canvas = canvas;
@@ -336,6 +337,7 @@ export class MenuBombers {
     this._draw();
     const [tail] = this._slot(FORMATION.length - 1, p.t);
     const gone = lay.dir > 0 ? tail - 1.5 * lay.L > lay.w : tail + 1.5 * lay.L < 0;
+    if (gone && !p.over && !this._bombs.length && !this._sounds.length) { p.over = true; this.o.passed?.(); }
     if (gone && !this._bombs.length && !this._booms.length) {
       this._end();
       if (this.running) this._schedule();

@@ -1,8 +1,9 @@
 # Renders the Spitfire (model.py) for the title splash: three formation poses x {bombed-up, clean} seen from below
 # the starboard side, lit like the splash plate (a warm horizon glow ahead / far side, the fires below, the overcast
 # dome), plus neutral reference views for the contact sheet; `day` renders the same cells in the main menu's hazy
-# daylight (high sun, ground bounce) into <outdir>/cells_day for pack.py --day.
-#   blender -b --factory-startup --python-use-system-env --python render.py -- <outdir> [cells|views|all|day] [samples] [poses json]
+# daylight (high sun, ground bounce) into <outdir>/cells_day for pack.py --day; `turntable` renders the Spitfire
+# and the Bf 109 (bf109.py) over yaw x bank for the menu's dogfight into <outdir>/turntable (pack_fighters.py).
+#   blender -b --factory-startup --python-use-system-env --python render.py -- <outdir> [cells|views|all|day|turntable] [samples] [poses json]
 # Writes <outdir>/cells/<pose>_<state>.png (2x the atlas scale, RGBA) + <outdir>/cells/meta.json, <outdir>/views/*.png.
 import sys, os, math, json
 import bpy
@@ -175,6 +176,70 @@ def render_cells(root, bombs, day=False):
         json.dump(meta, fh, indent=1)
 
 
+# ---- the main menu's dogfight (src/ui/menu-dogfight.js): a turntable of the Spitfire and the Bf 109 in the menu's
+# daylight, seen a little from below; yaw (+ = nose toward the viewer) x bank (+ = near wing down); the runtime
+# mirrors the cells for the other half of the circle and turns them in the screen plane for pitch. A smoke-blackened
+# 109 set for the one that is hit.
+TT_YAW = (-90.0, -67.5, -45.0, -22.5, 0.0, 22.5, 45.0, 67.5, 90.0)
+TT_BANK = (-60.0, -30.0, 0.0, 30.0, 60.0)
+TT_K2, TT_ELEV = 18.0, 6.0
+
+
+def sootify(mats):
+    """Blacken a set of materials (the stricken 109): whatever feeds Base Color is multiplied by a sooty brown."""
+    for m in mats:
+        nt = m.node_tree
+        b = nt.nodes.get('Principled BSDF')
+        if b is None:
+            continue
+        mul = nt.nodes.new('ShaderNodeMix')
+        mul.data_type, mul.blend_type = 'RGBA', 'MULTIPLY'
+        mul.inputs[0].default_value = 1.0
+        mul.inputs[7].default_value = (0.30, 0.27, 0.24, 1)
+        src = b.inputs['Base Color']
+        if src.links:
+            nt.links.new(src.links[0].from_socket, mul.inputs[6])
+        else:
+            mul.inputs[6].default_value = src.default_value
+        nt.links.new(mul.outputs[2], src)
+
+
+def render_turntable(spit_root, bombs):
+    import bf109 as BF
+    d = os.path.join(OUT, 'turntable')
+    os.makedirs(d, exist_ok=True)
+    sc = bpy.context.scene
+    sc.cycles.use_denoising = True
+    day_world()
+    for ob in bombs.values():
+        ob.hide_render = True
+    bf_root, _ = BF.build()
+    e = math.radians(TT_ELEV)
+    cam = camera((0, math.cos(e), math.sin(e)), (0, 0, 0), 12.5, 12.5, TT_K2)
+    kinds = {'spit': (spit_root, SP.P(0, 0, 0), SP.P(9.47, 0, 0.75), SP.P(2.4, 0, 0.0)),
+             'bf109': (bf_root, BF.P(0, 0, 0), BF.P(9.02, 0, 0.55), BF.P(2.2, 0, 0.0))}
+    meta = {'k2': TT_K2, 'elev': TT_ELEV, 'yaw': TT_YAW, 'bank': TT_BANK, 'len': {'spit': 9.47, 'bf109': 9.02}, 'cells': {}}
+    for kind in ('spit', 'bf109', 'bf109x'):
+        root, nose, tail, engine = kinds['bf109' if kind == 'bf109x' else kind]
+        if kind == 'bf109x':
+            sootify({s.material for ob in root.children for s in ob.material_slots if s.material and s.material.name != 'disc'})
+        for other in (spit_root, bf_root):
+            for ob in other.children:
+                ob.hide_render = other is not root or ob.name.startswith('bomb')
+        for yaw in TT_YAW:
+            for bank in TT_BANK:
+                pose(root, yaw, 0.0, bank)
+                M = root.matrix_world
+                key = '%s_%g_%g' % (kind, yaw, bank)
+                meta['cells'][key] = {k: project(cam, M @ Vector(p)) for k, p in
+                                      (('anchor', Vector((0, 0, 0))), ('nose', nose), ('tail', tail), ('engine', engine))}
+                sc.render.filepath = os.path.join(d, key + '.png')
+                bpy.ops.render.render(write_still=True)
+        pose(root, 0, 0, 0)
+    with open(os.path.join(d, 'meta.json'), 'w') as fh:
+        json.dump(meta, fh, indent=1)
+
+
 def render_views(root, bombs):
     """Neutral reference views for the contact sheet: starboard side, plan, underside, front, three-quarter."""
     d = os.path.join(OUT, 'views')
@@ -205,6 +270,8 @@ def main():
     root, bombs, disc = SP.build()
     if WHAT == 'day':
         render_cells(root, bombs, day=True)
+    if WHAT == 'turntable':
+        render_turntable(root, bombs)
     if WHAT in ('cells', 'all'):
         render_cells(root, bombs)
     if WHAT in ('views', 'all'):

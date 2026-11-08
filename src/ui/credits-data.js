@@ -323,6 +323,12 @@ export const CREDITS_SECTIONS = [
     "ours (MIT project licence)"
    ],
    [
+    "assets/ui/keyart/fighters.webp (main-menu dogfight: Spitfire and Bf 109 turntable sprites by heading and bank, the hit 109 smoke-blackened; layout in src/ui/fighter-atlas.js)",
+    "the Spitfire model and a Messerschmitt Bf 109 G-6 modelled procedurally in Blender from published dimensions (tools/ui/splash/spitfire/bf109.py, own work, no third-party model or photo), RLM 74/75/76 splinter-and-mottle camouflage, yellow cowling and Balkenkreuz markings painted in code — the fin left plain (no swastika); rendered as a turntable in the menu stills' daylight (render.py ... turntable) and packed by pack_fighters.py",
+    "SHADOW SIX contributors",
+    "ours (MIT project licence)"
+   ],
+   [
     "MakeHuman data used by the hero build (base mesh hm08, macro / face / expression targets, game_engine rig and weights, skins, eyes, eyelashes; not shipped as files)",
     "MakeHuman data/, MPFB 2 data/ (rig + weights JSON) and the MakeHuman system assets, downloaded 2026-10-08",
     "MakeHuman community",
