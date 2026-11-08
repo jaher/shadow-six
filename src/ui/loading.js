@@ -16,7 +16,7 @@
 import { hasQuickSave, quickLoad as storeQuickLoad, loadSlot as storeLoadSlot, loadAutoSave } from '../save.js';
 import { el } from './dom.js';
 import { photoPrint, cap } from './menu-kit.js';
-import { easeProgress, pickTip } from './menu-model.js';
+import { easeProgress, pickTip, loadingPhotos } from './menu-model.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 import { TIPS, loadSeen, markSeen } from './tips.js';
 import { drawEurope } from './europe.js';
@@ -41,16 +41,54 @@ export class Loading {
     this.seen = loadSeen();
   }
 
-  /** Photo for the mission: its graded diorama still when baked, else the Europe map with the target ringed. */
-  photo(def, c) {
-    const th = def?.theater || 'temperate';
-    const still = this.hud.backdrop?.stillURL?.(th);
-    if (still) return still;
-    const cv = document.createElement('canvas');
-    cv.width = 760;
-    cv.height = 868;
-    drawEurope(cv.getContext('2d'), cv.width, cv.height, c || def?.mapPos);
-    return cv.toDataURL('image/png');
+  /**
+   * The card's photo print (S14): the mission's own graded still (assets/ui/loading/<id>.webp), downloaded only for the
+   * mission being loaded and never waited for. The card paints at once over the theatre's backdrop still when the menu
+   * already holds it decoded (B1s), else over an unexposed print (the S09 placeholder); the still crossfades in once
+   * decoded (at once when it was cached). A still that fails falls back to the theatre still, then the Europe map with
+   * the target ringed.
+   * @returns {HTMLElement} the print
+   */
+  photo(parent, def, c, id) {
+    const urls = loadingPhotos(id ?? def?.id, def?.theater || 'temperate');
+    const mem = this.hud.backdrop?.stillImg;
+    const ready = mem?.complete && mem.naturalWidth && urls.includes(mem.dataset?.url) ? mem.dataset.url : null;
+    const p = photoPrint(parent, ready ? { src: ready } : {});
+    p.classList.add('kenburns');
+    const t0 = performance.now();
+    const land = (node) => {
+      if (!p.isConnected) return;
+      node.classList.add('over');
+      node.style.animationDelay = `${(-(performance.now() - t0) / 1000).toFixed(2)}s`; // in step with the Ken Burns under it
+      p.append(node);
+      if (performance.now() - t0 < 150) node.classList.add('now'); // it was cached: no fade
+      void node.offsetWidth;
+      node.classList.add('on');
+    };
+    const next = (i) => {
+      const url = urls[i];
+      if (url && url === ready) return; // nothing better than what already shows
+      if (!url) {
+        const cv = document.createElement('canvas');
+        cv.width = 760;
+        cv.height = 868;
+        cv.className = 'map'; // the map keeps the grey print grade; the stills come graded
+        drawEurope(cv.getContext('2d'), cv.width, cv.height, c || def?.mapPos);
+        return land(cv);
+      }
+      const im = new Image();
+      im.decoding = 'async';
+      im.fetchPriority = 'high'; // ~120 KB, the one thing on screen: ahead of the mission's own downloads
+      im.src = url;
+      im.decode().then(() => {
+        const top = document.createElement('img');
+        top.alt = '';
+        top.src = url;
+        land(top);
+      }, () => next(i + 1));
+    };
+    next(0);
+    return p;
   }
 
   /**
@@ -119,9 +157,7 @@ export class Loading {
       kit.open({
         id: 'loading', bg: 'paper', className: 'mk-loading', scrim: false, hints: false,
         render: (box) => {
-          const ph = el('div', 'mk-brphoto', box);
-          const p = photoPrint(ph, { src: this.photo(def, c), grade: 'gray' });
-          p.classList.add('kenburns');
+          this.photo(el('div', 'mk-brphoto', box), def, c, info.missionId);
           const col = el('div', 'mk-brtext', box);
           const head = el('div', 'mk-brhead', box);
           el('span', null, head, n ? `Mission ${n}` : (info.title || 'Operation'));

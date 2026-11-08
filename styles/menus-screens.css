@@ -213,10 +213,17 @@ html.mk-touch .mk-help .mk-note { pointer-events: none; } /* the (empty) note li
 .mk-loading .mk-box { overflow: visible; }
 .mk-brphoto { position: absolute; left: calc(12 * var(--mr)); top: calc(29 * var(--mr)); width: calc(378 * var(--mr)); height: calc(433 * var(--mr)); display: grid; place-items: center; }
 .mk-brphoto .mk-print { width: 100%; transform: rotate(-.6deg); overflow: hidden; }
-.mk-brphoto .mk-print img { aspect-ratio: 378 / 300; }
-.mk-print.kenburns img { animation: mk-kb 30s linear forwards; transform-origin: 40% 45%; }
+.mk-brphoto .mk-print img, .mk-brphoto .mk-print canvas, .mk-brphoto .mk-print .ph { aspect-ratio: 378 / 300; }
+.mk-brphoto .mk-print .ph img { aspect-ratio: 1; }
+/* the stills come graded (tools/ui/grade_stills.py); the Europe map (both stills failed) keeps the grey print grade.
+   What loads lands over the instant ground (loading.js photo: the theatre still, or an unexposed print) and fades in */
+.mk-brphoto .mk-print .map { filter: grayscale(1) contrast(1.1); }
+.mk-brphoto .mk-print .over { position: absolute; left: calc(1.5 * var(--mr)); top: calc(1.5 * var(--mr)); width: calc(100% - 3 * var(--mr)); opacity: 0; transition: opacity .7s ease-in-out; }
+.mk-brphoto .mk-print .over.on { opacity: 1; }
+.mk-brphoto .mk-print .over.now, .mk-rm .mk-brphoto .mk-print .over { transition: none; }
+.mk-print.kenburns img, .mk-print.kenburns canvas { animation: mk-kb 30s linear forwards; transform-origin: 40% 45%; }
 @keyframes mk-kb { to { transform: scale(1.06); } }
-.mk-rm .mk-print.kenburns img { animation: none; }
+.mk-rm .mk-print.kenburns img, .mk-rm .mk-print.kenburns canvas { animation: none; }
 .mk-brhead { position: absolute; left: calc(12 * var(--mr)); right: calc(8 * var(--mr)); top: calc(8 * var(--mr)); display: flex; justify-content: space-between; font: 400 max(12px, calc(11 * var(--mr) * var(--ts))) / 1 var(--f-body); color: var(--brief-white); }
 .mk-brtext { position: absolute; left: calc(407 * var(--mr)); width: calc(225 * var(--mr)); top: calc(29 * var(--mr)); bottom: calc(40 * var(--mr)); display: flex; flex-direction: column; }
 .mk-brtitle { margin: 0 0 calc(18 * var(--mr)); display: flex; flex-direction: column; font: 400 max(26px, calc(44 * var(--mr) * var(--ts))) / calc(56 * var(--mr) * var(--ts)) var(--f-big); color: var(--brief-red); text-transform: none; }

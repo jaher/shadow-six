@@ -1374,8 +1374,12 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   into a group of its own that joins the scene once complete (its gate opens then), its first frame's programs link
   aside, and a mission load cancels a build in progress (nothing of it in the scene, its gate never opens, its library
   instances disposed). Menu long tasks at high / medium, cold, 60 s on the menu: 2.8 s → ≤ 0.1 s.
-- Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, baked B1s
-  stills: `node tools/ui/bake_dioramas.mjs`; key art `assets/ui/keyart/{hero,tiny-portrait}.webp` rendered offline from
+- Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, the baked
+  B1s theatre stills `assets/ui/diorama/<theater>.webp` and the loading card's per-mission stills
+  `assets/ui/loading/mNN.webp`: `node tools/ui/bake_mission_stills.mjs [ids|theatres]` — real engine renders through a
+  low three-quarter perspective camera (`tools/ui/still-camera.js`, framings in `tools/ui/loading-shots.mjs`), graded
+  to the briefing's photo-print look by `tools/ui/grade_stills.py`; the card (ui/loading.js `photo`) downloads only the
+  loading mission's still and crossfades it in, falling back to the theatre still, then the Europe map; key art `assets/ui/keyart/{hero,tiny-portrait}.webp` rendered offline from
   the Green Beret model by `tools/ui/keyart/render.py` (Blender; the hero's M1911A1 from `colt1911.py`, gripped by a
   finger-contact solve) + `grade.py`; briefing slides `assets/ui/briefing/*.webp`
   from public-domain IWM photographs by `tools/ui/build_briefing_photos.py`), `src/ui/europe-coast.js` (`node tools/ui/build_coast.mjs`),

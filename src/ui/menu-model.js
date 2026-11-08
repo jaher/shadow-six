@@ -205,6 +205,32 @@ export function oxbloodLUT(stops = OXBLOOD_STOPS) {
   return lut;
 }
 
+/**
+ * Missions with a baked loading-card still (S14: assets/ui/loading/<id>.webp, tools/ui/bake_mission_stills.mjs — a
+ * graded engine render of the mission's signature spot). Listed, not probed: a mission without one never requests it.
+ */
+export const LOADING_STILLS = new Set(Array.from({ length: 21 }, (_, i) => `m${String(i).padStart(2, '0')}`));
+
+/** Theatres with a baked B1s backdrop still (assets/ui/diorama/<theater>.webp, the same baker). */
+export const STILL_THEATERS = ['temperate', 'snow', 'desert', 'coast'];
+
+/** The B1s still of a theatre (temperate stands in for one without its own). */
+export function theaterStillURL(theater) {
+  return `assets/ui/diorama/${STILL_THEATERS.includes(theater) ? theater : 'temperate'}.webp`;
+}
+
+/**
+ * The loading card's photo for a mission, best first: its own still, then its theatre's backdrop still (the card
+ * shows the Europe map when none of them loads).
+ * @param {string|null|undefined} id @param {string} [theater] @returns {string[]}
+ */
+export function loadingPhotos(id, theater = 'temperate') {
+  const out = [];
+  if (id && LOADING_STILLS.has(id)) out.push(`assets/ui/loading/${id}.webp`);
+  out.push(theaterStillURL(theater));
+  return out;
+}
+
 /** B1 camera: a hand-shaped loop of 6 keys over the map interior, starting at the mission's opening view. */
 export function dioramaPath(def, n = 6) {
   const [w, d] = def?.size || [100, 100];

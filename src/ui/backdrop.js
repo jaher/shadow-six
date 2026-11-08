@@ -29,7 +29,7 @@ import * as MapBuilder from '../world/map-builder.js';
 import { prepareMissionArt, liveBuildings, disposeBuildingsSince } from '../art/building-props.js';
 import { runSliced } from '../engine/slice.js';
 import { sessionCache } from '../engine/asset-cache.js';
-import { oxbloodLUT, dioramaPath, samplePath } from './menu-model.js';
+import { oxbloodLUT, dioramaPath, samplePath, STILL_THEATERS, theaterStillURL } from './menu-model.js';
 
 /** On a first visit (art not cached) the live diorama waits this long on the menu before it downloads and builds. */
 export const DIORAMA_IDLE_MS = 20000;
@@ -40,8 +40,8 @@ function artSeen() {
   try { const v = JSON.parse(localStorage.getItem(ART_SEEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 
-/** Theatres with a baked B1s still (assets/ui/diorama/<theater>.webp, tools/ui/bake_dioramas.mjs). */
-export const STILL_THEATERS = ['temperate', 'snow']; // desert / night join when their missions ship (re-run the bake)
+/** Theatres with a baked B1s still (assets/ui/diorama/<theater>.webp, tools/ui/bake_mission_stills.mjs). */
+export { STILL_THEATERS };
 
 /** An inline SVG filter doing freeze()'s oxblood grade (luminance 54/183/19 ÷ 256 → oxbloodLUT), made once; its id. */
 let OX_FILTER = null;
@@ -266,8 +266,7 @@ export class Backdrop {
 
   /** @returns {string|null} baked still for a theatre */
   stillURL(theater) {
-    const t = STILL_THEATERS.includes(theater) ? theater : 'temperate';
-    return `assets/ui/diorama/${t}.webp`;
+    return theaterStillURL(theater);
   }
 
   /** Is the diorama mission's art cached at this quality (this page loaded it, or this browser did before)? */

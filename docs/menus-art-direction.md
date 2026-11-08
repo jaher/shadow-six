@@ -424,7 +424,7 @@ The fan should still see **dark olive camo with an embossed badge**. Looked at l
 
 **Fallback, B1s (static):**
 - Used for the Low preset, Reduced motion, "Menu background: Still", no WebGL2, or phones with `deviceMemory < 4`.
-- A **pre-rendered still** of the same diorama, graded, is baked by `tools/` at build time (`assets/ui/diorama-mNN@2x.webp`, one per theatre: snow, temperate, desert, night). The static camo scrim and emblem go on top, in CSS.
+- A **pre-rendered still**, graded, is baked from the engine by `tools/ui/bake_mission_stills.mjs` (`assets/ui/diorama/<theater>.webp`, 1920×1080, one per theatre: snow, temperate, desert, coast; a wide, low three-quarter establishing shot of one of the theatre's maps in the loading stills' photo-print grade, re-baked after art changes). The static camo scrim and emblem go on top, in CSS.
 
 #### B2. In mission: oxblood frozen frame [orig]
 - Snapshot the game canvas at the moment of the Esc press or the mission end. **Hide the HUD first** by rendering one frame with the HUD hidden.
@@ -961,6 +961,8 @@ Used whenever the briefing is skipped or unavailable: loading a save, quickload,
 - At 100% it reads "PRESS ANY KEY" in the pulse style (loading a save continues automatically after 400 ms).
 - The bar never jumps backwards, and it eases toward the next real progress value.
 
+**Photo:** each mission has its own still (`assets/ui/loading/mNN.webp`, 1260×1000 for the 378×300 r print, ~100–150 KB), baked from the engine by `tools/ui/bake_mission_stills.mjs`: the mission's signature spot (the M3 dam, the M6 railway gun, the M18 bridge, the M20 castle…) through a low three-quarter perspective camera in the mission's own light, rendered at 2× and graded offline (`tools/ui/grade_stills.py`) to the briefing's photo-print look: muted chroma, warm split tone, lifted print black, cream paper white, gentle vignette. Framings live in `tools/ui/loading-shots.mjs`. Only the mission being loaded downloads its still, and the card never waits for it: it paints at once over the theatre's backdrop still when the menu already holds it, else the Europe map, and the still crossfades in (700 ms) once decoded. A still that fails falls back to the theatre still, then the map.
+
 **Performance:** this screen is DOM only. It must render at 60 fps while the engine loads, so the Ken Burns is a CSS transform on a pre-decoded image.
 
 **Code:** new `src/ui/loading.js`.
@@ -1324,7 +1326,8 @@ The HUD (spec §6) and the menus are built from the **same materials and compone
 | `loss-icons.svg` | Enemy-loss discs | Ours | SVG | S20 |
 | `keycaps.svg`, `prompts/*` | Key and pad glyphs | Ours (keycaps) + **Kenney Input Prompts, CC0** (recoloured) | SVG | KeyHintBar, S10, S11 |
 | `europe.svg` | Map | Ours (from Natural Earth, public domain) | SVG | S06b, S15 |
-| `diorama-{snow,temperate,desert,night}@2x.webp` | B1s stills | Ours (engine render, graded) | WebP 2560×1440 | B1s |
+| `diorama/{snow,temperate,desert,coast}.webp` | B1s stills | Ours (engine render, graded) | WebP 1920×1080 | B1s, loading fallback |
+| `loading/m00…m20.webp` | Loading-card stills | Ours (engine render, graded) | WebP 1260×1000 | S14 |
 | `keyart-layers/{sky,six,hero}.webp` | Title key art | **Gen** K1 + our paint-over | WebP 2× / 3× | S03 |
 | `intro.webm` | Newsreel | Ours (engine) + Gen stills N1–N6 | VP9 1080p / 720p | S02, S21 |
 | `brief/mNN-{a,b}.webp` | Archival-style stills | **Gen**, B-series, graded | WebP, 1.5× upscale | S15 |
