@@ -311,6 +311,12 @@ export const CREDITS_SECTIONS = [
     "ours (MIT project licence)"
    ],
    [
+    "assets/ui/keyart/spitfires.webp (S03 title splash: the Spitfire formation's sprites, layout in src/ui/spitfire-atlas.js)",
+    "Supermarine Spitfire LF Mk IX modelled procedurally in Blender from published dimensions (own work, no third-party model or photo), RAF day-fighter scheme and markings painted in code, rendered in the splash's dusk light with Cycles and packed by tools/ui/splash/spitfire/ (build.sh)",
+    "SHADOW SIX contributors",
+    "ours (MIT project licence)"
+   ],
+   [
     "MakeHuman data used by the hero build (base mesh hm08, macro / face / expression targets, game_engine rig and weights, skins, eyes, eyelashes; not shipped as files)",
     "MakeHuman data/, MPFB 2 data/ (rig + weights JSON) and the MakeHuman system assets, downloaded 2026-10-08",
     "MakeHuman community",
