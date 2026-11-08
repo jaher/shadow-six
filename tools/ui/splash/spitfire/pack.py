@@ -25,6 +25,11 @@ def arg(name, default=None):
 HAZE = (30, 33, 37)     # the splash sky around the flight corridor: a touch of aerial perspective
 
 
+DAY = '--day' in sys.argv  # the main menu's daylight set (render.py ... day): cells_day -> spitfires-day.webp
+if DAY:
+    HAZE = (205, 200, 178)  # the theatre stills' hazy sky: the formation is a mile off
+
+
 def load_cell(path, haze):
     im = Image.open(path).convert('RGBA').convert('RGBa')           # premultiplied for the resample
     im = im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
@@ -39,17 +44,18 @@ def load_cell(path, haze):
 
 def main():
     src = sys.argv[1]
-    meta = json.load(open(os.path.join(src, 'cells', 'meta.json')))
+    CD = 'cells_day' if DAY else 'cells'
+    meta = json.load(open(os.path.join(src, CD, 'meta.json')))
     cells, layout = {}, {}
-    haze = float(arg('--haze', 0.08))
+    haze = float(arg('--haze', 0.24 if DAY else 0.08))
     for p in POSES:
         for s in STATES:
-            cells[(p, s)] = load_cell(os.path.join(src, 'cells', '%s_%s.png' % (p, s)), haze)
-    bomb, (box, boy) = load_cell(os.path.join(src, 'cells', 'bomb.png'), haze)
+            cells[(p, s)] = load_cell(os.path.join(src, CD, '%s_%s.png' % (p, s)), haze)
+    bomb, (box, boy) = load_cell(os.path.join(src, CD, 'bomb.png'), haze)
     # the lone falling bomb reads in silhouette against the brighter sky (its lit underside turns away as it noses
     # down): darkened, so a true-scale 250 lb bomb (a few px) still shows as a dark speck
     b = np.asarray(bomb).astype(np.float32)
-    b[..., :3] *= 0.4
+    b[..., :3] *= 0.6 if DAY else 0.4
     bomb = Image.fromarray(np.clip(b + 0.5, 0, 255).astype(np.uint8), 'RGBA')
     col_w = [max(cells[(p, s)][0].width for p in POSES) for s in STATES]
     row_h = [max(cells[(p, s)][0].height for s in STATES) for p in POSES]
@@ -74,11 +80,11 @@ def main():
     bo = meta['bomb']['origin']
     layout['bomb'] = [GAP, y, bomb.width, bomb.height, round(bo[0] / 2 - box, 1), round(bo[1] / 2 - boy, 1)]
     pxm = meta['k2'] / 2
-    out = os.path.join(ROOT, 'assets/ui/keyart/spitfires.webp')
+    out = os.path.join(ROOT, 'assets/ui/keyart/spitfires-day.webp' if DAY else 'assets/ui/keyart/spitfires.webp')
     q = int(arg('--q', 90))
     atlas.save(out, 'WEBP', quality=q, alpha_quality=100, method=6, exact=True)
     atlas.save(os.path.join(src, 'atlas.png'))
-    js = os.path.join(ROOT, 'src/ui/spitfire-atlas.js')
+    js = os.path.join(ROOT, 'src/ui/spitfire-day.js' if DAY else 'src/ui/spitfire-atlas.js')
     rows = ',\n'.join('    %s: { %s, hp: %s }' % (p, ', '.join('%s: %s' % (st, json.dumps(layout[p][st])) for st in STATES),
                                                   json.dumps(layout[p]['hp'])) for p in POSES)
     with open(js, 'w') as fh:
@@ -101,6 +107,11 @@ export const SPITFIRE_ATLAS = {
 };
 ''' % ('; '.join('%s %g/%g/%g' % (p, meta['poses'][p]['yaw'], meta['poses'][p]['pitch'], meta['poses'][p]['bank']) for p in POSES),
        W, H, pxm, meta['bombLen'], rows, json.dumps(layout['bomb'])))
+    if DAY:   # the same layout module, for the main menu's daylight set
+        t = open(js).read().replace('SPITFIRE_ATLAS', 'SPITFIRE_DAY').replace('spitfires.webp', 'spitfires-day.webp')
+        t = t.replace('@module ui/spitfire-atlas', '@module ui/spitfire-day').replace(
+            "the title splash's Spitfire sprite atlas", "the main menu's daylight Spitfire sprite atlas (render.py ... day)")
+        open(js, 'w').write(t)
     print('atlas %dx%d, %d bytes -> %s' % (W, H, os.path.getsize(out), out))
     sheet = arg('--sheet')
     if sheet:

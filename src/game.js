@@ -1272,8 +1272,7 @@ export class Game {
 
   /**
    * Is the 3D view hidden behind an opaque full-screen layer? The boot screens (ui/boot.js) and the menus' backdrop
-   * (ui/backdrop.js: fixed, opaque, above the canvas) while its live diorama is not running — the diorama draws through
-   * the renderer itself.
+   * (ui/backdrop.js: fixed, opaque, above the canvas: the front end's theatre still or B2's frozen frame).
    */
   _viewCovered() {
     // the boot screens (disclaimer, ident, title splash: fixed, opaque black) until their fade-out starts
@@ -1284,7 +1283,7 @@ export class Game {
     const br = this.hud?.briefing;
     if (br?.part === 1 && br.root?.isConnected && !br.root.hidden) return true;
     const bd = this.hud?.backdrop;
-    return !!(bd?.root && !bd.root.hidden && !bd.dio && bd.root.isConnected);
+    return !!(bd?.root && !bd.root.hidden && bd.root.isConnected);
   }
 
   /** §5.3 sniper scope 2× magnifier: drawn into the canvas after the frame while the scope cursor is up. */

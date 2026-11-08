@@ -416,6 +416,7 @@ export class MenuKit {
     entry.focus = -1;
     if (f >= 0) this.focus(f, { silent: true });
     spec.onOpen?.(card, this);
+    if (mode !== 'none') this.onScreen?.(spec.id); // a new card (the backdrop's flyover ends a pass in flight)
     // no row to focus (help, credits, end cards…): the spec's element, else the card itself
     if (!card.contains(document.activeElement)) {
       const t = spec.focusEl?.(card, this) || card;

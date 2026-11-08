@@ -77,7 +77,7 @@ export const OPTION_DEFAULTS = {
   subSize: 'M', // subtitle size S / M / L
   subBand: 0.6, // subtitle background band opacity 0–0.8
   resScale: 1, // render resolution scale 0.5–1
-  menuBg: 'live', // 'live' | 'still' (B1 / B1s)
+  menuBg: 'live', // 'live' | 'still': the front end's still drifts and Spitfires pass now and then, or it holds still
   grain: true, // film grain and vignette
   brightness: 0.5, // 0–1, 0.5 = neutral
   fullscreen: false,

@@ -216,7 +216,7 @@ function addMethods(audio, events, rand) {
       const entry = this._push({ type: SFX[id]?.bus === 'ambience' ? 'ambience' : 'sfx', name: id, event: o.event, x: p?.x, z: p?.z,
         gain: +sp.gain.toFixed(3), loop: !!o.loop || undefined, culled: (sp.cull && !o.loop) || undefined, known: !!SFX[id] });
       if (!this.unlocked || !this.engine || !SFX[id]) return null;
-      const h = this.engine.play(id, { pos: p, gain: o.gain, loop: o.loop, rate: o.rate, bus: o.bus, fadeIn: o.fadeIn, range: o.range, offset: o.offset, cls: o.cls });
+      const h = this.engine.play(id, { pos: p, gain: o.gain, loop: o.loop, rate: o.rate, bus: o.bus, fadeIn: o.fadeIn, range: o.range, offset: o.offset, cls: o.cls, muffle: o.muffle });
       entry.played = !!h;
       return h;
     },

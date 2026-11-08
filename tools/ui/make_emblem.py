@@ -197,12 +197,12 @@ for name, mode in (('emblem.svg', 'metal'), ('emblem-height.svg', 'height')):
 # ---------------------------------------------------------------- the front-end badge (S05 layout, review fix)
 # One sheet in 640×480 r space (viewBox 1280×960, 2 units per r) laid out for BEL's composition: the ring's centre
 # behind the middle of the item column (320, 180 r), the raven BEHIND the ring with its wingtips level with the card
-# title, and the plate's top edge ~10 r under QUIT GAME (242 r). Height map only: backdrop.js lights it as an emboss
-# (no fill colour of its own). The ring's contents sit in low relief so the rows over them stay quiet.
+# title. No plate: over the realistic front end (2026-11-08) the SHADOW SIX plate read as a ghost over the busiest part
+# of every scene, and the raven and MAIN MENU already brand it. Height map only: backdrop.js renders it as a solid,
+# lit iron badge from it. The ring's contents sit in low relief so the rows over them stay quiet.
 RING = 'translate(640 360) scale(1.02) translate(-500 -560)'
 BIRD_S = 0.84
 BIRD = f'translate({640 - (500 - 500) * BIRD_S} {192}) scale({BIRD_S}) translate(-500 -262)'
-PLATE = 'translate(640 484) scale(0.862) translate(-500 -786)'
 def badge():
     H = lambda v: f'#{v:02x}{v:02x}{v:02x}'
     line = H(40)
@@ -225,9 +225,6 @@ def badge():
     o.append(f'<path d="{disc}" fill="{H(96)}"/>')
     o.append(f'<g stroke-width="1.5" stroke="{H(80)}"><path d="{anchor_d}" fill="{H(118)}" fill-rule="evenodd"/><path d="{knife_d}" fill="{H(122)}"/>')
     o.append(f'<path d="{V}" fill="{H(136)}"/><path d="{I}" fill="{H(136)}"/></g></g>')
-    o.append(f'<g transform="{PLATE}"><path d="{plate}" fill="{H(170)}"/><path d="{plate_inner}" fill="{H(120)}" stroke-width="2"/>')
-    o.append(f'<g transform="{wm_tf}"><path d="{wm_path}" fill="{H(250)}" stroke="{line}" stroke-width="{2 / sx:.1f}"/></g>')
-    o.append('<g stroke-width="2">' + ''.join(f'<circle cx="{x}" cy="{y}" r="8" fill="{H(255)}"/>' for x, y in rivets) + '</g></g>')
     o.append('</g></svg>\n')
     return '\n'.join(o)
 open(os.path.join(UI, 'emblem-badge-height.svg'), 'w').write(badge())

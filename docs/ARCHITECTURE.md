@@ -201,7 +201,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `ambient:fishjump` | `{x, z, species, size}` | ambient life (world/fish-sim.js: a leaping salmon / trout / mullet / carp / chub falls back in) → audio: a quiet splash (no gameplay effect) |
 | `ambient:call` | `{x, z, species, hen}` | ambient life (world/duck-water.js: a duck on the water calls now and then) → audio: a quiet eider coo / grunt or mallard quack (no gameplay effect) |
 | `objective:update` | `{objective}` | mission → ui, audio |
-| `mission:loading` | `{id}` | game → ui (menu diorama releases the scene before a mission builds) |
+| `mission:loading` | `{id}` | game → ui (the menu's flyover stops before a mission builds) |
 | `mission:progress` | `{id, p, stage, bytes, expected, files, cached}` (p 0..1 monotonic; cached = files served without the network; stage lighting/buildings/characters/vehicles/terrain/units/finish/done) | game (`engine/load-progress.js`) → loading screen |
 | `mission:loaded` | `{mission, world}` | game → ui, audio |
 | `mission:won` / `mission:lost` | `{reason, stats, stars:{time, damage}, merit, rank, password}` | game (`game.flow.onMissionEnd`) → ui, audio |
@@ -1031,7 +1031,7 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
     the terrain / tree layer arrays (the heaviest: done while the briefing is read), commandos, library / pavement
     maps, enemies, guests; colour, normals, the rest — their files named to the early downloads (rank 6, a few ahead),
     one per idle period (while the game is played: 250 ms + an idle period, compressor slice 2 ms; in the briefing 3 ms),
-    only while a mission is up (the menus' diorama never upgrades; `resumeHdTextures()` after each load). A texture takes
+    only while a mission is up (`resumeHdTextures()` after each load). A texture takes
     its new image IN PLACE (`dispose()`, new source / compressed levels, `initTexture`): every material and clone
     holding it sharpens together. A new load pauses them. `?hdtex=0` = off (full sizes at once), `?hdtex=hold` = the
     smaller copies only (A/B screenshots).
@@ -1333,8 +1333,10 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   S09 save/load, S18 pause card), `options-panel.js` (S10), `help.js` (S11), `loading.js` (S14), `briefing.js` (S15/S16; its words come from `briefing-text.js`, and the newsreel narration timeline
   from `briefing-narration.js`, docs/narration.md),
   `notebook.js` (S17), `debrief.js` (S19/S20), `backdrop.js` (`hud.backdrop.setMode('frontend'|'mission'|'paper'|'off')`:
-  B1: the M1 moss camo ground, the live diorama (or its baked still) only as a blurred grey soft-light pass, the badge
-  as a runtime emboss of `assets/ui/emblem-badge-height.svg`; B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
+  B1: the theatre the profile last reached as its baked still, in one filmic grade (an SVG filter in its canvas) and
+  drifting in a CSS Ken Burns, a dark band behind the column, the badge as a solid lit iron badge rendered from
+  `assets/ui/emblem-badge-height.svg`, and `menu-bombers.js`'s Spitfire flyover in the still's sky band; B2 oxblood
+  frozen frame), `splash-fx.js` (S03 WebGL2 fire
   + searchlight), `splash-planes.js` (S03 Spitfire passes and their bombs), `splash-plate.js` (S03: the plate's
   cover fit and crop on any stage — the crop slides on narrow screens so the burning tank stands clear of the hero —
   through which the fire, its smoke and light, the planes' horizon, bomb line and sky flash and the fallback fire are
@@ -1370,13 +1372,12 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   `tests/touch-flow.mjs`: ≥ 44 px MAIN rows, HELP EXIT, NEXT TIP clear of the longest tip, briefing clear of the touch
   bar, a returning player's title tap opens no menu row).
 - Consumes only `game.flow`, `game.events` (`mission:loading`, `mission:loaded`, `mission:won/lost/escaped`,
-  `game:state`), the renderer canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMapGen` (released on
-  `mission:loading`). B1's live diorama never gets in a mission's way (perf/download-speed-2): it starts at once only
-  when its art is cached (this page loaded that mission, or this browser did at this quality: localStorage
-  `shadowsix.artSeen`), else after `DIORAMA_IDLE_MS` (20 s) on the menu; its map builds in slices (engine/slice.js)
-  into a group of its own that joins the scene once complete (its gate opens then), its first frame's programs link
-  aside, and a mission load cancels a build in progress (nothing of it in the scene, its gate never opens, its library
-  instances disposed). Menu long tasks at high / medium, cold, 60 s on the menu: 2.8 s → ≤ 0.1 s.
+  `game:state`) and the renderer canvas (B2 snapshot). B1 (user 2026-11-08, "more realistic please") is the theatre's
+  baked still, not a live map: the menu downloads no mission art and the 3D view draws no frame behind it
+  (`Game._viewCovered`); the Ken Burns is a CSS transform; the flyover's canvas is 1×1 between passes (one timer) and
+  draws only during a pass. Held still (no drift) under reduced motion, the Low preset, `deviceMemory < 4` and MENU
+  BACKGROUND: STILL; no passes under reduced motion / STILL or in test, debug, walkthrough and `?mission` sessions; a
+  mission load, leaving the front end, a new card (`kit.onScreen`) or a hidden tab ends a pass at once.
 - Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, the baked
   B1s theatre stills `assets/ui/diorama/<theater>.webp` and the loading card's per-mission stills
   `assets/ui/loading/mNN.webp`: `node tools/ui/bake_mission_stills.mjs [ids|theatres]` — real engine renders through a
@@ -1794,7 +1795,7 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     the textures uploaded at load; `vfx.warm`, `TrailSystem.warm`, `RippleSim.warm` do the same for their targets. Its
     programs are linked aside first and it is drawn a share of the scene per task (see Responsive load).
   - Render on demand: `Game.frame` skips the GPU frame after two frames under an opaque full-screen layer (boot
-    screens, the menus' backdrop without its live diorama). Such a frame (`Game.render(…, draw = false)`) also skips
+    screens, the menus' backdrop). Such a frame (`Game.render(…, draw = false)`) also skips
     the water's offscreen passes (`WaterSystem.update(dt, draw)`: FFT ocean, caustics, ripples, mirror reflection; its
     clock runs on) — the next drawn frame computes them before it renders (`tests/water-covered.test.mjs`).
   - Dynamic resolution (`engine/dynamic-res.js`, `Renderer.setDynamicScale`, `Game.setDynamicResolution`,

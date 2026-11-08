@@ -1,47 +1,58 @@
 /**
- * Menu backgrounds (docs/menus-art-direction.md §1.10 + amendments A2, A6, A7, B12):
- *  - 'frontend' B1: the live diorama (the real mission map built by the engine into the main scene: statics, terrain,
- *    water, weather; no units, no sim) seen through an olive duotone grade, the M1 wool camo scrim and the embossed
- *    emblem with its 30 s light sweep. Renders at half internal resolution, capped at 30 fps. B1s (static) when the
- *    option says STILL, reduced motion, the Low preset, low-memory devices, or until the diorama is built.
- *    Its cost (the map's art: 30-50 MB on a first visit; the map build: seconds of CPU) never gets in a mission's way
- *    (perf/download-speed-2, "no long pauses"): it starts at once only when its art is cached (this page loaded that
- *    mission, or this browser did before at this quality — the service worker holds it), else once the menu has been up
- *    DIORAMA_IDLE_MS without a mission being chosen; the map builds in slices (engine/slice.js) under a group of its
- *    own that joins the scene only when complete, and a mission load cancels a build in progress (nothing of it is in
- *    the scene, its gated steps never start, its library instances go).
+ * Menu backgrounds (docs/menus-art-direction.md §1.10 + amendments A2, B12, and the user's realistic front end,
+ * 2026-11-08: "Main menu stills needs work, more realistic please airplanes dont look good there"):
+ *  - 'frontend' B1: the theatre the profile last reached as a lit, cinematic three-quarter view with a band of sky
+ *    (the theatre's still, assets/ui/diorama/<theater>.webp, baked from the engine by tools/ui/bake_mission_stills.mjs),
+ *    in the front end's one filmic grade over the still's own balance (an SVG filter baked into its canvas once per
+ *    still and size: no CSS filter on a full-screen layer), drifting in a slow Ken Burns (a CSS transform on the compositor: no frame of ours, and the
+ *    3D view is not drawn at all behind it); a dark band behind the emblem and the menu column; the solid lit badge
+ *    with its 30 s light sweep. Now and then the title splash's Spitfires cross its sky and bomb its far ground
+ *    (menu-bombers.js). Held still under reduced motion, the Low preset, low-memory devices and MENU BACKGROUND: STILL.
  *  - 'mission' B2: the frozen frame of the Esc press graded to the oxblood duotone; sharp inside, 20 % vignette,
  *    1.01× Ken Burns drift.
- *  - 'paper' B3 and 'off': the menu layer paints its own ground; the diorama is released.
- * Consumes Game's renderer / camera / 'mission:loading' event only; the simulation is never touched.
+ *  - 'paper' B3 and 'off': the menu layer paints its own ground.
+ * Consumes Game's renderer (B2's snapshot) and the 'mission:loading' event only; the simulation is never touched.
  * @module ui/backdrop
  */
 
 import { el } from './dom.js';
-import { CONFIG } from '../config.js';
 import { MISSIONS } from '../missions/index.js';
-import { normalizeMission } from '../missions/schema.js';
-import { World } from '../world/world.js';
-import { EventBus } from '../core/events.js';
-import { assets } from '../engine/assets.js';
-import * as THREE from 'three';
-import * as MapBuilder from '../world/map-builder.js';
-import { prepareMissionArt, liveBuildings, disposeBuildingsSince } from '../art/building-props.js';
-import { runSliced } from '../engine/slice.js';
-import { sessionCache } from '../engine/asset-cache.js';
-import { oxbloodLUT, dioramaPath, samplePath, STILL_THEATERS, theaterStillURL } from './menu-model.js';
+import { oxbloodLUT, STILL_THEATERS, STILL_SCENES, theaterStillURL } from './menu-model.js';
+import { MenuBombers } from './menu-bombers.js';
 
-/** On a first visit (art not cached) the live diorama waits this long on the menu before it downloads and builds. */
-export const DIORAMA_IDLE_MS = 20000;
-/** localStorage: `missionId|quality` of every mission whose art this browser loaded (the service worker keeps it). */
-const ART_SEEN_KEY = 'shadowsix.artSeen';
-const artQuality = (preset) => (preset === 'ultra' ? 'ultra' : preset === 'low' ? 'low' : 'default');
-function artSeen() {
-  try { const v = JSON.parse(localStorage.getItem(ART_SEEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
-}
-
-/** Theatres with a baked B1s still (assets/ui/diorama/<theater>.webp, tools/ui/bake_mission_stills.mjs). */
+/** Theatres with a baked B1 still (assets/ui/diorama/<theater>.webp, tools/ui/bake_mission_stills.mjs). */
 export { STILL_THEATERS };
+
+/** The front end's grade where canvas filters cannot use SVG filters (a CSS filter string). */
+export const STILL_GRADE = 'saturate(0.8) contrast(1.06) brightness(0.96)';
+
+/**
+ * The front end's one filmic grade for a theatre's still (and the Spitfires over it), as an inline SVG filter, made
+ * once per theatre; its id. The still's own balance first (STILL_SCENES grade: gains to the same warm-neutral
+ * highlights, saturation to the same muted level), then for every theatre the same gentle S-curve with cool shadows
+ * and warm highlights: muted, natural colour — not black-and-white, not sepia.
+ */
+const GRADE_FILTERS = new Map();
+export function menuGradeFilter(theater) {
+  if (GRADE_FILTERS.has(theater)) return GRADE_FILTERS.get(theater);
+  if (typeof document === 'undefined' || !document.body) return null;
+  const g = STILL_SCENES[theater]?.grade || { gain: [1, 1, 1], sat: 1 }, id = `s6-menu-${theater}`;
+  const curve = (k) => Array.from({ length: 17 }, (_, i) => {
+    const x = i / 16, ws = 4 * x * (1 - x) * (1 - x), wh = 4 * x * (1 - x) * x, c = x - 0.045 * Math.sin(2 * Math.PI * x);
+    return Math.min(1, Math.max(0, c + [-0.02 * ws + 0.03 * wh, 0.004 * wh, 0.045 * ws - 0.04 * wh][k])).toFixed(4);
+  }).join(' ');
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  svg.innerHTML = `<filter id="${id}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="${g.gain[0]} 0 0 0 0  0 ${g.gain[1]} 0 0 0  0 0 ${g.gain[2]} 0 0  0 0 0 1 0"/>
+    <feColorMatrix type="saturate" values="${g.sat}"/>
+    <feComponentTransfer><feFuncR type="table" tableValues="${curve(0)}"/><feFuncG type="table" tableValues="${curve(1)}"/><feFuncB type="table" tableValues="${curve(2)}"/></feComponentTransfer>
+  </filter>`;
+  document.body.appendChild(svg);
+  GRADE_FILTERS.set(theater, id);
+  return id;
+}
 
 /** An inline SVG filter doing freeze()'s oxblood grade (luminance 54/183/19 ÷ 256 → oxbloodLUT), made once; its id. */
 let OX_FILTER = null;
@@ -71,33 +82,31 @@ export class Backdrop {
     hud.root.insertBefore(this.root, hud.kit.layer);
     this.root.hidden = true;
     this.root.setAttribute('aria-hidden', 'true');
-    // B1 stack (review fix): the M1 moss camo blanket is the ground; the diorama (live, or its baked still) only
-    // modulates it through a blurred grey `soft-light` pass, so it never out-shouts the badge (A7); A6 pin-pricks;
-    // the badge as a pure emboss (highlight + shadow, no fill of its own) with a brass light sweep; vignette.
-    // polish (art integration 2): the diorama was invisible under the blanket. It now shows through an opening in
-    // the camo net: a sharp olive-duotone view (canvas-graded) under a camo layer whose mask thins it to a
-    // light scrim in the middle; the blanket stays whole at the edges, the badge and the text scrim sit on top.
-    this.view = el('canvas', 'bd-view', this.root);
-    this.camo = el('div', 'bd-camo', this.root);
-    this.grade = el('canvas', 'bd-grade', this.root);
+    // B1 stack, back to front: the scene (the graded still, and the Spitfires' layer in it, so both drift together
+    // under the Ken Burns), the dark band behind the emblem and the column, B2's frozen frame, the badge, vignette
+    this.scene = el('div', 'bd-scene', this.root);
+    this.still = el('canvas', 'bd-still', this.scene);
+    this.planes = el('canvas', 'bd-planes', this.scene);
+    this.bombers = new MenuBombers(this.planes, {
+      audio: () => this.game.audio, still: () => !!this.hud.kit?.reducedMotion || this.hud.options?.menuBg === 'still',
+      visible: () => this.mode === 'frontend' && this.ready && !this.game.world,
+      theater: () => this.theater, grade: () => this._grade(), avoid: () => this._textRects(),
+    });
+    hud.kit.onScreen = () => this.bombers.interrupt(); // a new card ends a pass in flight
+    this.shade = el('div', 'bd-shade', this.root);
     this.frozen = el('canvas', 'bd-frozen', this.root);
-    this.speck = el('div', 'bd-speck', this.root);
     this.emblem = el('div', 'bd-emblem', this.root);
     this.emboss = el('canvas', 'bd-emboss', this.emblem);
     this.sheen = el('div', 'bd-sheen', this.emblem);
     this.vig = el('div', 'bd-vig', this.root);
     this.stillImg = null;
+    this.theater = null;
+    this.ready = false; // the still is graded and showing
     this._onResize = () => { clearTimeout(this._rsT); this._rsT = setTimeout(() => { this._buildEmboss(); this._drawStill(); }, 150); };
     window.addEventListener('resize', this._onResize);
     this._buildEmboss();
-    this.dio = null;
-    this._timer = 0;
-    this._frameT = 0;
-    this._buildGen = 0; // bumped by a mission load / leaving the menu: a diorama build in progress is cancelled
-    this._idleSince = null; // when the menu came up (the first-visit idle wait counts from here)
     this._subs = [
-      hud.game.events.on('mission:loading', () => { this._idleSince = null; this._release(); }),
-      hud.game.events.on('mission:loaded', (e) => this._noteArt(e?.mission?.id)),
+      hud.game.events.on('mission:loading', () => this.bombers.stop()),
     ];
     this._onVis = () => this._vis();
     document.addEventListener('visibilitychange', this._onVis);
@@ -105,103 +114,75 @@ export class Backdrop {
 
   get game() { return this.hud.game; }
 
-  /** Whether B1 may run live (§1.10 fallback list). */
-  get liveAllowed() {
+  /** The front end holds still (no Ken Burns): MENU BACKGROUND STILL, reduced motion, the Low preset, low memory. */
+  get stillOnly() {
     const o = this.hud.options || {};
-    if (o.menuBg === 'still' || this.hud.kit?.reducedMotion) return false;
-    if ((o.preset || this.game.renderer?.presetName) === 'low') return false;
-    if (navigator.deviceMemory && navigator.deviceMemory < 4) return false;
-    return !!this.game.renderer?.renderer && !this.game.manualTick;
+    if (o.menuBg === 'still' || this.hud.kit?.reducedMotion) return true;
+    if ((o.preset || this.game.renderer?.presetName) === 'low') return true;
+    return !!(navigator.deviceMemory && navigator.deviceMemory < 4);
   }
 
   /** @param {'frontend'|'mission'|'paper'|'off'} mode */
   setMode(mode) {
-    const was = this.mode;
     this.mode = mode;
     const R = this.root;
     R.dataset.mode = mode;
     R.hidden = mode === 'off' || mode === 'paper';
-    const kitLayer = this.hud.kit.layer;
-    kitLayer.classList.toggle('live', mode === 'frontend' || mode === 'mission');
-    if (mode !== 'frontend' && this.dio) this._release();
+    this.hud.kit.layer.classList.toggle('live', mode === 'frontend' || mode === 'mission');
+    R.classList.toggle('held', this.stillOnly);
     if (mode !== 'mission') this.frozen.classList.remove('on');
-    if (mode === 'frontend') {
-      this._still();
-      clearTimeout(this._timer);
-      if (this.liveAllowed && !this.game.world && !this.dio) {
-        // loads after the first menu paint (§1.10 cost budget); the still crossfades out when it arrives — at once when
-        // its art is cached, else after the menu has been up DIORAMA_IDLE_MS (a first visit: the mission comes first)
-        this._idleSince ??= performance.now();
-        const wait = this._artCached() ? (was === 'frontend' ? 0 : 350) : Math.max(0, DIORAMA_IDLE_MS - (performance.now() - this._idleSince));
-        this._timer = setTimeout(() => this._build(), wait);
-      }
-    } else if (mode === 'mission' && !this.frozen.classList.contains('on')) this.freeze();
-    document.documentElement.classList.toggle('bd-live', mode === 'frontend' && !!this.dio);
+    if (mode === 'frontend') this._still();
+    else if (mode === 'mission' && !this.frozen.classList.contains('on')) this.freeze();
+    if (mode === 'frontend' && !document.hidden) this.bombers.start(); else this.bombers.stop();
   }
 
-  /** B1s: the baked still of the theatre the profile last reached (painted camo alone when none is baked). */
+  /** The front end's still: the theatre the profile last reached (temperate stands in for one without its own). */
   _still() {
-    const def = this.dioramaMission();
-    const url = this.stillURL(def?.theater || 'temperate');
+    const th = this.dioramaMission()?.theater || 'temperate';
+    const url = this.stillURL(th);
+    this.theater = STILL_THEATERS.includes(th) ? th : 'temperate';
     if (this.stillImg?.dataset.url === url) return this._drawStill();
+    this.ready = false;
+    this.root.classList.remove('viewing');
+    this.bombers.stop(); // a pass over the old theatre's sky ends with it
     const im = new Image();
     im.dataset.url = url;
+    im.decoding = 'async';
     im.onload = () => { if (this.stillImg === im) this._drawStill(); };
     im.src = url;
     this.stillImg = im;
-    this._compose(null);
-  }
-
-  _drawStill() {
-    if (!this.dio && this.stillImg?.complete && this.stillImg.naturalWidth) this._compose(this.stillImg);
+    if (this.mode === 'frontend' && !document.hidden) this.bombers.start();
   }
 
   /**
-   * The diorama through the B1 grade: grey, heavily blurred, contrast-compressed around mid-grey (`soft-light`
-   * neutral), quarter resolution. `src` null = neutral (the camo alone).
+   * The still graded into its canvas at the size it shows at (cover over the viewport, ≤ its own 1920 px, ≤ 2× the
+   * CSS size, ≤ 1280 px on low-memory devices), once per still and size; CSS fits it (object-fit: cover, anchored at
+   * the top so the sky band stays).
    */
-  _compose(src) {
-    const c = this.grade;
-    const w = Math.max(2, Math.min(640, Math.round(innerWidth / 3))), h = Math.max(2, Math.round(w * innerHeight / Math.max(1, innerWidth)));
-    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  _drawStill() {
+    const im = this.stillImg;
+    if (!im?.complete || !im.naturalWidth) return;
+    const iw = im.naturalWidth, ih = im.naturalHeight;
+    const cap = navigator.deviceMemory && navigator.deviceMemory < 4 ? 0.67 : 1; // ≤ 1280 px on low-memory devices
+    const k = Math.min(cap, Math.max(innerWidth / iw, innerHeight / ih) * Math.min(2, devicePixelRatio || 1));
+    const w = Math.max(2, Math.round(iw * k)), h = Math.max(2, Math.round(ih * k));
+    const c = this.still;
+    if (c.width === w && c.height === h && c.dataset.url === im.dataset.url) return;
+    c.width = w; c.height = h;
+    c.dataset.url = im.dataset.url;
     const g = c.getContext('2d');
+    g.filter = this._grade();
+    try { g.drawImage(im, 0, 0, w, h); } catch { return; }
     g.filter = 'none';
-    g.fillStyle = '#808080';
-    g.fillRect(0, 0, w, h);
-    const sw = src ? src.naturalWidth || src.width : 0, sh = src ? src.naturalHeight || src.height : 0;
-    this._view(src, sw, sh);
-    if (!sw || !sh) return;
-    const k = Math.max(w / sw, h / sh);
-    g.filter = `grayscale(1) blur(${Math.max(1.5, w / 260).toFixed(1)}px) contrast(0.42) brightness(${this.dio ? 1.12 : 1})`;
-    try {
-      g.drawImage(src, (w - sw * k) / 2, (h - sh * k) / 2, sw * k, sh * k);
-    } catch { /* tainted or lost context: stay neutral */ }
-    g.filter = 'none';
-  }
-
-  /** The net opening: the diorama (live frame or baked still) drawn sharp at ≤ 960 px wide, olive duotone. */
-  _view(src, sw, sh) {
-    const v = this.view;
-    const on = !!(sw && sh);
-    this.root.classList.toggle('viewing', on);
-    if (!on) return;
-    const w = Math.max(2, Math.min(960, Math.round(innerWidth * 0.75))), h = Math.max(2, Math.round(w * innerHeight / Math.max(1, innerWidth)));
-    if (v.width !== w || v.height !== h) { v.width = w; v.height = h; }
-    const k = Math.max(w / sw, h / sh);
-    const g = v.getContext('2d');
-    // olive duotone, kept dark enough for the badge and the text scrim (in the canvas, not a CSS filter: §1 rule
-    // "no CSS filter on full-screen layers")
-    g.filter = 'grayscale(1) sepia(.6) hue-rotate(8deg) saturate(1.1) contrast(1.35) brightness(.6)';
-    try {
-      g.drawImage(src, (w - sw * k) / 2, (h - sh * k) / 2, sw * k, sh * k);
-    } catch { this.root.classList.remove('viewing'); }
-    g.filter = 'none';
+    this.ready = true;
+    this.root.classList.add('viewing');
   }
 
   /**
-   * The badge (assets/ui/emblem-badge-height.svg, laid out in 640×480 r) lit as an emboss from the upper left: a soft
-   * normal-map term plus a crisp 0.75 r "tin-plate" edge (A6); highlight ≈ +12 L, shadow #121309, no fill. The
-   * highlight alone becomes the mask of the slow brass light sweep.
+   * The badge (assets/ui/emblem-badge-height.svg, laid out in 640×480 r: the raven over the ring, no plate) as a solid
+   * iron badge lit from the upper left — the parts' heights, a soft normal-map term, darkened grooves and a crisp
+   * bright "tin-plate" edge (A6) — over a soft drop shadow: the scene never shows through it (review of the realistic
+   * front end). Its highlight alone becomes the mask of the slow brass light sweep.
    */
   async _buildEmboss() {
     const run = (this._embossRun = (this._embossRun || 0) + 1);
@@ -240,19 +221,27 @@ export class Backdrop {
         const s = ((B[i + dx] - B[i - dx]) + (B[i + dy] - B[i - dy])) * 0.3536 * ks;
         const e = ((A[i + dx] - A[i - dx]) + (A[i + dy] - A[i - dy])) * 0.3536 * kc;
         const lit = Math.min(1, Math.max(0, s)) * 0.11 + Math.min(1, Math.max(0, e)) * 0.2;
-        const dark = Math.min(1, Math.max(0, -s)) * 0.5 + Math.min(1, Math.max(0, -e)) * 0.45;
-        if (lit >= dark) {
-          O[i] = 214; O[i + 1] = 222; O[i + 2] = 170; O[i + 3] = Math.round(Math.min(0.34, lit) * 255);
-          HI[i] = HI[i + 1] = HI[i + 2] = 255; HI[i + 3] = Math.round(Math.min(1, lit * 4) * 255);
-        } else {
-          O[i] = 0x12; O[i + 1] = 0x13; O[i + 2] = 0x09; O[i + 3] = Math.round(Math.min(0.72, dark) * 255);
-        }
+        const cov = A[i + 3] / 255;
+        if (cov < 0.01) continue;
+        // solid gunmetal: the sunken disc behind the rows dark, the ring and the raven lighter; the soft relief lit
+        // from the upper left, grooves darkened, and a crisp brass-bright edge where a part faces the light (A6)
+        const edge = Math.min(1, Math.max(0, e)), groove = Math.min(1, Math.max(0, -e));
+        const v = (18 + 0.19 * A[i]) * (1 + 1.5 * Math.max(-0.6, Math.min(1, s))) * (1 - 0.45 * groove), hl = 160 * edge ** 1.2;
+        O[i] = Math.min(255, v + hl); O[i + 1] = Math.min(255, v * 1.01 + hl * 0.93); O[i + 2] = Math.min(255, v * 1.05 + hl * 0.76); O[i + 3] = Math.round(cov * 245);
+        if (lit > 0.01) { HI[i] = HI[i + 1] = HI[i + 2] = 255; HI[i + 3] = Math.round(Math.min(1, lit * 4) * 255); }
       }
     }
-    const c = this.emboss;
+    const c = this.emboss, solid = mk();
+    solid.getContext('2d').putImageData(out, 0, 0);
     c.width = w;
     c.height = h;
-    c.getContext('2d').putImageData(out, 0, 0);
+    const gc = c.getContext('2d');
+    gc.filter = `blur(${(3 * pr).toFixed(1)}px) brightness(0)`;   // its drop shadow on the scene, lower right
+    gc.globalAlpha = 0.6;
+    gc.drawImage(img, 1.5 * pr, 2.5 * pr, w, h);
+    gc.filter = 'none';
+    gc.globalAlpha = 1;
+    gc.drawImage(solid, 0, 0);
     const m = mk();
     m.getContext('2d').putImageData(hi, 0, 0);
     m.toBlob?.((blob) => {
@@ -269,24 +258,6 @@ export class Backdrop {
     return theaterStillURL(theater);
   }
 
-  /** Is the diorama mission's art cached at this quality (this page loaded it, or this browser did before)? */
-  _artCached(def = this.dioramaMission()) {
-    if (!def) return false;
-    if (sessionCache.missions?.includes?.(def.id)) return true;
-    return artSeen().includes(`${def.id}|${artQuality(this.game.renderer?.presetName)}`);
-  }
-
-  /** A mission's art was loaded (the service worker now holds it): remembered for the next visits' diorama. */
-  _noteArt(id) {
-    if (!id) return;
-    const k = `${id}|${artQuality(this.game.renderer?.presetName)}`;
-    try {
-      const v = artSeen().filter((x) => x !== k);
-      v.unshift(k);
-      localStorage.setItem(ART_SEEN_KEY, JSON.stringify(v.slice(0, 40)));
-    } catch { /* storage off: the first-visit wait applies */ }
-  }
-
   /** The mission the profile last reached (M1 on first run). */
   dioramaMission() {
     const last = this.hud.profiles?.last?.missionId;
@@ -294,157 +265,30 @@ export class Backdrop {
     return MISSIONS.find((m) => m.id === last) || MISSIONS.find((m) => m.id === next) || MISSIONS[0] || null;
   }
 
-  // ---------------------------------------------------------------- B1 live diorama
-
-  async _build() {
-    const g = this.game, r = g.renderer;
-    if (this.mode !== 'frontend' || g.world || this.dio || !r || this._building) return;
-    let def;
-    try {
-      def = normalizeMission(this.dioramaMission());
-    } catch {
-      return;
-    }
-    const t0 = performance.now();
-    const gen = ++this._buildGen;
-    // still wanted: no mission load started, the menu is still up (each slice of the build checks)
-    const wanted = () => this._buildGen === gen && this.mode === 'frontend' && !g.world && !this.dio;
-    // the real building / bridge models of that map (polish: the diorama showed placeholder boxes); the same
-    // cached fetches the mission load reuses
-    this._building = true;
-    try {
-      const q = r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default';
-      await prepareMissionArt(def, { assets, quality: q });
-    } catch (err) {
-      console.warn('[backdrop] diorama art', err);
-    }
-    if (!wanted()) { this._building = false; return; } // a mission started / the menu left meanwhile
-    // built off the scene, a slice at a time (the menu keeps drawing and answering): its own group joins the scene once
-    // complete; the gate holds what the map starts loading (terrain textures, water, late stamps) until then
-    const root = new THREE.Group();
-    root.name = 'menu-diorama';
-    const world = new World({ game: g, scene: root, events: new EventBus(), size: def.size, seed: def.seed ?? CONFIG.sim.seed, mission: def });
-    let openGate = null;
-    const gate = new Promise((ok) => { openGate = ok; });
-    const before = liveBuildings();
-    let handle = null;
-    try {
-      r.setTheater?.(def.theater || 'temperate', def.lighting || null);
-      r.setMapBounds?.(def.size[0], def.size[1]);
-      g.cameraRig.reset();
-      g.cameraRig.setBounds(def.size[0], def.size[1]);
-      handle = await runSliced(MapBuilder.buildMapGen(world, def, { theater: def.theater, renderer: r, scene: root, assets, gate }), { cancelled: () => !wanted() });
-    } catch (err) {
-      console.warn('[backdrop] diorama build failed', err);
-      handle = null;
-    } finally {
-      this._building = false;
-    }
-    if (!handle || !wanted()) {
-      // cancelled (a mission load started) or failed: nothing of it is in the scene and its gate stays shut (its gated
-      // steps never start); its library instances go
-      try { if (handle) handle.dispose(); else disposeBuildingsSince(before); } catch (err) { console.warn('[backdrop] dispose', err); }
-      try { world.dispose(); } catch { /* ignore */ }
-      return;
-    }
-    r.scene.add(root);
-    openGate();
-    world.rebuildSpatial?.();
-    const cc = g.cameraController;
-    const d = (this.dio = { world, handle, root, def, t: 0, path: dioramaPath(def), zoom: cc?.zoom ?? 1, buildMs: performance.now() - t0, warming: false });
-    // §1.10 cost budget: 50 % internal resolution and 30 fps while the diorama is the only thing drawn
-    this._savedPreset = r.preset;
-    r.preset = { ...r.preset, pixelRatio: Math.min(r.preset.pixelRatio ?? 1, 0.5 * (devicePixelRatio || 1)) };
-    r.resize();
-    this._origRender = r.render;
-    r.render = (dt) => {
-      if (this._frameT > 0 || d.warming) return; // (its programs still linking aside: the still shows meanwhile)
-      this._frameT = 1 / 30 - 0.004;
-      this._origRender.call(r, dt);
-      if (this.dio) this._compose(r.domElement); // same task: the drawing buffer is still valid
-    };
-    cc?.setZoom?.(CONFIG.camera.zoomLevels?.[0] ?? 0.5);
-    this._place(0);
-    // its programs link aside before its first frame draws (engine/parallel-compile.js), not inside a later frame: one
-    // frame of the WHOLE map (the camera's frustum widened to it, like Game._warmFrame), probed a share at a time —
-    // the 90 s camera loop then meets no new program (a view of the map not drawn yet linked its programs inside a
-    // frame: 0.6-0.85 s menu freezes)
-    // (after what the map builds once its gate opens — ground textures, grass, trees, water, its first-frame build —
-    // as a mission load does: a program first drawn later links inside that frame. The still shows meanwhile.)
-    d.warming = true;
-    (async () => {
-      try {
-        await Promise.race([handle.ready, new Promise((ok) => setTimeout(ok, 20000))]);
-        if (this.dio === d && handle.prepareG) await runSliced(handle.prepareG(), { cancelled: () => this.dio !== d });
-        if (this.dio === d && typeof g._compileAhead === 'function') await g._compileAhead(() => this._wholeMapFrame(def), { cancelled: () => this.dio !== d, always: true, parts: true });
-      } catch { /* draw anyway */ }
-      d.warming = false;
-    })();
-    document.documentElement.classList.add('bd-live');
+  /** The canvas filter grading this theatre's still (and the planes over it): its SVG grade, else the CSS one. */
+  _grade() {
+    const id = menuGradeFilter(this.theater || 'temperate');
+    return id ? `url(#${id})` : STILL_GRADE;
   }
 
-  /** One frame of the diorama's whole map: the camera's orthographic frustum widened to it for this render only. */
-  _wholeMapFrame(def) {
-    const r = this.game.renderer, cam = r.camera;
-    if (!cam?.isOrthographicCamera || !def?.size) return this._origRender.call(r, 0);
-    const [W, D] = def.size, m = 12, saved = { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, zoom: cam.zoom, view: cam.view ? { ...cam.view } : null };
-    cam.updateMatrixWorld();
-    const v = new THREE.Vector3();
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const x of [-m, W + m]) for (const z of [-m, D + m]) for (const y of [-3, 24]) {
-      v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
-      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+  /** The live card's text, one rect per text run (viewport px): what the flyover's bursts keep clear of. */
+  _textRects() {
+    const box = this.hud.kit?.card?.querySelector('.mk-box');
+    if (!box) return [];
+    const out = [], walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT), r = document.createRange();
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.data.trim()) continue;
+      r.selectNodeContents(n);
+      const b = r.getBoundingClientRect();
+      if (b.width && b.height) out.push({ left: b.left, top: b.top, right: b.right, bottom: b.bottom });
     }
-    try {
-      cam.left = x0; cam.right = x1; cam.bottom = y0; cam.top = y1; cam.zoom = 1; cam.clearViewOffset?.();
-      cam.updateProjectionMatrix();
-      return this._origRender.call(r, 0);
-    } finally {
-      Object.assign(cam, { left: saved.left, right: saved.right, top: saved.top, bottom: saved.bottom, zoom: saved.zoom });
-      if (saved.view) cam.setViewOffset(saved.view.fullWidth, saved.view.fullHeight, saved.view.offsetX, saved.view.offsetY, saved.view.width, saved.view.height);
-      cam.updateProjectionMatrix();
-    }
+    return out;
   }
 
-  /** Camera along the 90 s loop (§1.10: eased keys, the standard game angle). */
-  _place(t) {
-    const cc = this.game.cameraController;
-    if (!cc || !this.dio) return;
-    const p = samplePath(this.dio.path, t);
-    cc.centerOn(p.x, p.z);
-  }
-
-  _release() {
-    clearTimeout(this._timer);
-    this._buildGen++; // a build in progress stops at its next slice
-    const d = this.dio;
-    if (!d) return;
-    this.dio = null;
-    const r = this.game.renderer;
-    try { d.handle?.dispose?.(); } catch (err) { console.warn('[backdrop] dispose', err); }
-    try { d.world.dispose(); } catch { /* ignore */ }
-    d.root?.removeFromParent();
-    if (this._origRender) r.render = this._origRender;
-    this._origRender = null;
-    if (this._savedPreset) r.preset = this._savedPreset;
-    this._savedPreset = null;
-    r.resize();
-    this.game.cameraController?.setZoom?.(d.zoom);
-    document.documentElement.classList.remove('bd-live');
-    if (this.mode === 'frontend') this._still();
-  }
-
+  /** The front end's scene stops while the tab is hidden: no passes (nor booms) behind it. */
   _vis() {
-    if (document.hidden) this._frameT = 1e9; // rendering stops while the tab is hidden
-    else this._frameT = 0;
-  }
-
-  /** Per frame (hud.update): the camera loop and the 30 fps gate. */
-  update(dt = 0) {
-    if (!this.dio) return;
-    if (this._frameT < 1e8) this._frameT -= dt;
-    this.dio.t += dt;
-    this._place(this.dio.t);
+    if (document.hidden) this.bombers.stop();
+    else if (this.mode === 'frontend') this.bombers.start();
   }
 
   // ---------------------------------------------------------------- B2 oxblood frozen frame
@@ -455,7 +299,7 @@ export class Backdrop {
     const src = r?.domElement;
     if (!src || !src.width) return null;
     try {
-      (this._origRender || r.render).call(r, 0); // render now: the drawing buffer is only valid in this task
+      r.render(0); // render now: the drawing buffer is only valid in this task
     } catch { /* fall through with whatever is on the canvas */ }
     const s = Math.min(1, maxW / src.width);
     const c = document.createElement('canvas');
@@ -524,7 +368,8 @@ export class Backdrop {
   }
 
   dispose() {
-    this._release();
+    this.bombers.dispose();
+    if (this.hud.kit?.onScreen) this.hud.kit.onScreen = null;
     window.removeEventListener('resize', this._onResize);
     if (this._sheenURL) URL.revokeObjectURL(this._sheenURL);
     for (const off of this._subs) off?.();

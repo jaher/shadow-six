@@ -94,7 +94,7 @@ export const OPTION_HELP = {
   volVoice: 'Your men and the enemy.', narration: 'A 1940s newsreel announcer reads the briefing before each mission; the words appear as he reads them. N switches it in the briefing.', volNarration: 'The briefing announcer.', nature: 'Wind, surf, birds and crickets under the action.', volAmbience: 'Volume of the wind, water, birds and distant guns.', subtitles: 'Show what is said, with the speaker\'s name.',
   subSize: 'Size of the subtitle text.', subBand: 'Darkness of the band behind subtitles.',
   preset: 'Shadows, water, grass and post-processing. Lower it on older hardware.', resScale: 'Render at a fraction of the screen resolution for speed.',
-  uiScale: 'Size of the in-mission interface. AUTO follows the window height.', menuBg: 'LIVE shows the moving diorama behind the menus; STILL a painted frame.',
+  uiScale: 'Size of the in-mission interface. AUTO follows the window height.', menuBg: 'LIVE lets the battlefield behind the menus drift, with aircraft passing over now and then; STILL holds it still.',
   grain: 'The film grain and vignette over menus and briefings.', brightness: 'Raise until the calibration emblem is barely visible.',
   fullscreen: 'Use the whole screen.', intro: 'When to play the opening ident and newsreel.',
   halt: 'SUBMISSIVE: a man held at gunpoint stops obeying you. INDIFFERENT: he still obeys your orders.',

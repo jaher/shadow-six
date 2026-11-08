@@ -1,9 +1,9 @@
-/** Art integration 2 step 5 (polish): fire ramp, bounded wide-gamut sanitize, diorama path, briefing photo sets. */
+/** Art integration 2 step 5 (polish): fire ramp, bounded wide-gamut sanitize, the front end's still scenes, briefing photo sets. */
 import { existsSync, readFileSync } from 'node:fs';
 import { test, assert } from './lib.mjs';
 import { BLACKBODY } from '../../src/render/vfx/glsl.js';
 import { SanitizeShader } from '../../src/engine/post-passes.js';
-import { dioramaPath, samplePath } from '../../src/ui/menu-model.js';
+import { STILL_SCENES, STILL_THEATERS } from '../../src/ui/menu-model.js';
 import { briefingPhotos } from '../../src/ui/briefing.js';
 import { MISSIONS } from '../../src/missions/index.js';
 
@@ -22,17 +22,20 @@ test('polish: sanitize keeps bounded negatives (wide-gamut fire) but still kills
   assert.match(f, /clamp\(c\.rgb, -0\.3 \* max\(hi, 0\.0\), uMax\)/);
 });
 
-test('polish: diorama path flies between buildings and stays off the map edge', () => {
-  for (const def of MISSIONS) {
-    const p = dioramaPath(def);
-    const [w, d] = def.size;
-    assert.ok(p.keys.length >= 3, `${def.id} keys`);
-    for (const k of p.keys) {
-      assert.ok(k.x >= Math.min(w * 0.2, w / 2) - 1e-9 && k.x <= w - Math.min(w * 0.2, w / 2) + 1e-9, `${def.id} x ${k.x}`);
-      assert.ok(k.z >= Math.min(d * 0.2, d / 2) - 1e-9 && k.z <= d - Math.min(d * 0.2, d / 2) + 1e-9, `${def.id} z ${k.z}`);
+test('front end: every theatre still has a sky band for the flyover above far-ground patches for its bombs', () => {
+  for (const th of STILL_THEATERS) {
+    const S = STILL_SCENES[th];
+    assert.ok(S && S.zones.length, `${th}: scene`);
+    const [f0, f1] = S.fly;
+    assert.ok(f0 >= 0.03 && f0 < f1 && f1 <= 0.15, `${th}: the flight band sits in the still's sky (${S.fly})`);
+    for (const z of S.zones) {
+      assert.ok(z.x[0] >= 0 && z.x[0] < z.x[1] && z.x[1] <= 1, `${th}: zone x ${z.x}`);
+      assert.ok(z.y > f1 + 0.08 && z.y < 0.4, `${th}: the ground line (${z.y}) is well below the planes and in the far ground`);
+      assert.ok(z.pxm >= 3 && z.pxm <= 10, `${th}: a believable scale (${z.pxm} px/m: a Spitfire ${(9.47 * z.pxm).toFixed(0)} px at 1920)`);
+      // the bursts keep clear of the centred menu column
+      assert.ok(z.x[1] <= 0.44 || z.x[0] >= 0.55, `${th}: zone ${z.x} clear of the menu column`);
+      for (const [x, y] of z.clip || []) assert.ok(x >= 0 && x <= 1 && y < z.y + 0.02 && y > f1, `${th}: clip point ${x},${y}`);
     }
-    const s = samplePath(p, 12.3);
-    assert.ok(Number.isFinite(s.x) && Number.isFinite(s.z));
   }
 });
 

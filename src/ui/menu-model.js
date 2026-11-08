@@ -231,45 +231,33 @@ export function loadingPhotos(id, theater = 'temperate') {
   return out;
 }
 
-/** B1 camera: a hand-shaped loop of 6 keys over the map interior, starting at the mission's opening view. */
-export function dioramaPath(def, n = 6) {
-  const [w, d] = def?.size || [100, 100];
-  // polish: fly between the map's biggest buildings (ordered around their centroid) instead of starting on the
-  // squad's start corner, where the view showed empty snow and the void past the map edge
-  const big = (def?.structures || []).filter((s) => Number.isFinite(s.x) && Number.isFinite(s.z) && (s.w ?? 0) * (s.d ?? 0) >= 12)
-    .sort((a, b) => (b.w * b.d) - (a.w * a.d) || String(a.id).localeCompare(String(b.id))).slice(0, n);
-  if (big.length >= 3) {
-    // keep ~26 m (about half the menu view) off the map edge; the camo frame hides what is left of the void
-    const mX = Math.min(w * 0.5, Math.max(w * 0.2, 26)), mZ = Math.min(d * 0.5, Math.max(d * 0.2, 16));
-    const clampX = (x) => Math.min(w - mX, Math.max(mX, x)), clampZ = (z) => Math.min(d - mZ, Math.max(mZ, z));
-    const mx = big.reduce((a, s) => a + s.x, 0) / big.length, mz = big.reduce((a, s) => a + s.z, 0) / big.length;
-    const keys = big.map((s) => ({ x: clampX(s.x), z: clampZ(s.z), a: Math.atan2(s.z - mz, s.x - mx) }))
-      .sort((a, b) => a.a - b.a).map(({ x, z }) => ({ x, z }));
-    return { keys, period: 90 };
-  }
-  const c0 = def?.cameraStart || { x: w / 2, z: d / 2 };
-  // small maps (e.g. the BCD sandbox) often start the camera near a corner: keep the first key off the edge too
-  const cs = { x: Math.min(w * 0.8, Math.max(w * 0.2, c0.x)), z: Math.min(d * 0.8, Math.max(d * 0.2, c0.z)) };
-  const cx = w / 2, cz = d / 2, rx = w * 0.22, rz = d * 0.2;
-  const keys = [{ x: cs.x, z: cs.z }];
-  const a0 = Math.atan2(cs.z - cz, cs.x - cx);
-  for (let i = 1; i < n; i++) {
-    const a = a0 + (i / n) * Math.PI * 2;
-    const wob = 1 + 0.18 * Math.sin(i * 2.3);
-    keys.push({ x: cx + Math.cos(a) * rx * wob, z: cz + Math.sin(a) * rz * wob });
-  }
-  return { keys, period: 90 };
-}
-
-/** Position on the loop at time t (s): evenly timed keys, --ease-io between them. */
-export function samplePath(path, t) {
-  const k = path.keys, n = k.length;
-  if (!n) return { x: 0, z: 0 };
-  const seg = path.period / n;
-  const tt = ((t % path.period) + path.period) % path.period;
-  const i = Math.floor(tt / seg) % n;
-  const u = (tt - i * seg) / seg;
-  const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-  const a = k[i], b = k[(i + 1) % n];
-  return { x: a.x + (b.x - a.x) * e, z: a.z + (b.z - a.z) * e };
-}
+/**
+ * The front end's scene in each theatre still (assets/ui/diorama/<theater>.webp, 1920×1080; menu-bombers.js flies
+ * over it), hand-measured on the stills — re-check after a re-bake. `fly`: the band of open sky the formation's
+ * centre line may take (fractions of the still's height), clear of every tree, roof, mast, crane and derrick under
+ * the planes. `zones`: the far-ground patches a stick may hit — x range and ground line y (fractions of the width /
+ * height), `pxm` the scale there (px per metre on the 1920 px still: the section flying over the patch and its bursts
+ * are drawn to it), `clip` an optional nearer occluder's top edge ([x, y] points, left to right) the bursts rise from
+ * behind. `dust`: the colour the ground throws up there (soil, snow, sand). `grade`: the still's own balance before
+ * the front end's one filmic grade (backdrop.js menuGradeFilter): channel gains taking its highlights to the same
+ * warm neutral and a saturation factor bringing its colour to the same muted level (the baked stills differ: the
+ * harbour near-monochrome, the desert sepia, the river in colour).
+ */
+export const STILL_SCENES = {
+  temperate: { grade: { gain: [1.018, 1.029, 1.092], sat: 0.85 }, dust: [128, 116, 96], fly: [0.05, 0.115], zones: [
+    { x: [0.06, 0.30], y: 0.300, pxm: 7.0 },  // the wood behind the village
+    { x: [0.66, 0.80], y: 0.298, pxm: 7.0 },  // the far bank's fields under the treeline
+  ] },
+  snow: { grade: { gain: [1.014, 1.005, 1.015], sat: 1.5 }, dust: [176, 174, 166], fly: [0.05, 0.125], zones: [
+    { x: [0.31, 0.42], y: 0.252, pxm: 6.0 },  // the hillside above the town
+    { x: [0.03, 0.17], y: 0.262, pxm: 6.0 },  // the wooded slope above the west houses
+  ] },
+  desert: { grade: { gain: [0.985, 1.0, 1.07], sat: 0.78 }, dust: [178, 158, 122], fly: [0.05, 0.10], zones: [
+    { x: [0.67, 0.81], y: 0.293, pxm: 6.5 },  // the open desert beyond the derricks
+    { x: [0.05, 0.30], y: 0.272, pxm: 5.5, clip: [[0, 0.283], [0.26, 0.264], [0.27, 0.258], [0.40, 0.256]] }, // behind the fort
+  ] },
+  coast: { grade: { gain: [1.047, 1.029, 1.069], sat: 1.1 }, dust: [146, 138, 122], fly: [0.05, 0.12], zones: [
+    { x: [0.56, 0.76], y: 0.240, pxm: 4.5 },  // the headland's top
+    { x: [0.80, 0.92], y: 0.342, pxm: 8.0 },  // the far quay
+  ] },
+};

@@ -1,8 +1,9 @@
 /**
  * Menu layout on real pixels (review fixes, docs/menus-art-direction.md §1.9, A7, S06b, S10, S11/S12):
  *  - focus lands inside the card after every kit.open (screen readers, focus ring);
- *  - MAIN: every enabled row reads ≥ 4.5:1 against the pixels actually under it (list scrim + camo + emboss);
- *  - A7: the camo frame stays within ±8 L* of olive-800 and the diorama opening keeps the frame dark (≤ 36 L*);
+ *  - MAIN: every row, the greyed ones too, reads ≥ 4.5:1 on the pixels under it, over every theatre's still at both
+ *    ends of its Ken Burns drift (list scrim + dark band + solid badge);
+ *  - B1: the front end shows its theatre still with a band of daylit sky and a dark pool behind the column;
  *  - S06b: the campaign tabs never sit under the map sheet (1280×720 and 400×860); on a phone the mission card
  *    never covers the (B)RIEFING / (S)TART footer, which stays on screen;
  *  - phone rows are ≥ 44 CSS px; SOUND's detail pane never covers its rows;
@@ -73,35 +74,50 @@ export default async function uiLayout(page, t) {
   });
   t(help.role === 'tab' && help.selected === 'true' && help.text === 'COMMANDOS' && help.list === 'tablist', 'HELP focuses its active index tab (roving tablist)');
 
-  // ---- MAIN: contrast on the real pixels under each enabled row (labels hidden, the scrim kept)
+  // ---- MAIN: contrast on the real pixels under each row, the greyed ones too (labels hidden, the scrim kept), over
+  // every theatre's still at both ends of its Ken Burns drift (review: "over the brightest frame of the drift")
   await page.evaluate(`${HUD}.kit.close(); ${HUD}.screens.openMain()`);
-  await page.waitForTimeout(300);
   const rows = await page.evaluate(() => [...document.querySelectorAll('.mk-host .mk-card .mk-list .mk-row')].map((b) => {
     const r = b.querySelector('.mk-label').getBoundingClientRect();
     return { label: b.textContent, off: b.getAttribute('aria-disabled') === 'true', color: getComputedStyle(b).color, rect: [r.x, r.y, r.width, r.height] };
   }));
-  await page.evaluate(() => document.querySelectorAll('.mk-host .mk-card .mk-list .mk-label, .mk-host .mk-card .mk-tab').forEach((l) => { l.style.visibility = 'hidden'; }));
-  const under = await pixels(page, rows.map((r) => r.rect));
-  await page.evaluate(() => document.querySelectorAll('.mk-host .mk-card .mk-list .mk-label, .mk-host .mk-card .mk-tab').forEach((l) => { l.style.visibility = ''; }));
-  rows.forEach((r, i) => {
-    const cr = contrast(rgb(r.color), under[i]);
-    if (!r.off) t(cr >= 4.5, `MAIN "${r.label}" ${cr.toFixed(2)}:1 on its real background (≥ 4.5)`);
-  });
+  const home = await page.evaluate(() => window.__game.game.hud.backdrop.theater);
+  let worst = { cr: 99 };
+  for (const th of ['snow', 'temperate', 'desert', 'coast']) {
+    await page.evaluate((x) => { const b = window.__game.game.hud.backdrop; b.dioramaMission = () => ({ theater: x }); b._still(); }, th);
+    await page.waitForFunction(() => window.__game.game.hud.backdrop.ready, null, { timeout: 15000 });
+    await page.waitForTimeout(1300); // the still's fade-in
+    for (const end of [0, 1]) {
+      await page.evaluate((e) => { const a = document.querySelector('.bd-scene')?.getAnimations?.()[0]; if (a) { a.pause(); a.currentTime = e ? 79999 : 0; } }, end);
+      await page.waitForTimeout(150);
+      await page.evaluate(() => document.querySelectorAll('.mk-host .mk-card .mk-list .mk-label, .mk-host .mk-card .mk-tab').forEach((l) => { l.style.visibility = 'hidden'; }));
+      const under = await pixels(page, rows.map((r) => r.rect));
+      await page.evaluate(() => document.querySelectorAll('.mk-host .mk-card .mk-list .mk-label, .mk-host .mk-card .mk-tab').forEach((l) => { l.style.visibility = ''; }));
+      rows.forEach((r, i) => {
+        const cr = contrast(rgb(r.color), under[i]);
+        if (cr < worst.cr) worst = { cr, th, end, label: r.label };
+        t(cr >= 4.5, `MAIN ${th} (drift ${end ? 'end' : 'start'}) "${r.label}"${r.off ? ' (greyed)' : ''} ${cr.toFixed(2)}:1 on its real background (≥ 4.5)`);
+      });
+    }
+    await page.evaluate(() => document.querySelector('.bd-scene')?.getAnimations?.()[0]?.play());
+  }
+  t.log(`MAIN rows: lowest contrast ${worst.cr.toFixed(2)}:1 (${worst.th}, drift ${worst.end ? 'end' : 'start'}, "${worst.label}")`);
+  await page.evaluate((x) => { const b = window.__game.game.hud.backdrop; delete b.dioramaMission; b.theater = null; b._still(); return x; }, home);
 
-  // ---- A7: the backdrop alone (no card) sits within ±8 L* of olive-800
+  // ---- B1, the realistic front end (user 2026-11-08: "Main menu stills needs work, more realistic please"): the
+  // theatre's still in colour with its band of daylit sky, the dark pool behind the column (the rows' contrast above
+  // is measured on it), no camo blanket
+  await page.waitForFunction(() => window.__game.game.hud.backdrop.ready, null, { timeout: 15000 });
   await page.evaluate(() => { document.querySelector('.mk-layer').style.visibility = 'hidden'; document.querySelector('.bd-emblem').style.visibility = 'hidden'; });
-  // polish (art integration 2): the diorama now shows through an opening in the camo net, so A7 holds for the
-  // blanket that frames it (the outer bands), and the whole frame stays dark enough for the badge and the text scrim
-  const [bg, top, left, right] = await pixels(page, [[0, 0, 1280, 720], [0, 0, 1280, 50], [0, 0, 60, 720], [1220, 0, 60, 720]]);
+  const [bg, sky, col] = await pixels(page, [[0, 0, 1280, 720], [0, 0, 1280, 50], [560, 200, 160, 220]]);
   await page.evaluate(() => { document.querySelector('.mk-layer').style.visibility = ''; document.querySelector('.bd-emblem').style.visibility = ''; });
-  const L = Lstar(bg), L800 = Lstar({ r: 0x20, g: 0x21, b: 0x13 });
-  const Le = [top, left, right].map(Lstar);
-  const viewing = await page.evaluate(() => document.querySelector('.bd').classList.contains('viewing'));
-  t.log(`backdrop L* ${L.toFixed(1)} (frame ${Le.map((x) => x.toFixed(1))}) vs olive-800 ${L800.toFixed(1)}; mean rgb ${[bg.r, bg.g, bg.b].map(Math.round)}; diorama view ${viewing}`);
-  t(Le.every((x) => Math.abs(x - L800) <= 8), 'A7: the camo frame within ±8 L* of olive-800');
-  t(L <= 36, 'the diorama opening keeps the frame dark (mean L* ≤ 36)');
-  t(viewing, 'the diorama still shows through the net opening');
-  t(bg.g > bg.b + 6, 'the camo reads olive/moss (green over blue), not grey');
+  const [L, Ls, Lc] = [bg, sky, col].map(Lstar);
+  const look = await page.evaluate(() => ({ viewing: document.querySelector('.bd').classList.contains('viewing'), camo: !!document.querySelector('.bd-camo'), still: document.querySelector('.bd-still')?.width || 0 }));
+  t.log(`backdrop L* ${L.toFixed(1)}, sky ${Ls.toFixed(1)}, column ${Lc.toFixed(1)}; mean rgb ${[bg.r, bg.g, bg.b].map(Math.round)}; ${JSON.stringify(look)}`);
+  t(look.viewing && look.still > 600, 'the theatre still shows, graded into its canvas');
+  t(Ls >= 55, `a band of daylit sky across the top (L* ${Ls.toFixed(1)})`);
+  t(Lc <= Ls - 20, `the dark pool behind the column (L* ${Lc.toFixed(1)} vs sky ${Ls.toFixed(1)})`);
+  t(!look.camo, 'no camo blanket over the scene');
 
   // ---- S06b: tabs clear of the map sheet
   const rect = (sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }, sel);

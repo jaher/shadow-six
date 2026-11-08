@@ -1,7 +1,8 @@
 # Renders the Spitfire (model.py) for the title splash: three formation poses x {bombed-up, clean} seen from below
 # the starboard side, lit like the splash plate (a warm horizon glow ahead / far side, the fires below, the overcast
-# dome), plus neutral reference views for the contact sheet.
-#   blender -b --factory-startup --python-use-system-env --python render.py -- <outdir> [cells|views|all] [samples] [poses json]
+# dome), plus neutral reference views for the contact sheet; `day` renders the same cells in the main menu's hazy
+# daylight (high sun, ground bounce) into <outdir>/cells_day for pack.py --day.
+#   blender -b --factory-startup --python-use-system-env --python render.py -- <outdir> [cells|views|all|day] [samples] [poses json]
 # Writes <outdir>/cells/<pose>_<state>.png (2x the atlas scale, RGBA) + <outdir>/cells/meta.json, <outdir>/views/*.png.
 import sys, os, math, json
 import bpy
@@ -114,15 +115,30 @@ def pose(root, yaw, pitch, bank):
 STATES = (('loaded', ('stbd', 'port')), ('half', ('port',)), ('clean', ()))   # near (stbd) bomb drops first
 
 
-def render_cells(root, bombs):
-    d = os.path.join(OUT, 'cells')
+def day_world():
+    """The main menu's daylight: a bright, hazy overcast (the theatre stills' sky), the sun high in the upper left,
+    the dusty ground bouncing a little warm light into the undersides."""
+    w = bpy.data.worlds.new('day')
+    w.use_nodes = True
+    w.node_tree.nodes['Background'].inputs['Color'].default_value = (0.62, 0.59, 0.50, 1)
+    w.node_tree.nodes['Background'].inputs['Strength'].default_value = 1.0
+    bpy.context.scene.world = w
+    sun('sun', Vector((-0.35, -0.25, 0.9)).normalized(), (1.0, 0.95, 0.86), 3.2, 3.0)
+    sun('bounce', Vector((0.1, -0.2, -0.97)).normalized(), (0.85, 0.78, 0.66), 0.55, 80.0)
+
+
+def render_cells(root, bombs, day=False):
+    d = os.path.join(OUT, 'cells_day' if day else 'cells')
     os.makedirs(d, exist_ok=True)
-    dusk_world(1.5)
-    sun('glow', GLOW, (1.0, 0.56, 0.30), 4.0, 6.0)
-    sun('fire', FIRE, (1.0, 0.58, 0.36), 0.6, 30.0)
-    sun('ground', GROUND, (1.0, 0.70, 0.50), 0.85, 70.0)
-    sun('overcast', TOP, (0.62, 0.70, 0.84), 1.4, 40.0)
-    sun('near', NEAR, (0.60, 0.66, 0.78), 1.1, 40.0)
+    if day:
+        day_world()
+    else:
+        dusk_world(1.5)
+        sun('glow', GLOW, (1.0, 0.56, 0.30), 4.0, 6.0)
+        sun('fire', FIRE, (1.0, 0.58, 0.36), 0.6, 30.0)
+        sun('ground', GROUND, (1.0, 0.70, 0.50), 0.85, 70.0)
+        sun('overcast', TOP, (0.62, 0.70, 0.84), 1.4, 40.0)
+        sun('near', NEAR, (0.60, 0.66, 0.78), 1.1, 40.0)
     e = math.radians(ELEV)
     cam = camera((0, math.cos(e), math.sin(e)), (-0.85, 0, 0.25), FRAME[0], FRAME[1], K2)
     meta = {'k2': K2, 'elev': ELEV, 'poses': {}, 'bombLen': round(1.24 * SP.BOMB_L, 3)}
@@ -187,6 +203,8 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     setup(SAMPLES)
     root, bombs, disc = SP.build()
+    if WHAT == 'day':
+        render_cells(root, bombs, day=True)
     if WHAT in ('cells', 'all'):
         render_cells(root, bombs)
     if WHAT in ('views', 'all'):

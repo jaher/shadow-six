@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Front-end screenshots (real boot, not test mode, so the B1 live diorama runs):
+ * Front-end screenshots (real boot, not test mode, so the front end runs as a player sees it):
  *   node tools/perf/menushot.mjs --out=dir [--what=menu,briefing] [--missions=m01,m02,m03] [--size=1280x720]
- * menu: skips the boot/splash, opens MAIN and waits for the live diorama (html.bd-live) → menu.png (+ menu-still.png
- * before the diorama arrives). briefing: hud.startMission(id) → loading → briefing part 1 → briefing-<id>-<slide>.png.
+ * menu: skips the boot/splash, opens MAIN and waits for the backdrop's graded theatre still → menu.png. briefing:
+ * hud.startMission(id) → loading → briefing part 1 → briefing-<id>-<slide>.png.
  */
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { join, dirname, resolve } from 'node:path';
@@ -25,12 +25,10 @@ await page.waitForTimeout(600);
 await page.evaluate(() => { const b = window.shadowSix.hud.boot; if (b?.phase === 'splash') b._go(); });
 await page.waitForFunction(() => !!document.querySelector('.mk-host .mk-card'), null, { timeout: 20000 });
 if (what.includes('menu')) {
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: join(out, 'menu-still.png') });
-  const live = await page.waitForFunction(() => document.documentElement.classList.contains('bd-live'), null, { timeout: 45000 }).then(() => true, () => false);
-  await page.waitForTimeout(2500);
+  const ready = await page.waitForFunction(() => window.shadowSix.hud.backdrop.ready, null, { timeout: 20000 }).then(() => true, () => false);
+  await page.waitForTimeout(1500);
   await page.screenshot({ path: join(out, 'menu.png') });
-  console.log('menu live diorama:', live);
+  console.log('menu backdrop still:', ready);
 }
 if (what.includes('briefing')) {
   for (const m of arg('missions', 'm01,m02,m03').split(',')) {

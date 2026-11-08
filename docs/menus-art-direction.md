@@ -27,7 +27,7 @@ These twelve invariants are not negotiable. If a screen breaks one, it no longer
 3. **Disabled rows stay in place, dimmed.** The list never reflows.
 4. **Hotkeys are written `(Y)ES` and `(N)EXT MISSION`**, and the hotkeys work.
 5. **Esc or a right-click goes back one level.** In mission, Esc on the top card resumes.
-6. **The front end sits on dark olive camo with a large, low-contrast embossed badge.** SHADOW SIX uses its own emblem (§1.4.3).
+6. **The front end sits on a realistic, lit view of the battlefield with a large, low-contrast embossed badge** (user, 2026-11-08: "Main menu stills needs work, more realistic please airplanes dont look good there"; it replaced BEL's dark olive camo, §1.10 B1). SHADOW SIX uses its own emblem (§1.4.3).
 7. **In mission, and on the end cards, the background is the frozen game frame graded to an oxblood/sepia duotone.**
 8. **Item order is BEL's.** MAIN: NEW GAME, SAVE GAME, LOAD GAME, OPTIONS, CREDITS, HELP, QUIT GAME. NEW GAME: SINGLE PLAYER, MULTIPLAYER GAME, TUTORIALS, RESTART MISSION, LOAD QUICK SAVED GAME, PASSWORD, EXIT.
 9. **The briefing comes in two parts.** Part 1 is a photo panel on the left and a pure-red condensed title with white body text on the right, on near-black. Part 2 is the Colonel's voiced camera tour.
@@ -394,37 +394,65 @@ Sounds are mastered to −18 LUFS short-term, with peaks at −6 dBFS, and deliv
 | Menu background | Live / Still | Live |
 
 **Contrast targets:**
-- All body and item text ≥ 4.5:1 against its local background, measured over the **darkest-to-brightest diorama frame** with the scrim applied.
+- All body and item text ≥ 4.5:1 against its local background, measured over every **theatre still** at both ends of its drift, with the dark band and the scrim applied.
 - Titles ≥ 3:1 as large text.
-- The `tests/` UI suite samples 20 diorama frames and asserts these ratios.
+- The `tests/` UI suite (`ui-layout`) samples the pixels actually under each MAIN row and asserts these ratios.
 
 ### 1.10 Backgrounds
 
-#### B1. Front end: live diorama under a camo scrim [up of the olive badge background]
-The fan should still see **dark olive camo with an embossed badge**. Looked at longer, the olive turns out to be a *window* onto a living battlefield.
+#### B1. Front end: a realistic, lit view of the battlefield [user request, 2026-11-08]
+The user asked for it: "Main menu stills needs work, more realistic please airplanes dont look good there" — the
+menu where you pick NEW GAME and the rest, not the title screen. It replaced the earlier B1, a live top-down diorama
+in an olive duotone under the M1 camo blanket, which read as a dim, flat map. What the fan keeps from BEL is the
+large embossed badge over a war picture.
 
 **Layers, back to front:**
-1. **Live diorama** (WebGL, the game engine). It shows **the mission the profile last reached** (M1 *Baptism of Fire* on first run), loaded from the real mission data.
-   - **Scene:** statics, terrain, water and weather only. No AI or sim ticks.
-   - **Life:** a few **looped ambient actors**, i.e. 2 patrol walk cycles on fixed rails, smoke plumes, flags, water, snowfall and searchlight sweeps.
-   - **Camera:** slowly dollies along a hand-authored **90 s looping spline** at 0.35× game zoom, at the game's standard isometric-ish angle, so it reads as a *Commandos map*. Moves use `--ease-io` between keys.
-2. **Grade pass** (a single full-screen shader):
-   - an **olive duotone** from olive-950 to #5b5c3a with 15% of the original chroma kept, so fires and lamps glow faintly warm;
-   - a **vignette** of 35% at the edges;
-   - a **2 r blur** outside the 4:3 box only;
-   - grain.
-3. **Camo scrim.** M1 wool-weave, multiplied at 55%. The emblem's normal map, lit by the sweeping key light (§1.4.3), perturbs the weave's shading. The scrim drifts **2 r every 10 s** in parallax against the diorama, for depth.
-4. **Text scrim pool** and the MenuCard DOM.
+1. **The theatre still**: the theatre the profile last reached (M1's snow on a first run), as its baked still
+   (`assets/ui/diorama/<theater>.webp`, the engine render of `tools/ui/bake_mission_stills.mjs`): a lit, cinematic
+   three-quarter view from low over the map with a band of hazy sky across the top.
+   - **Grade:** one filmic grade for every theatre: muted, natural colour (about half the chroma), cool shadows and
+     warm highlights, a gentle S-curve; the kit's light grain on top. Each baked still is first balanced to it
+     (`STILL_SCENES` grade: gains taking its highlights to the same warm neutral, a saturation factor to the same muted
+     level — the harbour came near-monochrome, the desert sepia, the river in colour). An inline SVG filter, baked
+     into the still's canvas once per still and size (no CSS filter on a full-screen layer). Cover-fitted, anchored at
+     the top so the sky band survives wide screens.
+   - **Ken Burns:** a slow drift, scale 1.02 → 1.06 (no further: it magnified the water's streaks) with a slight
+     sideways travel over 80 s, back and forth, as a CSS transform (the compositor's work; the 3D view draws no frame
+     behind the menus).
+   - **Held still** (no drift) under reduced motion, the Low preset, `deviceMemory < 4` and MENU BACKGROUND: STILL.
+2. **The flyover** (`src/ui/menu-bombers.js`, in the same scene so it drifts with the still): every 55–110 s (the
+   first ~12 s after the menu comes up) a section of four Spitfires crosses the sky band — the title splash's Blender
+   Spitfire, rendered again in the stills' hazy daylight (`assets/ui/keyart/spitfires-day.webp`: the same side /
+   three-quarter-from-below poses, loaded / half / clean) and graded like the still — at the size the scene gives
+   them over their target (`menu-model.js` `STILL_SCENES`: per still, the sky band clear of every roof, mast and
+   derrick, and the far-ground patches with their scale in px per metre).
+   - Three of them let their 250 lb pairs go from the wing racks, near wing first; the bombs keep the plane's speed,
+     drag slows them and gravity takes them down nose first.
+   - The bursts are drawn to the same scale on the far ground, in the scene, never on the UI, and clear of the card's
+     text: a flash that lights the haze, a white-hot ball and a sheet of light along the ground, a ragged fireball,
+     clods and sparks, a column of soil-dark smoke greying into the theatre's dust (sunlit puffs with torn edges) and
+     a dust skirt along the ground, drifting away from the card for ~8 s. A burst behind a nearer wall rises from
+     behind it (the desert fort).
+   - Each is heard 1–2.3 s later as a muffled distant boom (`explosion_far`, low-passed and quiet, through
+     `game.audio`), never before the audio is unlocked.
+   - Zero cost between passes (one timer, a 1×1 canvas). No passes under reduced motion or STILL, nor in test,
+     debug, walkthrough or `?mission` sessions. A mission load, leaving the front end, a new card or a hidden tab
+     ends a pass at once, its pending booms included.
+3. **The dark band**: a full-height band behind the emblem and the menu column that falls off smoothly all the way
+   to the screen's sides (one falloff from the badge, no separate edge vignette: a band plus a vignette left bright
+   strips between them), lighter over the sky, and a low band for the footer; then the badge, the text scrim pool and
+   the MenuCard DOM. Every row, the greyed ones too (the front end's rows take `--khaki-hi`, greyed `#948f70`), reads at least
+   4.5:1 over every theatre's still at both ends of the drift (`tests/ui-layout`).
+4. **The badge**: the raven over the ring (VI, knife and anchor), no plate — over a real scene the SHADOW SIX plate
+   read as a ghost on the busiest part of every picture, and the raven and MAIN MENU already brand the screen. Solid
+   gunmetal, rendered from its height map: the sunken disc behind the rows dark, the ring and the raven lighter, the
+   relief lit from the upper left with darkened grooves and a crisp brass-bright edge (A6), over a soft drop shadow;
+   the scene never shows through it. Its 30 s brass light sweep stays.
 
 **Cost budget:**
-- The diorama renders at **50% internal resolution, capped at 30 fps**, with shadows baked once (static shadow map, no per-frame shadow pass) and no post except the grade.
-- Target **≤ 3 ms GPU at 1080p** on a GTX 1060-class GPU, and ≤ 150 MB of VRAM.
-- Rendering stops when the tab is hidden, and while an opaque screen (briefing, loading) covers it.
-- The diorama loads **after** the first menu paint. Until it arrives, the static B1s is shown and crossfaded out over 1.2 s.
-
-**Fallback, B1s (static):**
-- Used for the Low preset, Reduced motion, "Menu background: Still", no WebGL2, or phones with `deviceMemory < 4`.
-- A **pre-rendered still**, graded, is baked from the engine by `tools/ui/bake_mission_stills.mjs` (`assets/ui/diorama/<theater>.webp`, 1920×1080, one per theatre: snow, temperate, desert, coast; a wide, low three-quarter establishing shot of one of the theatre's maps in the loading stills' photo-print grade, re-baked after art changes). The static camo scrim and emblem go on top, in CSS.
+- Downloads: the still (130–230 KB) and, at low priority after the menu is up, the 40 KB Spitfire atlas. No mission
+  art, no map build, no WebGL frame behind the menus.
+- The drift is a compositor transform; a pass is a canvas 2D layer at ≤ 2× DPR, ≤ 30 fps, only while it flies.
 
 #### B2. In mission: oxblood frozen frame [orig]
 - Snapshot the game canvas at the moment of the Esc press or the mission end. **Hide the HUD first** by rendering one frame with the HUD hidden.
@@ -607,7 +635,7 @@ Choosing **(Y)ES** opens name entry:
 ### S05. MAIN MENU [orig structure]
 ```
 +----------------------------------------------------------------+
-|  [B1: live diorama, olive duotone, through camo weave]         |
+|  [B1: the theatre still, lit, drifting; Spitfires now and then]|
 |                   ,~~~~ raven wings (emboss) ~~~~,             |
 |                        M A I N   M E N U                       |  y70-95, stamped steel
 |                       ───────────────────                      |
@@ -1326,7 +1354,8 @@ The HUD (spec §6) and the menus are built from the **same materials and compone
 | `loss-icons.svg` | Enemy-loss discs | Ours | SVG | S20 |
 | `keycaps.svg`, `prompts/*` | Key and pad glyphs | Ours (keycaps) + **Kenney Input Prompts, CC0** (recoloured) | SVG | KeyHintBar, S10, S11 |
 | `europe.svg` | Map | Ours (from Natural Earth, public domain) | SVG | S06b, S15 |
-| `diorama/{snow,temperate,desert,coast}.webp` | B1s stills | Ours (engine render, graded) | WebP 1920×1080 | B1s, loading fallback |
+| `diorama/{snow,temperate,desert,coast}.webp` | B1 theatre stills | Ours (engine render, graded) | WebP 1920×1080 | B1, loading fallback |
+| `keyart/spitfires-day.webp` | B1 flyover sprites | Ours (Blender, `tools/ui/splash/spitfire/`) | WebP 593×243 | B1 |
 | `loading/m00…m20.webp` | Loading-card stills | Ours (engine render, graded) | WebP 1260×1000 | S14 |
 | `keyart-layers/{sky,six,hero}.webp` | Title key art | **Gen** K1 + our paint-over | WebP 2× / 3× | S03 |
 | `intro.webm` | Newsreel | Ours (engine) + Gen stills N1–N6 | VP9 1080p / 720p | S02, S21 |
@@ -1384,7 +1413,7 @@ The HUD (spec §6) and the menus are built from the **same materials and compone
 | `styles/menus.css` [new] | §1.2 tokens, §1.3 type scale, §1.5 components, §1.6 states, §1.7 motion; `@media (prefers-reduced-motion)` and `.hc` (high contrast); phone breakpoints |
 | `src/ui/menu-kit.js` [new] | MenuCard, MenuItem, ToggleRow, Slider, TypeField, SlotRow, KeyHintBar, PhotoPrint, PaperSheet, Stamp, NameTape, MedalDisc, `confirm()`; the focus manager and **input router** (keyboard, mouse, gamepad, touch) with last-device glyph switching |
 | `src/ui/ui-sound.js` [new] | §1.8 registry, throttling, music ducking |
-| `src/ui/backdrop.js` [new] | B1 diorama controller (a scene subset, spline camera, 50% render target, grade shader), B1s fallback, B2 snapshot + duotone, B3; exposes `setMode('frontend' \| 'mission' \| 'paper' \| 'off')` |
+| `src/ui/backdrop.js` [new] | B1 theatre still (SVG grade in its canvas, CSS Ken Burns, dark band, solid badge) and its flyover (`menu-bombers.js`), B2 snapshot + duotone, B3; exposes `setMode('frontend' \| 'mission' \| 'paper' \| 'off')` |
 | `src/ui/boot.js`, `loading.js`, `help.js`, `tips.js` [new] | S01–S03, S14, S11 |
 | `screens.js` | S03–S07, S12, S19: rebuilt on menu-kit, with the front-end MAIN in BEL order (§7) |
 | `menus.js` | S05 in mission, S09, S13, S18 |
@@ -1396,7 +1425,7 @@ The HUD (spec §6) and the menus are built from the **same materials and compone
 
 **Performance targets:**
 - Opening any card: ≤ 1 frame of layout, then ≤ 16 ms per frame during transitions at 4K on an integrated GPU (transforms and opacity only).
-- B1 at ≤ 3 ms GPU (§1.10).
+- B1: no WebGL frame behind the menus; the flyover only during a pass (§1.10).
 - No layout thrash: rows use `transform` for the nudge, not padding.
 
 **Tests** (`tests/`):
@@ -1512,10 +1541,10 @@ The amendments below **override** the sections they cite. Where one conflicts wi
   - bias the duotone highlight toward #56603a;
   - add a crisp 0.75 r highlight on the emblem's upper-left edges, on top of the soft normal-map shading. This is the "tin-plate" edge BEL had.
 
-**A7. Recognition beats life: a salience test for B1.**
-- The live diorama must never out-shout the badge.
-- **Rule:** in a greyscale screenshot, the emblem must be the **largest salient shape** behind the card, and the diorama's luminance must stay within ±8 L of olive-800 after the scrim.
-- Add this to the §6 contrast test, over the same 20 frames. A frame that fails lowers the diorama's mix, not the badge.
+**A7. Recognition beats life: a salience test for B1.** [superseded 2026-11-08]
+- The rule kept the old live diorama under the olive camo (within ±8 L of olive-800) so it never out-shouted the badge.
+- B1 is now the user's realistic battlefield view (§1.10). What remains of A7: the badge and the card sit on the dark
+  pool, the text keeps 4.5:1 on the real pixels under it, and the band of sky stays bright (`tests/ui-layout`).
 
 **A8. Mission-end button grammar** (S19).
 - The fail rows `(R)ESTART MISSION (Q)UICK LOAD (L)OAD GAME` are invented. BEL's grammar is two short hotkeys.

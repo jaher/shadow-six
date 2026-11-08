@@ -480,26 +480,38 @@
 .mk-rm .bt-l, .mk-rm .bt-art .bt-l { animation: none !important; transform: none; }
 
 /* ================================================================== §1.10 backgrounds (backdrop.js) */
-/* B1 (review fix): the M1 moss camo IS the ground (BEL #252412); the diorama only modulates it through a blurred
-   grey soft-light pass (backdrop.js _compose), within ±8 L of olive-800 (A7); A6 pin-pricks; the badge is a pure
-   emboss (backdrop.js _buildEmboss) under a slow brass light sweep; heavier vignette. */
-html.bd-live #view canvas { visibility: hidden; }
-.bd { position: fixed; inset: 0; z-index: 29; pointer-events: none; overflow: hidden; background: var(--olive-800); }
+/* B1 (the realistic front end, user 2026-11-08): the theatre still, graded in its canvas, drifting in a slow Ken
+   Burns (transform only: the compositor's work) with the Spitfires' layer in the same scene; a dark band behind the
+   emblem and the column; the badge solid lit gunmetal (backdrop.js _buildEmboss) under a slow brass light sweep; vignette.
+   Held (no drift) under reduced motion, the Low preset, low memory and MENU BACKGROUND: STILL (.held). */
+.bd { position: fixed; inset: 0; z-index: 29; pointer-events: none; overflow: hidden; background: #12110d; }
 .bd[hidden] { display: none !important; }
 .bd-frozen { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s linear; }
-.bd-camo { position: absolute; inset: calc(-8 * var(--mr)); filter: brightness(.9); background: var(--tex-wool), #22250f; background-size: calc(230 * var(--mr)); animation: bd-drift 20s ease-in-out infinite alternate; }
-.bd-grade { position: absolute; inset: 0; width: 100%; height: 100%; mix-blend-mode: soft-light; opacity: .4; }
-/* the net opening (polish): the diorama under the blanket, olive duotone, kept dark enough for the badge and the
-   text scrim; the camo thins to a light scrim over it and stays whole at the edges */
-.bd-view { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s linear; }
-.bd.viewing .bd-view { opacity: 1; }
-.bd.viewing .bd-camo {
-  -webkit-mask-image: radial-gradient(ellipse 56% 52% at 50% 54%, rgba(0, 0, 0, .08) 0%, rgba(0, 0, 0, .16) 58%, #000 100%);
-  mask-image: radial-gradient(ellipse 56% 52% at 50% 54%, rgba(0, 0, 0, .08) 0%, rgba(0, 0, 0, .16) 58%, #000 100%); }
-.bd.viewing .bd-grade { opacity: .12; }
-.bd-speck { position: absolute; inset: 0; opacity: .6; background: url('../assets/ui/tex/speck-512.png') 0 0 / calc(256 * var(--mr)); }
-@keyframes bd-drift { to { transform: translate(calc(2 * var(--mr)), calc(-2 * var(--mr))); } }
-.bd[data-mode='mission'] .bd-camo, .bd[data-mode='mission'] .bd-grade, .bd[data-mode='mission'] .bd-speck, .bd[data-mode='mission'] .bd-emblem { display: none; }
+.bd-scene { position: absolute; inset: 0; opacity: 0; transition: opacity .9s linear; transform-origin: 50% 22%;
+  transform: scale(1.03); animation: bd-kb-front 80s ease-in-out infinite alternate; }
+.bd.viewing .bd-scene { opacity: 1; }
+.bd-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; }
+.bd-planes { position: absolute; inset: 0; width: 100%; height: 100%; }
+@keyframes bd-kb-front { from { transform: scale(1.02) translateX(-0.6%); } to { transform: scale(1.06) translateX(0.6%); } } /* ≤ 1.06: no magnified water streaks */
+.bd.held .bd-scene { animation: none; }
+/* the dark band behind the emblem and the menu column, full height, falling off smoothly all the way out (one
+   falloff from the badge, no separate edge vignette: a rectangle plus a vignette left bright strips between them),
+   lighter over the sky; and a low band that keeps the footer hints and the name tape legible over a bright
+   foreground. Every row, the greyed ones too, keeps 4.5:1 over the brightest still (tests/ui-layout) */
+.bd-shade { position: absolute; inset: 0; --band: max(15vw, 150px); --fall: max(30vw, 210px);
+  background: linear-gradient(to right,
+      rgba(9, 8, 6, .03) calc(50% - var(--band) - var(--fall)), rgba(9, 8, 6, .12) calc(50% - var(--band) - .78 * var(--fall)),
+      rgba(9, 8, 6, .3) calc(50% - var(--band) - .55 * var(--fall)), rgba(9, 8, 6, .52) calc(50% - var(--band) - .3 * var(--fall)),
+      rgba(9, 8, 6, .68) calc(50% - var(--band) - .1 * var(--fall)), rgba(9, 8, 6, .74) calc(50% - var(--band)), rgba(9, 8, 6, .8) 50%,
+      rgba(9, 8, 6, .74) calc(50% + var(--band)), rgba(9, 8, 6, .68) calc(50% + var(--band) + .1 * var(--fall)),
+      rgba(9, 8, 6, .52) calc(50% + var(--band) + .3 * var(--fall)), rgba(9, 8, 6, .3) calc(50% + var(--band) + .55 * var(--fall)),
+      rgba(9, 8, 6, .12) calc(50% + var(--band) + .78 * var(--fall)), rgba(9, 8, 6, .03) calc(50% + var(--band) + var(--fall))),
+    linear-gradient(to top, rgba(9, 8, 6, .5) 0%, rgba(9, 8, 6, .2) 9%, rgba(9, 8, 6, 0) 18%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .5) 0%, #000 26%); mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .5) 0%, #000 26%); }
+.bd[data-mode='frontend'] .bd-vig { background: none; }
+/* over the realistic front end the rows take the brighter khaki, and the greyed rows stay readable (4.5:1) */
+.mk-layer[data-bg='frontend'] { --khaki: var(--khaki-hi); --dim-row: #948f70; }
+.bd[data-mode='mission'] .bd-scene, .bd[data-mode='mission'] .bd-shade, .bd[data-mode='mission'] .bd-emblem { display: none; }
 .bd-emblem { position: absolute; left: 50%; top: 50%; width: calc(640 * var(--mr)); height: calc(480 * var(--mr)); transform: translate(-50%, -50%); }
 .bd-emboss { position: absolute; inset: 0; width: 100%; height: 100%; }
 .bd-sheen { position: absolute; inset: 0; opacity: .5; mix-blend-mode: screen;
@@ -507,15 +519,15 @@ html.bd-live #view canvas { visibility: hidden; }
   -webkit-mask: var(--sheen-mask, none) center / 100% 100% no-repeat; mask: var(--sheen-mask, none) center / 100% 100% no-repeat;
   animation: bd-sweep 30s var(--ease-io) infinite; }
 @keyframes bd-sweep { 0%, 70% { background-position: 110% 0; } 100% { background-position: -10% 0; } }
-.bd-vig { position: absolute; inset: 0; background: radial-gradient(ellipse 72% 70% at 50% 46%, transparent 42%, rgba(0, 0, 0, .5) 100%); }
-.mk-hc .bd-emboss, html.mk-hc .bd-emboss { opacity: .6; }
+.bd-vig { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 74% at 50% 44%, transparent 48%, rgba(0, 0, 0, .42) 100%); }
+/* (high contrast keeps the badge solid: it is the dark ground of the rows) */
 /* B2 oxblood frozen frame: sharp, 20 % vignette (A2), 1.02× drift */
 .bd-frozen { object-fit: cover; }
 .bd-frozen.on { opacity: 1; transition-duration: 180ms; animation: bd-kb 30s linear forwards; }
 @keyframes bd-kb { to { transform: scale(1.02); } }
 .bd[data-mode='mission'] { background: var(--oxblood-1); }
 .bd[data-mode='mission'] .bd-vig { background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 55%, rgba(0, 0, 0, .2) 100%); }
-html.mk-rm .bd-sheen, html.mk-rm .bd-camo, html.mk-rm .bd-frozen.on { animation: none; }
+html.mk-rm .bd-sheen, html.mk-rm .bd-scene, html.mk-rm .bd-frozen.on { animation: none; }
 
 /* ================================================================== touch (src/ui/touch.js: html.mk-touch on phones / after a tap) */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }

@@ -317,6 +317,12 @@ export const CREDITS_SECTIONS = [
     "ours (MIT project licence)"
    ],
    [
+    "assets/ui/keyart/spitfires-day.webp (main-menu flyover: the Spitfire formation's daylight sprites, layout in src/ui/spitfire-day.js)",
+    "the same Blender model (tools/ui/splash/spitfire/), the same three poses rendered in the menu stills' hazy daylight (render.py ... day, pack.py --day)",
+    "SHADOW SIX contributors",
+    "ours (MIT project licence)"
+   ],
+   [
     "MakeHuman data used by the hero build (base mesh hm08, macro / face / expression targets, game_engine rig and weights, skins, eyes, eyelashes; not shipped as files)",
     "MakeHuman data/, MPFB 2 data/ (rig + weights JSON) and the MakeHuman system assets, downloaded 2026-10-08",
     "MakeHuman community",

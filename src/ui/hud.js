@@ -197,7 +197,7 @@ export class HUD {
       try { globalThis.localStorage?.setItem(PRESET_CHOSEN_KEY, '1'); } catch { /* private mode */ } // engine/device.js
     }
     if (/^(textScale|highContrast|reducedMotion|grain)$/.test(key)) this.kit.applyPrefs();
-    if (key === 'menuBg' || key === 'reducedMotion') this.backdrop?.setMode(this.backdrop.mode);
+    if (key === 'menuBg' || key === 'reducedMotion' || key === 'preset') this.backdrop?.setMode(this.backdrop.mode); // drift / flyover
     if (!o.quiet) this.game.events.emit('ui:click', { sfx: 'ui_click' });
   }
 
@@ -566,7 +566,6 @@ export class HUD {
     this.cursor.update();
     this.tooltips.update(dt);
     this.kit.update(dt);
-    this.backdrop.update(dt);
     this.touch?.update();
   }
 
