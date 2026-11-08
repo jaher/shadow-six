@@ -179,6 +179,35 @@ test('height sight: shown cones rebuild within a frame budget (VisionCones) — 
   vcs.dispose();
 });
 
+test('height sight: a turning head\'s cone never loses a slice while its sector rebuilds over frames (the window waits at the sector edge, lags at most 10°)', () => {
+  const w = bumpy();
+  const g = { kind: 'enemy', id: 1, x: 30, z: 40, heading: 0, alive: true, world: w, vision: makeVision('soldier'), sweepActive: false, coneVisible: true };
+  w.enemies.push(g);
+  // (a budget far below one step's cost: each frame runs a single step of a rebuild)
+  const vcs = new VisionCones(w, { add() {} }, { budgetMs: 0.001 });
+  vcs.update();
+  const vc = vcs.cones.get(g);
+  const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+  let missing = 0, maxLag = 0, n0 = vc.rebuilds;
+  // he turns his head 3° a frame (180°/s at 60 fps: a fast look round, or a slow one at 4x) through a whole turn and back
+  for (let f = 0; f < 240; f++) {
+    g.heading += (f < 120 ? 3 : -3) * Math.PI / 180;
+    vcs.update();
+    const S = vc._sector, d = vc.drawnWindow();
+    const mid = (S.a0 + S.a1) / 2, off = Math.abs(wrap(d.heading - mid)) + d.halfFov - (S.a1 - S.a0) / 2;
+    if (off > 1e-9) missing++;
+    maxLag = Math.max(maxLag, Math.abs(wrap(d.heading - g.heading)));
+  }
+  assert.equal(missing, 0, 'the drawn window always lies inside the shown sector (no slice of the cone missing)');
+  assert.ok(maxLag <= 10 * Math.PI / 180 + 1e-9, `the drawn cone lags his head at most 10° (${(maxLag * 180 / Math.PI).toFixed(1)}°)`);
+  assert.ok(vc.rebuilds - n0 < 60, `the sectors reach ahead of the turn: ${vc.rebuilds - n0} rebuilds in 240 frames of turning`);
+  // he stops: the window is his head again
+  for (let f = 0; f < 600 && vc._job; f++) vcs.update();
+  vcs.update();
+  assert.ok(Math.abs(wrap(vc.drawnWindow().heading - g.heading)) < 1e-9, 'settled: the drawn window is his head');
+  vcs.dispose();
+});
+
 test('height sight: the cone runs on past a bump and a low wall; the light shade marks where only a crawler is hidden', () => {
   const { w, g, g2 } = lanes();
   for (const [v, x, z] of [[g, 30, 10], [g2, 26, 27]]) {

@@ -1,7 +1,8 @@
 /**
  * Dynamic resolution (engine/dynamic-res.js, Renderer.setDynamicScale, Game.setDynamicResolution): off on desktop and
  * in test mode by default; when the controller lowers the scale the canvas and every post target follow, frames still
- * draw cleanly, and full scale restores the original size. Driven by the controller's own sampling in Game.frame.
+ * draw cleanly, and full scale restores the original size. Driven by the controller's own sampling in Game.frame, whose
+ * step is taken before the next frame draws (a canvas resized after its frame presented it black).
  */
 export default async function (page, t) {
   const r = await page.evaluate(async () => {
@@ -36,4 +37,22 @@ export default async function (page, t) {
   t.equal(r.rt[0], r.low[0], 'post targets follow');
   t.ok(!r.stats.contextLost && r.stats.black < 0.5 && r.stats.luma > 10, 'the low-resolution frame draws');
   t.equal(r.back[0], r.full[0], 'full size restored');
+
+  // the controller's steps as Game.frame takes them: the canvas is resized before a frame draws, never after it (a resize
+  // clears the drawing buffer: the frame just drawn was presented black — a black flash at every step on phones, M2's
+  // opening 1048 -> 891 -> 734 px wide; user 2026-11-08 "I see some flickering when opening mission 02")
+  const st = await page.evaluate(() => {
+    const G = window.__game.game, R = G.renderer, gl = R.renderer.getContext();
+    G.setDynamicResolution(true);
+    const d = G.dynres, steps = [0.85, 0.7, 1];
+    let k = 0, calls = 0;
+    d.sample = () => (++calls % 3 === 0 ? steps[k++ % steps.length] : null);
+    const out = [];
+    for (let i = 0; i < 12; i++) { G.frame(1 / 60); const f = R.frameStats(5); out.push([gl.drawingBufferWidth, f.luma, f.black]); }
+    G.setDynamicResolution(false);
+    return out;
+  });
+  t.log(`frames through the steps (width, luma, black share): ${JSON.stringify(st)}`);
+  t.ok(new Set(st.map((x) => x[0])).size >= 3, 'the steps were taken');
+  t.equal(st.filter((x) => x[2] > 0.9 || x[1] < 2).length, 0, 'no frame left black by a resolution step');
 }

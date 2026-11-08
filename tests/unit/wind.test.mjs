@@ -8,7 +8,7 @@ import { WindField, resolveWind, WIND_PRESETS, WIND_UNIFORMS, WIND_GLSL } from '
 import { World } from '../../src/world/world.js';
 import { VerletCloth, CLOTHS } from '../../src/art/cloth.js';
 import { makeFlag, tickFlags } from '../../src/art/flags.js';
-import { computeFlutter } from '../../src/art/cloth-wind.js';
+import { computeFlutter, applyClothWind } from '../../src/art/cloth-wind.js';
 import { makeClothesline } from '../../src/art/clothesline.js';
 import { buildTent } from '../../src/art/dressing.js';
 import { normalizeMission } from '../../src/missions/schema.js';
@@ -123,6 +123,37 @@ test('clothing: flutter weights from the bind pose (coat skirt ≫ trousers, ski
   assert.ok(skirt > 0.5 && skirt > trouser * 4, `skirt ${skirt.toFixed(2)} vs trousers ${trouser.toFixed(2)}`);
   assert.equal(skin, 0);
   assert.ok(cuff > 0.1 && cuff < 0.6, `cuff ${cuff.toFixed(2)}`);
+});
+
+test('clothing: the flutter streams with the man\'s own velocity — a placement is no motion, the offset stays bounded', () => {
+  const m = skinned();
+  assert.ok(applyClothWind(m, (a) => new THREE.Float32BufferAttribute(a, 2)), 'the coat skirt flutters');
+  const sh = { uniforms: {}, vertexShader: '#include <common>\n#include <skinning_vertex>' };
+  m.material.onBeforeCompile(sh, null);
+  const vel = sh.uniforms.uClothVel.value, T = WIND_UNIFORMS.uWindA.value, t0 = T[3];
+  const draw = (t, x, z) => {
+    T[3] = t; m.position.set(x, 0, z); m.updateMatrixWorld(true);
+    m.onBeforeRender(null, null, null, m.geometry, m.material, null);
+    return Math.hypot(vel[0], vel[1]);
+  };
+  try {
+    // the load's warm-up frame draws him where he was built (the origin) at sim time 0; he is placed; the clock is held
+    // through the loading screen and the title card; play's first frame comes 1/60 s later (was 705 m/s: M2's Green Beret)
+    draw(0, 0, 0);
+    draw(0, 12, 117);
+    const v1 = draw(1 / 60, 12, 117);
+    assert.ok(v1 < 1e-6, `a standing man after his placement: ${v1.toFixed(2)} m/s`);
+    // walking 4 m/s along x: the smoothed velocity is his
+    let v = 0;
+    for (let i = 2; i <= 120; i++) v = draw(i / 60, 12 + ((i - 1) * 4) / 60, 117);
+    assert.ok(Math.abs(v - 4) < 0.05, `walking: ${v.toFixed(3)} m/s`);
+    // a teleport (50 m in a frame) restarts from rest; a vehicle's 25 m/s is still motion
+    assert.ok(draw(121 / 60, 70, 117) < 1e-6, 'a teleport is no motion');
+    for (let i = 122; i <= 240; i++) v = draw(i / 60, 70 + ((i - 121) * 25) / 60, 117);
+    assert.ok(Math.abs(v - 25) < 0.3, `carried at 25 m/s: ${v.toFixed(2)}`);
+  } finally { T[3] = t0; }
+  // the shader's flutter direction is a unit vector (divided by the capped speed it grew past 20 m/s: metres of offset)
+  assert.ok(/cwD = cwL > 1e-3 \? cwR \/ cwL/.test(sh.vertexShader), 'unit flutter direction');
 });
 
 test('clothesline (M3): uniform + laundry are simulated cloth; canvas tents carry flap weights', () => {

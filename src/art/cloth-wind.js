@@ -20,6 +20,8 @@ import { due, runSync } from '../engine/slice.js';
 
 /** Per-draw character velocity (world xz, m/s): set in each mesh's onBeforeRender. */
 const VEL = { value: new Float32Array([0, 0]) };
+/** The fastest a man is carried (m/s: a vehicle flat out, the train 12, a motorbike 9); a faster jump is a placement. */
+export const MAX_CARRY = 30;
 const _geo = new WeakMap();
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -107,8 +109,9 @@ if (aFlutter.x > 0.001) {
   vec3 cwP = (modelMatrix * vec4(transformed, 1.0)).xyz;
   vec4 cwW = windSample(cwP.xz);
   vec2 cwR = cwW.xy - uClothVel;
-  float cwS = min(length(cwR), 20.0);
-  vec2 cwD = cwS > 1e-3 ? cwR / cwS : vec2(0.0);
+  float cwL = length(cwR), cwS = min(cwL, 20.0);
+  // (a unit direction: divided by the capped speed it grew past 20 m/s, metres of flutter on a velocity spike)
+  vec2 cwD = cwL > 1e-3 ? cwR / cwL : vec2(0.0);
   float cwA = aFlutter.x * min(0.007 * cwS + 0.035 * cwW.z, 0.12);
   // fixed rate: (rate + k·speed)·t chirps as the speed changes late in a mission (t·dS/dt → tens of Hz)
   float cwPh = uWindA.w * 7.5 + aFlutter.y + cwP.y * 4.0;
@@ -155,11 +158,15 @@ export function applyClothWind(mesh, makeAttr) {
     prevOBR?.call(this, renderer, scene, camera, geometry, material, group);
     const e = this.matrixWorld.elements, t = WIND_UNIFORMS.uWindA.value[3];
     if (t !== st.t) {
-      const dt = t - st.t;
-      if (st.t >= 0 && dt > 0 && dt < 0.5) {
+      const dt = t - st.t, dx = e[12] - st.x, dz = e[14] - st.z;
+      // a move no man makes in dt is a placement, not motion: the first draw, a LOD swap, a teleport — and the load's
+      // warm-up frame, which draws him where he was built (the origin) at sim time 0, the clock then held through the
+      // loading screen and the briefing / title card, so play's first frame measured 117 m in 1/60 s (705 m/s: the
+      // coat flung metres out for half a second, every mission's opening)
+      if (st.t >= 0 && dt > 0 && dt < 0.5 && dx * dx + dz * dz <= (MAX_CARRY * dt) ** 2) {
         const k = Math.min(1, dt * 6); // ~0.17 s smoothing of the measured velocity
-        st.vx += ((e[12] - st.x) / dt - st.vx) * k; st.vz += ((e[14] - st.z) / dt - st.vz) * k;
-      } else { st.vx = 0; st.vz = 0; } // first draw / LOD swap / teleport
+        st.vx += (dx / dt - st.vx) * k; st.vz += (dz / dt - st.vz) * k;
+      } else { st.vx = 0; st.vz = 0; }
       st.x = e[12]; st.z = e[14]; st.t = t;
     }
     VEL.value[0] = st.vx; VEL.value[1] = st.vz;

@@ -1810,6 +1810,11 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     art (the placed buildings' LOD0, the map's gameplay stamps, the static vehicles' models) is awaited however long it
     takes (`engine/gameplay-inputs.js`), never raced against a clock; gameplay never reads the drawn water
     (`world.waterLevelAt`, art/water.js `gameplayWaterLevel`).
+    `flicker.mjs` (a mission's opening — loading screen, title card, play — every drawn frame box-filtered on the GPU
+    and read back without a stall, `flicker-probe.js`; A-B-A blinks per 16 × 16 px region, `flicker-detect.mjs`, the
+    camera's own motion counted apart; the flutter velocity every man is drawn with; `--sc` the composited page as
+    JPEG frames, `flicker-sc.mjs` runs the same detector on them; `--ui`, `--phone`, `--play`, `--speed=1|4|auto`;
+    `tests/opening-flicker.test.mjs`).
     Hidden classes (V8) of the long-lived simulation objects stay put while they play (GC round 2): a live unit is never
     a prototype — the solutions' look-ahead ghosts are `Object.create` of his mirror (`tools/solutions/ghost.mjs`:
     `ghost`, `mirrorOf` + `ghostOn` for several in one call or plan; a ghost that must outlive a tick is made again at

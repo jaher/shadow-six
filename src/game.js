@@ -1130,7 +1130,7 @@ export class Game {
   setDynamicResolution(mode) {
     const on = mode === true || (mode === 'auto' && this.mobileDevice && !this.manualTick);
     if (on && !this.dynres) this.dynres = new DynamicResolution(CONFIG.render.dynamicResolution || {});
-    if (!on && this.dynres) { this.dynres = null; this.renderer.setDynamicScale(1); }
+    if (!on && this.dynres) { this.dynres = null; this._dynScale = null; this.renderer.setDynamicScale(1); }
     this.dynresMode = mode;
     return !!this.dynres;
   }
@@ -1138,6 +1138,10 @@ export class Game {
   /** One displayed frame (rAF): run it, then feed its timing to the dynamic resolution controller. */
   frame(dt) {
     const t0 = performance.now();
+    // a resolution step the controller decided after the last frame is taken before this one draws: resizing the canvas
+    // clears its drawing buffer, and a resize after the frame was drawn presented that frame black — a black flash at
+    // every step on phones (M2's opening: 1048 -> 891 -> 734 px wide, a black frame each, user 2026-11-08)
+    if (this._dynScale != null) { const s = this._dynScale; this._dynScale = null; this.renderer.setDynamicScale(s); }
     this._frame(dt);
     const d = this.dynres;
     if (!d) return;
@@ -1146,7 +1150,7 @@ export class Game {
     const now = performance.now();
     if (this._dynLast) {
       const s = d.sample(now - this._dynLast, now - t0);
-      if (s != null) this.renderer.setDynamicScale(s);
+      if (s != null) this._dynScale = s;
     }
     this._dynLast = now;
   }

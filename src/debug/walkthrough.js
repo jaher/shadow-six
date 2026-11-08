@@ -87,6 +87,12 @@ export const MIN_LAPSE_MS = 4;
  * crawls to the north-west road: ~35 s of planning, ~120 s on screen).
  */
 export const THINK_SKIP_MS = 250;
+/**
+ * A skip shows (its tag, the camera's cut to what is waited for, or to the men for a plan) once it has lasted this long
+ * (wall ms): a plan answered a frame after it was skipped cut the view to the men and straight back — the whole picture
+ * jumping for one frame (M5's opening in AUTO) — and flashed the tag. A shorter skip never moves the camera.
+ */
+export const SKIP_SHOW_MS = 300;
 /** The tag of a skipped plan. */
 const PLAN_WAIT = 'a way past the guards';
 /** AUTO's adaptive tick budget never goes under this (ms a frame): the run keeps moving under a heavy draw. */
@@ -859,7 +865,7 @@ export class Walkthrough extends SolutionReplay {
     (this.skips ||= []).push({ label: s.label, game: this.world.time - s.t0, wall: (performance.now() - s.wall) / 1000, cut });
     this._quietSince = null;
     if (cut) {
-      this._camCut = true;
+      if (s.shows) this._camCut = true; // (a skip that never took the camera has nothing to cut back from)
       this.autoPace.reset(2);
       this.pacer.boost = this.autoPace.rate;
       this.pacer.budget = Math.min(this.pacer.budget, 0.999);
@@ -893,7 +899,14 @@ export class Walkthrough extends SolutionReplay {
   }
 
   /** The "⏩ waiting: <what for>" tag under the bar while a wait is skipped. */
+  /** Has the current skip lasted SKIP_SHOW_MS (its tag and its camera shown)? Once true it stays so. */
+  _skipShows() {
+    const s = this._skip;
+    return !!s && (s.shows ||= performance.now() - s.wall >= SKIP_SHOW_MS);
+  }
+
   _skipTag() {
+    if (!this._skipShows()) return; // (a young skip: no tag yet — one a frame long flashed)
     let tag = document.getElementById('wt-skip');
     if (!tag) { installStyle(); tag = el('div', null, document.body); tag.id = 'wt-skip'; tag.setAttribute('role', 'status'); }
     // (a skipped plan that runs on into a wait shows what it waits for now)
@@ -934,7 +947,7 @@ export class Walkthrough extends SolutionReplay {
     const now = performance.now();
     if (!force && now - (this._autoLabelAt || 0) < 250) return;
     this._autoLabelAt = now;
-    const txt = this.auto ? ` ${this._skip ? '⏩' : this._fmtRate(this.rate)}` : ''; // (textContent "AUTO 3.2×"; the space is not drawn)
+    const txt = this.auto ? ` ${this._skipShows() ? '⏩' : this._fmtRate(this.rate)}` : ''; // (textContent "AUTO 3.2×"; the space is not drawn)
     if (v.textContent !== txt) v.textContent = txt;
     if (this._ui) { this._ui.dataset.rate = this.rate.toFixed(2); this._ui.dataset.why = this.auto ? this.autoWhy : ''; }
   }
@@ -1040,9 +1053,11 @@ export class Walkthrough extends SolutionReplay {
     const w = this.world, now = w.time;
     const cut = this._camCut;
     this._camCut = false;
-    // a skipped wait: what the men wait for, moving fast (the guard, another man), else the men themselves
-    if (this._skip) { const l = this._liveShot(false); if (l) return { ...l, cut: true, frame: { minSpan: [24, 15] } }; }
-    if (this.pacer.turbo) {
+    // a skipped wait: what the men wait for, moving fast (the guard, another man), else the men themselves — once it
+    // shows (SKIP_SHOW_MS); a young skip (a plan about to answer) keeps the play's shot
+    const skip = this._skip, young = !!skip && !this._skipShows();
+    if (skip && !young) { const l = this._liveShot(false); if (l) return { ...l, cut: true, frame: { minSpan: [24, 15] } }; }
+    if (this.pacer.turbo && !young) {
       const a = this._actors();
       return { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) };
     }

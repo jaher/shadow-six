@@ -15,7 +15,10 @@
  * dynamic occluders are versioned by content) and each frame only moves the cone shader's uniforms (window, near, far).
  * Under VisionCones a rebuild is spread over frames (CONFIG.stealth.coneBudgetMs a frame, round robin over the shown
  * cones, the old sector riding along meanwhile) and a walking walker's sector is built coarse; the settled cone (he
- * stands still) is the exact one.
+ * stands still) is the exact one. A turning head's sector reaches TURN_LEAD further the way it turns and the next one is
+ * built once half that lead is used; while a rebuild is in flight the window never leaves the shown sector — it waits at
+ * its edge, at most TURN_LAG behind his head (then the rebuild finishes at once): a cone is never drawn with a slice
+ * missing (they blinked at the missions' openings, user 2026-11-08).
  *
  * Look [EXE]: flat 50% alpha, hard edges, BEL palette green (#02BC6F near / #07675A far) or desert orange
  * (#D26E02 / #6B4C01) from mission.coneColors; ground layer (Renderer.decalScene: depth-tested, so trees,
@@ -342,6 +345,14 @@ const COARSE = { step: 1.5 * DEG, tol: 0.25, cornerTol: 0.15 };
 const SLICE_COARSE = 2.0;
 /** Extra angle (rad) a sector keeps either side of the head's whole sweep. */
 const SECTOR_MARGIN = 10 * DEG;
+/** A turning head's next sector reaches this much further the way it turns (rad): it turns on inside it while the
+ *  following rebuild is spread over frames. */
+const TURN_LEAD = 30 * DEG;
+/** While a turning head's rebuild is spread over frames the drawn window waits at the sector's edge (the cone lags his
+ *  head, whole — as a walker's rides along); past this lag (rad) the rebuild finishes at once. */
+const TURN_LAG = 10 * DEG;
+/** An angle wrapped into (−π, π]. */
+const wrapPi = (a) => a - TAU * Math.round(a / TAU);
 
 /**
  * The cone shader (MeshBasicMaterial + onBeforeCompile): the mesh holds the SECTOR the head sweeps through, out to the
@@ -475,8 +486,21 @@ export class VisionCone {
     // -LEAD_EPS through 0 to +MOVE_EPS before the next rebuild — the same worst parallax, about half the rebuilds
     // (4×: a walking guard covered MOVE_EPS in 1–2 frames, ~1.2 ms a rebuild, four forced cones ~2.7 ms a frame)
     const lead = moving ? { x: cone.x + (mdx / md) * LEAD_EPS, z: cone.z + (mdz / md) * LEAD_EPS } : null;
+    // the head turning (looking round, turning to a noise — in the last half second of game): its next sector reaches
+    // TURN_LEAD further that way (a head at rest keeps the plain sector: no extra rays)
+    const dh = this._lastHead != null ? wrapPi(cone.heading - this._lastHead) : 0, tNow = world?.time ?? 0;
+    this._lastHead = cone.heading;
+    if (Math.abs(dh) > 1e-4) { this._turn = Math.sign(dh); this._turnT = tNow; }
+    const turn = this._turn && Math.abs(tNow - (this._turnT ?? -1e9)) < 0.5 ? this._turn : 0;
     const stale = !S || off(S) || (S.coarse && !moving); // (settled: the exact sector)
-    if (!stale) { this._job = null; this.group.position.set(cone.x - S.x, 0, cone.z - S.z); return false; }
+    // a head turning on through a sector built ahead of his turn: once half its lead is used the next one is built
+    // (over frames, the shown one in use meanwhile), so it lands before the window reaches the edge — no wait there
+    let ahead = false;
+    if (!stale && S.turn && turn === S.turn) {
+      const dw = wrapPi(cone.heading - (S.a0 + S.a1) / 2), room = (S.a1 - S.a0) / 2 - cone.halfFov;
+      ahead = Math.sign(dw) === turn && room - Math.abs(dw) < TURN_LEAD / 2;
+    }
+    if (!stale && !ahead) { this._job = null; this.group.position.set(cone.x - S.x, 0, cone.z - S.z); return false; }
     if (!S && first) {
       // a first build under VisionCones' `first` budget (the cones video mode shows for a step): spread over the next
       // frames, the cone hidden until its sector lands — a cut to a new step no longer builds them all in one frame.
@@ -506,13 +530,29 @@ export class VisionCone {
       // starved past the ride-along tolerance (many cones shown, a long coarse build): finish at once, from where
       // he stands now — riding farther would draw the shadows of near occluders metres off (see MOVE_EPS)
       this._job = null;
-      const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null);
+      const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null, turn);
       let r = it.next();
       while (!r.done) r = it.next();
       this._finish(r.value, cone);
       return true;
     }
-    if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null);
+    // the head has turned out of the shown sector (a guard looking round, turning to a noise — fast in video mode's AUTO):
+    // the window past the sector's edge drew the cone with a slice missing, or none at all, until the rebuild landed a
+    // few frames later — behind a head still turning, so the cones blinked (every mission's opening). The window waits
+    // at the sector's edge meanwhile (whole, a little behind his head); past TURN_LAG the rebuild finishes at once.
+    const mid = (S.a0 + S.a1) / 2, room = (S.a1 - S.a0) / 2 - cone.halfFov, dw = wrapPi(cone.heading - mid);
+    if (Math.abs(dw) > room) {
+      if (Math.abs(dw) - room > TURN_LAG || room < 0) {
+        this._job = null;
+        const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null, turn);
+        let r = it.next();
+        while (!r.done) r = it.next();
+        this._finish(r.value, cone);
+        return true;
+      }
+      u.head.value = mid + Math.sign(dw) * room;
+    }
+    if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null, turn);
     while (!budget.steps || now() < budget.until) { // (at least one step a frame overall: a rebuild always gets on)
       budget.steps = (budget.steps || 0) + 1;
       const r = this._job.next();
@@ -525,20 +565,21 @@ export class VisionCone {
    * A sector rebuild in steps (generator): the fan over the head's whole sweep (+ margin), then its draped mesh into
    * the staging buffer; returns what _finish needs.
    */
-  *_buildSteps(enemy, cone, world, grid, gv, reach, coarse, lead = null) {
+  *_buildSteps(enemy, cone, world, grid, gv, reach, coarse, lead = null, turn = 0) {
     // the sector: the head's whole sweep round its centre (body heading + head offset), plus a margin
     const amp = enemy.sweepActive ? Math.abs((enemy.sweepAmp ?? enemy.vision?.sweep ?? 0) * (enemy.sweepW ?? 1)) : 0;
     let c = (enemy.heading || 0) + (enemy.headOffset || 0) + (enemy.headCarry || 0);
     c += TAU * Math.round((cone.heading - c) / TAU);
     let a0 = c - cone.halfFov - amp - SECTOR_MARGIN, a1 = c + cone.halfFov + amp + SECTOR_MARGIN;
     a0 = Math.min(a0, cone.heading - cone.halfFov - DEG); a1 = Math.max(a1, cone.heading + cone.halfFov + DEG);
+    if (turn > 0) a1 = Math.max(a1, cone.heading + cone.halfFov + TURN_LEAD); else if (turn < 0) a0 = Math.min(a0, cone.heading - cone.halfFov - TURN_LEAD);
     if (a1 - a0 > TAU) { a0 = cone.heading - Math.PI; a1 = a0 + TAU; }
     const fan = yield* coneFanSteps(enemy, grid && (grid.sightRay || grid.castRay) ? grid : null,
       { maxRays: this.cap - 2, world, cache: this._rays || (this._rays = {}), sector: { a0, a1 }, pastEdge: true, ...(coarse ? COARSE : null), apex: lead });
     const buf = this._stage || (this._stage = { a: new Float32Array(3 * 1024), l: new Float32Array(1024), n: 0 });
     buf.n = 0;
     yield* this._meshSteps(fan, world, grid, buf, coarse ? SLICE_COARSE : SLICE);
-    return { fan, sector: { x: fan.cone.x, z: fan.cone.z, vy: cone.vy, el: cone.elevated, gv, a0, a1, reach, coarse } };
+    return { fan, sector: { x: fan.cone.x, z: fan.cone.z, vy: cone.vy, el: cone.elevated, gv, a0, a1, reach, coarse, turn } };
   }
 
   /** A finished rebuild: its buffer becomes the shown one. */
@@ -680,7 +721,7 @@ export class VisionCone {
     const c = this._cone, o = this._b;
     if (!c || !o) return null;
     const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz);
-    let a = Math.atan2(dz, dx) - c.heading;
+    let a = Math.atan2(dz, dx) - this._u.head.value; // (the shader's window: his head, or the sector's edge while it waits)
     a -= TAU * Math.floor((a + Math.PI) / TAU);
     if (d > c.far || (d > 1e-4 && Math.abs(a) > c.halfFov)) return null;
     const px = x - this.group.position.x, pz = z - this.group.position.z;
