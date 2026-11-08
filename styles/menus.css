@@ -447,7 +447,7 @@
 .bt.leaving .bt-splash { opacity: 0; transition-duration: 250ms; }
 .bt-art { position: absolute; inset: 0; overflow: hidden; background: #150b06; --px: 0; --py: 0; }
 .bt-l { position: absolute; inset: -3%; width: 106%; height: 106%; object-fit: cover; will-change: transform; }
-.bt-l.sky { transform: translate(calc(var(--px) * -3 * var(--mr)), calc(var(--py) * -3 * var(--mr))); }
+.bt-l.sky { object-position: calc(var(--plate-x, 0.5) * 100%) 50%; transform: translate(calc(var(--px) * -3 * var(--mr)), calc(var(--py) * -3 * var(--mr))); } /* --plate-x: splash-plate.js plateFocusX (boot.js) */
 .bt-l.planes { pointer-events: none; transform: translate(calc(var(--px) * -4 * var(--mr)), calc(var(--py) * -4 * var(--mr))); }
 .bt-l.fx { inset: 0; width: 100%; height: 100%; object-fit: fill; transform: translate(calc(var(--px) * -6 * var(--mr)), calc(var(--py) * -5 * var(--mr))); }
 .bt-art:not(.mouse) .bt-l.fx { animation: bt-liss 12s ease-in-out infinite; }

@@ -14,17 +14,21 @@
  * it is decoded (or if it fails) a pass flies the silhouette drawn in code below. Per frame it
  * is a handful of drawImage calls, and between passes
  * there is no per-frame cost at all — one timer schedules the next pass and the rAF loop runs only while a pass
- * or its smoke is alive. The corridor is measured off the live layout at every pass: below the wordmark block
- * to the open field left of the hero and is skipped only when the bursts would actually reach the figure
- * (the stick's right edge plus the fireball's reach is measured against the face box's left edge — an
- * earlier flat cutoff at 0.42 of the window width sat within a few px of that edge at squarish aspects
- * and flickered with the hero's idle animation, silently killing the drops). On a very short stage the
- * lane is retried with tight clearances rather than sitting the pass out. Under reduced
- * motion there are no passes, like the embers.
+ * or its smoke is alive. Every pass is laid out on the live layout, for the stage's shape (user, on a foldable and a
+ * phone: "I dont see the bombs on the phone but I do on the computer. The coordinates should adjust to form
+ * factor"): the lane is the sky between the wordmark block and the hero's face (or, where they meet, the sky behind
+ * his head down toward the far field); the planes are sized to the stage (~45 px on a 390 px phone, at least ~30 px);
+ * the far field, the tank and the sky flash come through the plate's own fit and crop (splash-plate.js); the classic
+ * stick lands on the open field left of the hero when it fits there, else as many bursts as the open stretch nearest
+ * the tank holds — on the far field (clipped by the tank's silhouette, which stands in front of it) or, on a portrait
+ * phone, the near field just in front of the tank; the run flies right to left (mirrored) when that is what lets the
+ * drop be seen. A pass the stage reshapes under (a fold, a rotation) ends at once and the next is laid out anew.
+ * Under reduced motion there are no passes, like the embers.
  * @module ui/splash-planes
  */
 
-import { HERO_FACE } from './hero-art.js';
+import { HERO_FACE, HERO_ROWS } from './hero-art.js';
+import { plateRect, HORIZON_V, TANK_BOX, TANK_POLY } from './splash-plate.js';
 import { SPITFIRE_ATLAS } from './spitfire-atlas.js';
 
 /** Formation slots behind the leader: [lengths back, lengths off the centreline, relative size, haze alpha]. Seen
@@ -65,13 +69,12 @@ const DRAG = 0.45;
 const BURST_R = 0.7;
 /** A 250 lb GP bomb with its tail (m) and the Spitfire (m), for drawing the falling bombs to the planes' scale. */
 const BOMB_LEN = SPITFIRE_ATLAS.bombLen, PLANE_M = SPITFIRE_ATLAS.len;
-/** Anchor impact points of the sticks, as fractions of the viewport width (the open field left of the hero). */
-const IMPACTS = [0.13, 0.18, 0.23, 0.28, 0.325];
+/** The classic stick's impact points on the plate (u): the open field left of the hero on a 16:9 screen. */
+const IMPACTS_U = [0.151, 0.198, 0.245, 0.292, 0.335];
 const FIRST_DELAY = 5000;               // ms after the splash is up before the first pass
 const GAP_MIN = 55000, GAP_VAR = 55000; // idle gap between passes: 55–110 s
-const PASS_TIME = 17;                   // s for the leader to cross the stage
+const SPEED_L = 2.46;                   // the formation's speed in plane lengths per second (17 s across a 16:9 desktop)
 const FALL_TIME = 1.9;                  // s a bomb falls from the corridor to the horizon
-const HORIZON = 0.79;                   // horizon line of the sky plate, as a fraction of the layer height
 
 /**
  * Fallback Spitfire silhouette (side profile, nose right) in a 240-unit box, flown until the rendered atlas is
@@ -246,24 +249,23 @@ function burstShape(seed) {
 }
 
 /**
- * The sky plate as the splash shows it (cover-fit over the layer's box, like the plate's own <img>), above the
+ * The sky plate as the splash shows it (its fit and crop on this stage: splash-plate.js), above the
  * horizon, at quarter size, grey, brightened x4.6 and tinted orange-white: the cloud base lit by a burst, which _flash shows
  * through a mask.
  * Built once per pass; null until the plate has decoded.
  * @returns {null | {c: HTMLCanvasElement, k: number}}
  */
-function litSky(lay) {
-  const img = document.querySelector('.bt-l.sky');
-  if (!img?.complete || !img.naturalWidth) return null;
+function litSky(lay, bmp = null) {
+  const img = bmp || document.querySelector('.bt-l.sky');  // the small copy decoded ahead (_prepSky), else the plate
+  if (!bmp && (!img?.complete || !img.naturalWidth)) return null;
   const k = 0.25, c = document.createElement('canvas');
   c.width = Math.max(2, Math.round(lay.w * k)); c.height = Math.max(2, Math.round(lay.horizon * k));
   const g = c.getContext('2d');
-  const sc = Math.max(lay.w / img.naturalWidth, lay.h / img.naturalHeight) * k;
-  const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+  const pl = lay.plate, dw = pl.w * k, dh = pl.h * k;
   // grey (a white flash lights the clouds, whatever colour the dusk gave them) and blurred (the plate's own soft
   // steps must not light up as edges); browsers without canvas filters keep the colour, which still reads
   g.filter = 'blur(5px) grayscale(1)';
-  g.drawImage(img, (lay.w * k - dw) / 2, (lay.h * k - dh) / 2, dw, dh);
+  g.drawImage(img, pl.x * k, pl.y * k, dw, dh);
   g.filter = 'none';
   const base = document.createElement('canvas');           // x3: the plate added onto itself twice
   base.width = c.width; base.height = c.height;
@@ -277,6 +279,15 @@ function litSky(lay) {
   g.fillStyle = '#ffd6a8';
   g.fillRect(0, 0, c.width, c.height);
   return { c, k };
+}
+
+/** [lo, hi] less the busy spans (each [a, b]): the open stretches left, in order. @returns {[number, number][]} */
+export function openSpans(lo, hi, busy) {
+  let out = [[lo, hi]];
+  for (const [a, b] of busy) {
+    out = out.flatMap(([x0, x1]) => (b <= x0 || a >= x1 ? [[x0, x1]] : [[x0, Math.min(x1, a)], [Math.max(x0, b), x1]].filter(([p, q]) => q > p)));
+  }
+  return out;
 }
 
 export class SplashPlanes {
@@ -325,7 +336,7 @@ export class SplashPlanes {
     img.decoding = 'async';
     img.fetchPriority = 'low';
     img.src = SPITFIRE_ATLAS.url;
-    const done = () => { if (this.alive && this._img === img) this._atlas = img; };
+    const done = () => { if (this.alive && this._img === img) { this._atlas = img; this._prepSky(); } };
     if (img.decode) img.decode().then(done, () => {});
     else img.onload = done;
   }
@@ -348,9 +359,9 @@ export class SplashPlanes {
   /** Where slot i's wing bombs hang right now: [[x, y], [x, y]] (near, far) in layout px. */
   _hardpoints(i, leadX) {
     const lay = this._lay, [dx, dy, sf] = FORMATION[i], spr = this._sprites;
-    const x = leadX + dx * lay.s, y = lay.cy + dy * lay.s + this._bob(i) + ANCHOR_DY * lay.s;
+    const x = leadX + lay.dir * dx * lay.s, y = lay.cy + dy * lay.s + this._bob(i) + ANCHOR_DY * lay.s;
     if (!spr) return [[x, y], [x, y]];
-    return spr[POSE[i]].hp.map(([hx, hy]) => [x + hx * sf, y + hy * sf]);
+    return spr[POSE[i]].hp.map(([hx, hy]) => [x + lay.dir * hx * sf, y + hy * sf]); // mirrored on a right-to-left run
   }
 
   /** The gentle formation-keeping bob of slot i (layout px). */
@@ -371,7 +382,7 @@ export class SplashPlanes {
     }
     this._lit = null;
     if (lay.drops) {
-      try { this._lit = litSky(lay); } catch (err) { console.warn('[splash-planes]', err); }
+      try { this._lit = litSky(lay, this._skyBmp); } catch (err) { console.warn('[splash-planes]', err); }
     }
     this._pass = { t: 0, sticks: new Map() };
     this._bombs = [];
@@ -394,12 +405,36 @@ export class SplashPlanes {
     clearTimeout(this._loadT);
     cancelAnimationFrame(this._raf);
     this._pass = null;
-    this._img = this._atlas = this._sprites = this._lit = this._scratch = null;
+    this._skyBmp?.close?.();
+    this._img = this._atlas = this._sprites = this._lit = this._scratch = this._skyBmp = null;
   }
 
-  _schedule() {
+  _schedule(ms = GAP_MIN + Math.random() * GAP_VAR) {
     clearTimeout(this._timer);
-    this._timer = setTimeout(() => this.pass(), GAP_MIN + Math.random() * GAP_VAR);
+    this._timer = setTimeout(() => this.pass(), ms);
+  }
+
+  /**
+   * A small copy of the sky plate for the lit-sky flashes (800 x 450), decoded and scaled off the main thread ahead of
+   * the first pass: drawing the full plate into a canvas at the pass's start cost a ~100 ms frame on a slow phone.
+   */
+  _prepSky() {
+    const img = document.querySelector('.bt-l.sky');
+    if (this._skyBmp || this._skyPrep || !img?.complete || !img.naturalWidth || typeof createImageBitmap !== 'function') return;
+    this._skyPrep = createImageBitmap(img, { resizeWidth: 800, resizeHeight: 450, resizeQuality: 'medium' })
+      .then((b) => { if (this.alive) this._skyBmp = b; }, () => {}).finally(() => { this._skyPrep = null; });
+  }
+
+  /** The stage changed shape mid-pass: this pass ends at once and the next one, laid out for the new shape, follows. */
+  _abort() {
+    cancelAnimationFrame(this._raf);
+    this._pass = null;
+    this._bombs = [];
+    this._booms = [];
+    this._lit = this._scratch = null;
+    const { ctx, canvas: c } = this;
+    ctx.clearRect(0, 0, c.width, c.height);
+    this._schedule(2500);
   }
 
   /**
@@ -410,82 +445,126 @@ export class SplashPlanes {
   _layout() {
     const c = this.canvas, cw = c.clientWidth, ch = c.clientHeight;
     if (cw < 50 || ch < 50) return null;
-    const cr = c.getBoundingClientRect();
+    const art = c.parentElement, W = art?.clientWidth || innerWidth, H = art?.clientHeight || innerHeight;
+    const cr = c.getBoundingClientRect(), ar = art?.getBoundingClientRect?.() || { left: 0, top: 0 };
     const top = document.querySelector('.bt-top')?.getBoundingClientRect();
     const hero = document.querySelector('.bt-l.hero');
     if (!top || !hero || !hero.naturalWidth) return null;
     const b = hero.getBoundingClientRect();
-    const s = Math.min(b.width / hero.naturalWidth, b.height / hero.naturalHeight); // object-fit: contain
-    const iw = hero.naturalWidth * s, ih = hero.naturalHeight * s;
-    const ix = b.x + (b.width - iw) / 2, iy = b.y + (b.height - ih);                 // object-position: 50% 100%
+    const hs = Math.min(b.width / hero.naturalWidth, b.height / hero.naturalHeight); // object-fit: contain
+    const iw = hero.naturalWidth * hs, ih = hero.naturalHeight * hs;
+    const ix = b.x + (b.width - iw) / 2, iy = b.y + (b.height - ih);                    // object-position: 50% 100%
     const corridorTopRaw = top.bottom - cr.top;
     const faceTopRaw = iy + HERO_FACE.y0 * ih - cr.top;
-    let corridorTop = corridorTopRaw + 8;
-    let faceTop = faceTopRaw - 8;
-    let corridorH = faceTop - corridorTop;
-    if (corridorH < 24) {                                  // very short stage: retry with tight clearances
-      corridorTop = corridorTopRaw + 3;                    // rather than no pass at all — the lane still
-      faceTop = faceTopRaw - 3;                            // clears the wordmark and the face box, just
-      corridorH = faceTop - corridorTop;                   // with less air around the formation
-      if (corridorH < 16) return null;                     // genuinely no lane on this screen: sit it out
-    }
-    const size = Math.min(0.052 * ch, (corridorH - 6) / 1.36);
-    const horizon = HORIZON * ch;
-    // bomb line: only with open field left of the figure (proxied by the face box's left edge — the body's
-    // parts stay within it at the horizon line) — never under the hero. Judged on the actual geometry:
-    // the stick's right edge plus the burst's reach must clear that edge (the gap at ordinary landscape
-    // sizes is then 60+ px, far beyond the hero rect's idle-animation drift, so the verdict is stable)
-    let drops = null;
-    const faceLeftVp = ix + HERO_FACE.x0 * iw;             // viewport px
-    const stickRightVp = IMPACTS[IMPACTS.length - 1] * innerWidth + 0.006 * cw; // rightmost burst centre + jitter
-    if (faceLeftVp - stickRightVp > 1.5 * (size * BURST_R)) { // 1.5x the burst radius R = size * BURST_R (_burst)
-      const v = (1.38 * cw) / PASS_TIME;
-      // a bomb leaves at the plane's speed and slows (DRAG) through its FALL_TIME drop: it lands `travel` ahead of
-      // where it let go, so a bomber releases that far short of its impact point (the impacts stay where they were)
-      const travel = v * (1 - Math.exp(-DRAG * FALL_TIME)) / DRAG;
-      drops = IMPACTS.map((f) => {
-        const ixC = f * innerWidth - cr.left + (Math.random() - 0.5) * 0.012 * cw;
-        return { x: ixC, releaseX: ixC - travel };
-      });
-    }
-    return {
-      w: cw, h: ch, dpr: Math.min(devicePixelRatio || 1, 2880 / cw),
-      cy: corridorTop + corridorH / 2 + (Math.random() - 0.5) * corridorH * 0.2,
-      s: size, horizon, v: (1.38 * cw) / PASS_TIME, drops,
+    // the far field through the plate's fit (splash-plate.js), as the plate itself is shown: viewport, then canvas px
+    const pr = plateRect(W, H, this.o.focus?.()), px = ar.left + pr.x, py = ar.top + pr.y;
+    const hz = py + HORIZON_V * pr.h, horizon = hz - cr.top;
+    const plate = { x: px - cr.left, y: py - cr.top, w: pr.w, h: pr.h };
+    // the lane: the sky between the wordmark block and the hero's face; where there is none (a landscape phone: his
+    // face reaches the wordmark), the sky below the wordmark down toward the far field, behind his head (he hides it)
+    const corridorTop = corridorTopRaw + 8;
+    let corridorBot = faceTopRaw - 8;
+    if (corridorBot - corridorTop < 24) corridorBot = corridorTop + 0.6 * (horizon - corridorTop);
+    const corridorH = corridorBot - corridorTop;
+    if (corridorH < 16) return null;                       // genuinely no sky on this screen: sit it out
+    // the formation's size: a share of the stage's height, at least ~30 px so a phone reads it, capped by the width
+    // (no giants on a narrow screen) and by the lane
+    const size = Math.min(Math.max(0.052 * ch, 28), 0.115 * cw, (corridorH - 6) / 1.36);
+    const R = size * BURST_R, len = PLANE_LEN * size, v = SPEED_L * len;
+    // the bomb line: the classic stick on the far field left of the hero when it fits there (a wide screen); else the
+    // far field's open stretch nearest the tank — open: out from behind the hero (his silhouette at that height,
+    // HERO_ROWS, with the bursts' reach) and mostly clear of the tank's hull (a burst behind it shows only its top);
+    // failing that the stretch behind the tank (its silhouette clips the bursts), then the near field in front of it.
+    const heroAt = (y) => {
+      const r = y >= iy ? HERO_ROWS[Math.floor(((y - iy) / ih) * HERO_ROWS.length)] : null;
+      return r ? [ix + r[0] * iw - 0.6 * R, ix + r[1] * iw + 0.6 * R] : null;
     };
+    const lo = ar.left + 0.8 * R, hi = ar.left + W - 0.8 * R;   // (nearly) whole bursts on screen
+    const tankC = px + (TANK_BOX[0] + TANK_BOX[2]) / 2 * pr.w;
+    // ... and out from behind the splash's words (the prompt, the legal line): each line of text the bursts would rise into
+    const lines = [];
+    for (const e of document.querySelectorAll('.bt-prompt, .bt-disclaimer')) {
+      const rg = document.createRange();
+      rg.selectNodeContents(e);
+      for (const q of rg.getClientRects()) if (q.width > 1 && q.height > 1) lines.push(q);
+    }
+    const wordsAt = (y) => lines.filter((q) => q.bottom > y - 2.2 * R && q.top < y + 0.6 * R).map((q) => [q.left - 0.5 * R, q.right + 0.5 * R]);
+    const spansAt = (y, extra = []) => openSpans(lo, hi, [heroAt(y), ...wordsAt(y), ...extra].filter(Boolean)).filter(([a0, a1]) => a1 - a0 >= 0.4 * R);
+    const near = py + (TANK_BOX[3] + 0.05) * pr.h; // the near field just below the tank's tracks
+    let xs = IMPACTS_U.map((u) => px + u * pr.w + (Math.random() - 0.5) * 0.006 * cw), ground = hz, behind = true;
+    if (!xs.every((x) => spansAt(hz).some(([a0, a1]) => x >= a0 && x <= a1))) {
+      const hullL = px + 0.5925 * pr.w, hullR = px + 0.81 * pr.w;   // the tank's silhouette across the far line
+      const hidden = ([a0, a1]) => Math.max(0, Math.min(a1, hullR) - Math.max(a0, hullL)) / Math.max(1, a1 - a0);
+      const far = spansAt(hz), open = far.filter((f) => hidden(f) < 0.5);
+      const cands = (open.length ? open : far).map((f) => [f, hz, true]);
+      if (!cands.length && near < ar.top + H - 0.6 * R) cands.push(...spansAt(near).map((f) => [f, near, false]));
+      const gap = ([a0, a1]) => Math.abs(Math.min(Math.max(tankC, a0), a1) - tankC);
+      const best = cands.reduce((m, f) => (!m || gap(f[0]) < gap(m[0]) - 1 ? f : m), null);
+      const [a0, a1] = best?.[0] || [0, -1];
+      const n = a1 > a0 ? Math.max(1, Math.min(IMPACTS_U.length, Math.floor((a1 - a0) / (1.15 * R)) + 1)) : 0;
+      xs = Array.from({ length: n }, (_, k) => (n === 1 ? (a0 + a1) / 2 : a0 + (a1 - a0) * k / (n - 1)));
+      if (best) { ground = best[1]; behind = best[2]; }
+    }
+    // the run: left to right as on the desktop, unless that would let the bombs go before the planes are on screen
+    // (an open stretch on the left of a narrow screen), then right to left, mirrored, so the drop is seen
+    const travel = v * (1 - Math.exp(-DRAG * FALL_TIME)) / DRAG;
+    const dir = !xs.length || Math.min(...xs) - travel >= ar.left - 0.25 * len ? 1 : -1;
+    const drops = xs.length ? xs.map((x) => ({ x: x - cr.left, releaseX: x - cr.left - dir * travel, y: ground - cr.top, behind })) : null;
+    return {
+      w: cw, h: ch, dpr: Math.min(devicePixelRatio || 1, 2880 / cw), dir, plate,
+      tank: TANK_POLY.map(([u, vv]) => [plate.x + u * plate.w, plate.y + vv * plate.h]),
+      cy: corridorTop + corridorH / 2 + (Math.random() - 0.5) * corridorH * 0.2,
+      s: size, horizon, v, drops, x0: dir > 0 ? -0.30 * cw : 1.30 * cw,
+    };
+  }
+
+  /** The leader's anchor x at pass time t (layout px). */
+  _lead(t) {
+    const lay = this._lay;
+    return lay.x0 + lay.dir * lay.v * t;
+  }
+
+  /** The formation's planes right now, as viewport points (the anchor of each slot; the tests read it). */
+  _planesVp() {
+    const lay = this._lay, p = this._pass;
+    if (!lay || !p) return [];
+    const cr = this.canvas.getBoundingClientRect(), sx = cr.width / lay.w, sy = cr.height / lay.h, lead = this._lead(p.t);
+    return FORMATION.map(([dx, dy]) => [cr.left + (lead + lay.dir * dx * lay.s) * sx, cr.top + (lay.cy + dy * lay.s) * sy]);
   }
 
   _step(dt) {
     const p = this._pass, lay = this._lay;
+    // the stage changed shape under the pass (a fold, a rotation, a resize): it ends here, the next is laid out anew
+    if (this.canvas.clientWidth !== lay.w || this.canvas.clientHeight !== lay.h) { this._abort(); return; }
     p.t += dt;
-    const leadX = -0.30 * lay.w + lay.v * p.t;
+    const leadX = this._lead(p.t);
     // release: as each bomber's near wing bomb crosses its release line it drops the pair, near wing first and the
     // far one STICK_GAP later, each from its hardpoint on the sprite; the plane flies on 'half', then 'clean'
     if (lay.drops) {
       FORMATION.forEach((_, i) => {
         const slot = BOMBERS.indexOf(i);
-        if (slot < 0) return;
+        if (slot < 0 || !lay.drops[slot]) return; // a narrow screen's short stick: fewer bombers drop
         let st = p.sticks.get(i);
         if (!st) {
-          if (this._hardpoints(i, leadX)[0][0] < lay.drops[slot].releaseX) return;
+          if ((this._hardpoints(i, leadX)[0][0] - lay.drops[slot].releaseX) * lay.dir < 0) return;
           st = { left: STICK, next: p.t };
           p.sticks.set(i, st);
         }
         while (st.left > 0 && p.t >= st.next) {
-          const [x0, y0] = this._hardpoints(i, leadX)[STICK - st.left];
+          const [x0, y0] = this._hardpoints(i, leadX)[STICK - st.left], d = lay.drops[slot];
           st.left -= 1; st.next += STICK_GAP;
           // the fall is timed to FALL_TIME from wherever it starts; x follows the drag decay, y plain gravity
-          this._bombs.push({ x0, y0, x: x0, y: y0, t: 0, g: 2 * (lay.horizon - y0) / (FALL_TIME * FALL_TIME) });
+          this._bombs.push({ x0, y0, x: x0, y: y0, t: 0, yg: d.y, behind: d.behind, g: 2 * (d.y - y0) / (FALL_TIME * FALL_TIME) });
         }
       });
     }
     for (const b of this._bombs) {
       b.t += dt;
       const decay = Math.exp(-DRAG * b.t);
-      b.x = b.x0 + lay.v * (1 - decay) / DRAG; b.y = b.y0 + 0.5 * b.g * b.t * b.t;
+      b.x = b.x0 + lay.dir * lay.v * (1 - decay) / DRAG; b.y = b.y0 + 0.5 * b.g * b.t * b.t;
       b.a = Math.atan2(b.g * b.t, lay.v * decay); // finned: the nose follows the path, pitching down as it falls
-      if (b.y >= lay.horizon) {
-        this._booms.push({ x: b.x, t: 0, seed: Math.random() * 100, puffs: null, shape: null, peak: 0.85 + 0.3 * Math.random() });
+      if (b.y >= b.yg) {
+        this._booms.push({ x: b.x, y: b.yg, behind: b.behind, t: 0, seed: Math.random() * 100, puffs: null, shape: null, peak: 0.85 + 0.3 * Math.random() });
         b.dead = true;
       }
     }
@@ -493,7 +572,8 @@ export class SplashPlanes {
     for (const b of this._booms) b.t += dt;
     this._booms = this._booms.filter((b) => b.t < 6);
     this._draw(leadX);
-    if (leadX - END_LAG * lay.s > lay.w && !this._bombs.length && !this._booms.length) {
+    const gone = lay.dir > 0 ? leadX - END_LAG * lay.s > lay.w : leadX + END_LAG * lay.s < 0;
+    if (gone && !this._bombs.length && !this._booms.length) {
       this._pass = null;
       this._lit = this._scratch = null;
       const { ctx, canvas: c } = this;
@@ -508,20 +588,32 @@ export class SplashPlanes {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     ctx.setTransform(w / lay.w, 0, 0, h / lay.h, 0, 0); // layout coords, stretched over the layer's current box
     ctx.clearRect(0, 0, lay.w, lay.h);
+    const behindTank = () => { // everything but the tank: the far field's flashes and bursts stay behind its hull
+      ctx.beginPath(); ctx.rect(0, 0, lay.w, lay.h);
+      lay.tank.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath(); ctx.clip('evenodd');
+    };
+    ctx.save(); behindTank();
     for (const b of this._booms) this._flash(b);    // the bursts light the cloud base behind the formation
+    ctx.restore();
     const spr = this._fighter, sprites = this._sprites, sticks = this._pass.sticks;
     for (let i = FORMATION.length - 1; i >= 0; i--) {
       const [dx, dy, sf, haze] = FORMATION[i];
-      const x = leadX + dx * lay.s, y = lay.cy + dy * lay.s + this._bob(i);
+      const x = leadX + lay.dir * dx * lay.s, y = lay.cy + dy * lay.s + this._bob(i);
       ctx.globalAlpha = haze;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(lay.dir, 1);  // nose right; a right-to-left run flies the mirror image
       if (sprites) { // rendered Spitfire: bombed-up, 'half' once the near wing bomb is away, then clean
         const st = sticks.get(i), gone = st ? STICK - st.left : 0;
-        const cell = sprites[POSE[i]][!lay.drops || !BOMBERS.includes(i) ? 'clean' : ['loaded', 'half', 'clean'][gone]];
-        ctx.drawImage(cell.c, x - cell.ax * sf, y + ANCHOR_DY * lay.s - cell.ay * sf, cell.w * sf, cell.h * sf);
-        continue;
+        const k = BOMBERS.indexOf(i), carries = !!lay.drops && k >= 0 && k < lay.drops.length;
+        const cell = sprites[POSE[i]][carries ? ['loaded', 'half', 'clean'][gone] : 'clean'];
+        ctx.drawImage(cell.c, -cell.ax * sf, ANCHOR_DY * lay.s - cell.ay * sf, cell.w * sf, cell.h * sf);
+      } else {
+        const dw = (spr.c.width / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE, dh = (spr.c.height / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE;
+        ctx.drawImage(spr.c, -dw * spr.ax, -dh * spr.ay, dw, dh);
       }
-      const dw = (spr.c.width / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE, dh = (spr.c.height / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE;
-      ctx.drawImage(spr.c, x - dw * spr.ax, y - dh * spr.ay, dw, dh);
+      ctx.restore();
     }
     // the falling bombs, to the planes' scale (a 250 lb bomb is ~1/7 of a Spitfire), nose along the path
     const bc = sprites?.bomb, fb = this._bomb, len = BOMB_LEN * (PLANE_LEN * lay.s) / PLANE_M;
@@ -529,6 +621,7 @@ export class SplashPlanes {
     for (const b of this._bombs) {
       ctx.save();
       ctx.translate(b.x, b.y);
+      ctx.scale(lay.dir, 1);
       ctx.rotate(b.a || 0);
       if (bc) ctx.drawImage(bc.c, -bc.ax, -bc.ay, bc.w, bc.h);
       else {
@@ -538,7 +631,8 @@ export class SplashPlanes {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
-    for (const b of this._booms) this._burst(b);
+    if (this._booms.some((b) => b.behind)) { ctx.save(); behindTank(); for (const b of this._booms) if (b.behind) this._burst(b); ctx.restore(); }
+    for (const b of this._booms) if (!b.behind) this._burst(b); // the near field's, in front of the tank
   }
 
   /**
@@ -549,7 +643,7 @@ export class SplashPlanes {
   _flash(b) {
     const t = b.t;
     if (t > 1.2) return;
-    const { ctx } = this, lay = this._lay, hz = lay.horizon, lit = this._lit;
+    const { ctx } = this, lay = this._lay, hz = lay.horizon, lit = this._lit; // the cloud base over the far field
     const env = (t < 0.04 ? t / 0.04 : Math.exp(-(t - 0.04) / 0.27)) * b.peak * (t < 0.18 ? 0.85 + 0.15 * Math.sin(b.seed + t * 70) : 1);
     if (lit) {
       // the lit patch: an ellipse over the impact, centred on the cloud base a little above the horizon
@@ -576,7 +670,7 @@ export class SplashPlanes {
         ctx.globalAlpha = 1;
       }
     }
-    const gy = hz - 0.025 * lay.h, gr0 = 0.17 * lay.h; // the flash's own light in the low haze
+    const gy = (b.y ?? hz) - 0.025 * lay.h, gr0 = 0.17 * lay.h; // the flash's own light in the low haze, over its burst
     const gr = ctx.createRadialGradient(b.x, gy, 0, b.x, gy, gr0);
     gr.addColorStop(0, `rgba(255,236,206,${0.6 * env})`);
     gr.addColorStop(0.35, `rgba(255,170,90,${0.26 * env})`);
@@ -600,7 +694,7 @@ export class SplashPlanes {
    * ground glow, then the smoke that lingers (~6 s).
    */
   _burst(b) {
-    const { ctx } = this, lay = this._lay, y = lay.horizon, t = b.t;
+    const { ctx } = this, lay = this._lay, y = b.y ?? lay.horizon, t = b.t;
     const S = b.shape ||= burstShape(b.seed), R = lay.s * BURST_R * S.size;
     if (t < 1.6) { // ground glow while it burns
       const a = 0.45 * (1 - t / 1.6);

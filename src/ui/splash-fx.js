@@ -7,18 +7,23 @@
  * light on the hull and the ground; and the volumetric searchlight beam. Premultiplied alpha composited normally:
  * the smoke covers the plate and the light is screened over both. Under the rendered hero. Half resolution, ≤ 30 fps, one still frame
  * under reduced motion.
- * No three.js here: the splash shows while the engine is still loading.
+ * No three.js here: the splash shows while the engine is still loading. Anchored to the plate through splash-plate.js,
+ * recomputed every frame from the stage's size (folds, rotations, resizes), so the fire burns on the tank on every
+ * form factor.
  * @module ui/splash-fx
  */
 
+import { plateRect, plateToStage, plateUniform, TANK_BOX } from './splash-plate.js';
+
 const VS = `#version 300 es
-in vec2 p; out vec2 uv; void main() { uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+in vec2 p; out vec2 vuv; void main() { vuv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
 
 const FS = `#version 300 es
 precision highp float;
-in vec2 uv; out vec4 o;
+in vec2 vuv; out vec4 o;
 uniform float t; uniform vec2 res;
-uniform vec4 src[4];   // flame sources: x, y (canvas uv), width (screen heights), strength
+uniform vec4 plate;    // the plate's rect in this canvas' uv (splash-plate.js plateUniform): origin, size
+uniform vec4 src[4];   // flame sources: x, y (the plate's '106 %' uv), width (in its heights), strength
 uniform vec4 smoke;    // smoke column: base x, y, base width, lean
 uniform vec4 glow;     // the fire's light on the hull and the ground: centre x, y, radii (screen heights)
 float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -30,7 +35,10 @@ vec3 fireRamp(float k) {
   return clamp(vec3(1.6 * k, 1.45 * k * k * k, 1.3 * pow(k, 6.0)) * vec3(1.0, 0.82, 0.62), 0.0, 1.4);
 }
 void main() {
-  float asp = res.x / res.y;
+  // the stage's uv onto the plate, then into the 16:9 '106 %' uv the anchors below are measured in: the fire stays on
+  // the tank whatever the screen's shape (the plate is cover-fitted and its crop slides on narrow screens)
+  vec2 uv = (vuv - plate.xy) / plate.zw * 1.06 - 0.03;
+  float asp = 16.0 / 9.0;
   vec3 add = vec3(0.0);              // light: added to the plate (alpha 0)
   float flick = 0.8 + 0.2 * n(vec2(t * 9.0, 3.1)) + 0.1 * n(vec2(t * 23.0, 7.7));
   // ---- the black, oily smoke column: rolling up from over the fires, leaning downwind and spreading; only its
@@ -112,8 +120,9 @@ void main() {
 }`;
 
 /**
- * Where the wreck burns, in the canvas' uv (x from the left, y from the bottom), for the 16:9 plate drawn 'cover' at
- * 106 % (tools/ui/keyart/herohd/backdrop.py writes the sources' projections; uv = plate * 1.06 - 0.03):
+ * Where the wreck burns, in the plate's 16:9 '106 %' uv (x from the left, y from the bottom; uv = plate * 1.06 - 0.03,
+ * as the stage shows a 16:9 plate: tools/ui/keyart/herohd/backdrop.py writes the sources' projections). The shader
+ * maps the stage onto the plate first (splash-plate.js), so these hold on every form factor:
  * src: [x, y, width in screen heights, strength] for the engine deck, the turret hatch, the driver's hatch and the
  * fuel burning under the hull; smoke: [x, y, base width, lean]; glow: [x, y, radius x, radius y].
  */
@@ -124,7 +133,7 @@ export const FIRE = {
 };
 
 export class SplashFx {
-  /** @param {HTMLCanvasElement} canvas @param {{still?:boolean, fire?:Partial<typeof FIRE>}} o */
+  /** @param {HTMLCanvasElement} canvas @param {{still?:boolean, fire?:Partial<typeof FIRE>, focus?:() => number[]}} o (focus: the plate's crop, boot.js) */
   constructor(canvas, o = {}) {
     this.canvas = canvas;
     this.o = o;
@@ -152,7 +161,7 @@ export class SplashFx {
       const loc = gl.getAttribLocation(p, 'p');
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      this.u = Object.fromEntries(['t', 'res', 'src', 'smoke', 'glow'].map((k) => [k, gl.getUniformLocation(p, k)]));
+      this.u = Object.fromEntries(['t', 'res', 'src', 'smoke', 'glow', 'plate'].map((k) => [k, gl.getUniformLocation(p, k)]));
       this.gl = gl;
       this.alive = true;
     } catch (err) {
@@ -177,6 +186,18 @@ export class SplashFx {
     };
     this.draw();
     if (!this.o.still) this._raf = requestAnimationFrame(tick);
+    else if (typeof ResizeObserver === 'function') {
+      this._ro = new ResizeObserver(() => { cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(() => this.alive && this.draw()); });
+      this._ro.observe(this.canvas);
+    }
+  }
+
+  /** Where the fire and the tank are on the stage right now (stage px; the probe and the tests read it). */
+  fit() {
+    const c = this.canvas, W = c.clientWidth, H = c.clientHeight, r = plateRect(W, H, this.o.focus?.()), [x, y] = FIRE.src[0];
+    const [u0, v0, u1, v1] = TANK_BOX;
+    return { W, H, plate: r, fire: plateToStage((x + 0.03) / 1.06, 1 - (y + 0.03) / 1.06, W, H, r),
+      tank: [...plateToStage(u0, v0, W, H, r), ...plateToStage(u1, v1, W, H, r)] };
   }
 
   draw() {
@@ -186,6 +207,7 @@ export class SplashFx {
     gl.viewport(0, 0, w, h);
     gl.uniform1f(this.u.t, this.t);
     gl.uniform2f(this.u.res, w, h);
+    gl.uniform4fv(this.u.plate, plateUniform(c.clientWidth, c.clientHeight, plateRect(c.clientWidth, c.clientHeight, this.o.focus?.())));
     const f = { ...FIRE, ...this.o.fire };
     gl.uniform4fv(this.u.src, f.src.flat());
     gl.uniform4fv(this.u.smoke, f.smoke);
@@ -198,6 +220,7 @@ export class SplashFx {
   dispose() {
     this.alive = false;
     cancelAnimationFrame(this._raf);
+    this._ro?.disconnect();
     this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }

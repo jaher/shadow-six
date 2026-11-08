@@ -1335,7 +1335,10 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   `notebook.js` (S17), `debrief.js` (S19/S20), `backdrop.js` (`hud.backdrop.setMode('frontend'|'mission'|'paper'|'off')`:
   B1: the M1 moss camo ground, the live diorama (or its baked still) only as a blurred grey soft-light pass, the badge
   as a runtime emboss of `assets/ui/emblem-badge-height.svg`; B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
-  + searchlight), `ui-sound.js` (`hud.sound.play(id)`; ui_* rows in the audio manifest), `profiles.js`, `tips.js`,
+  + searchlight), `splash-planes.js` (S03 Spitfire passes and their bombs), `splash-plate.js` (S03: the plate's
+  cover fit and crop on any stage — the crop slides on narrow screens so the burning tank stands clear of the hero —
+  through which the fire, its smoke and light, the planes' horizon, bomb line and sky flash and the fallback fire are
+  all anchored, recomputed whenever the stage changes shape: resizes, folds, rotations), `ui-sound.js` (`hud.sound.play(id)`; ui_* rows in the audio manifest), `profiles.js`, `tips.js`,
   `menu-model.js` (pure, unit-tested logic). Card specs may add `focusEl(card)` (focus target when a card has no rows),
   `onDevice(device)` and `ctrlKeys` (Ctrl/Cmd chords the card binds; all others stay with the browser).
 - In-mission touch (design-spec §5.4): `Input` owns a `TouchGame` (`input.touch`) that takes every `pointerType ===

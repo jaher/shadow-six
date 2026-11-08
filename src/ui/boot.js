@@ -12,6 +12,7 @@ import { el } from './dom.js';
 import { DISCLAIMER } from './screens.js';
 import { SplashFx } from './splash-fx.js';
 import { SplashPlanes } from './splash-planes.js';
+import { plateRect, plateToStage, plateFocusX } from './splash-plate.js';
 import { pressPrompt, isTouchUI } from './touch.js';
 import { heroHeight, heroUrl, skyWidth, skyUrl } from './hero-art.js';
 import { dprNow } from './icon-art.js';
@@ -145,23 +146,45 @@ export class Boot {
     const sw = skyWidth(innerWidth, innerHeight, dprNow());
     skyAvif.srcset = skyUrl(sw, 'avif');
     sky.src = skyUrl(sw, 'webp');
+    // the plate's crop on this stage (splash-plate.js): on a narrow or tall screen it slides so the burning tank
+    // stands clear of the hero; every layer tied to the plate reads the same focus; redone whenever the stage changes
+    // shape (resize, fold / unfold, rotation: a ResizeObserver on the stage; DPR changes resize nothing here)
+    this._plateX = 0.5;
+    const refit = () => {
+      const W = art.clientWidth || innerWidth, H = art.clientHeight || innerHeight;
+      this._plateX = plateFocusX(W, H);
+      art.style.setProperty('--plate-x', this._plateX.toFixed(4));
+    };
+    refit();
+    this._plateRO?.disconnect();
+    if (typeof ResizeObserver === 'function') { this._plateRO = new ResizeObserver(refit); this._plateRO.observe(art); }
+    const focus = () => [this._plateX, 0.5];
     // a distant fighter formation (Spitfires) crossing the sky now and then (canvas 2D, its own layer over the plate,
     // under the light pass, so the hero occludes it; silent under reduced motion)
     const pc = el('canvas', 'bt-l planes', art);
     this.planes?.dispose();
-    this.planes = new SplashPlanes(pc, { still: this.hud.kit.reducedMotion });
+    this.planes = new SplashPlanes(pc, { still: this.hud.kit.reducedMotion, focus });
     if (this.planes.alive) this.planes.start();
     else pc.remove();
     // live fire, smoke + volumetric searchlight (WebGL2); the painted fire is the fallback
     const fxc = el('canvas', 'bt-l fx', art);
     this.fx?.dispose();
-    this.fx = new SplashFx(fxc, { still: this.hud.kit.reducedMotion }); // the wreck's fire: splash-fx.js FIRE
+    this.fx = new SplashFx(fxc, { still: this.hud.kit.reducedMotion, focus }); // the wreck's fire: splash-fx.js FIRE
     if (this.fx.alive) this.fx.start();
     else {
       fxc.remove();
       const f = el('img', 'bt-l fire', art);
       f.alt = '';
       f.src = 'assets/ui/keyart/fire.svg';
+      // on the tank whatever the screen's shape: its box in plate space, through the plate's fit (splash-plate.js)
+      const place = () => {
+        if (!f.isConnected) { removeEventListener('resize', place); return; }
+        const W = art.clientWidth || innerWidth, H = art.clientHeight || innerHeight, r = plateRect(W, H, focus());
+        const [x0, y0] = plateToStage(0.6132, 0.3396, W, H, r), [x1, y1] = plateToStage(0.8774, 0.7736, W, H, r);
+        Object.assign(f.style, { left: `${x0}px`, top: `${y0}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px`, bottom: 'auto' });
+      };
+      place();
+      addEventListener('resize', place);
     }
     // drifting embers — created BEFORE the hero on purpose: paint order in `art` is DOM order (sky, planes,
     // fx, embers, hero), so the figure occludes the sparkles where they drift behind him; none cross his face
@@ -287,6 +310,8 @@ export class Boot {
     this.fx = null;
     this.planes?.dispose();
     this.planes = null;
+    this._plateRO?.disconnect();
+    this._plateRO = null;
     this.root.replaceChildren();
     this.root.className = 'bt';
     this.promptEl = this.ruleFill = null;

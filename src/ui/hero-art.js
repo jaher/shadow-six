@@ -19,6 +19,13 @@ export const HERO_HEIGHTS = [900, 1350, 1800, 2700];
 export const HERO_FACE = { x0: 0.362, y0: 0.16, x1: 0.608, y1: 0.338 };
 
 /**
+ * The figure's silhouette, row by row: 24 bands down the image, each the [x0, x1] fractions of its opaque span (null:
+ * empty), measured on the art's alpha. The splash's Spitfires keep their bursts out of it on every form factor
+ * (splash-planes.js).
+ */
+export const HERO_ROWS = [null, null, null, null, [0.412, 0.583], [0.15, 0.588], [0.157, 0.593], [0.167, 0.582], [0.175, 0.72], [0.2, 0.798], [0.178, 0.82], [0.148, 0.827], [0.15, 0.83], [0.148, 0.83], [0.183, 0.815], [0.29, 0.815], [0.223, 0.813], [0.218, 0.813], [0.21, 0.818], [0.207, 0.822], [0.208, 0.82], [0.222, 0.803], [0.277, 0.722], [0.277, 0.722]];
+
+/**
  * @param {number} cssHeight viewport height in CSS px
  * @param {number} [dpr] devicePixelRatio
  * @returns {number} the variant height to load
