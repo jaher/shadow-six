@@ -102,7 +102,7 @@ import { DynamicResolution } from './engine/dynamic-res.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
 import { TextureWarmer, releaseUnloadTextures, texturesLoading, texturesLoaded } from './engine/texture-memory.js';
-import { compileAhead, framesInParts } from './engine/parallel-compile.js';
+import { compileAhead, framesInParts, firstUseAll } from './engine/parallel-compile.js';
 import { splitInstancedMaterials } from './engine/program-variants.js';
 import { runSliced, runSync, due, nextTask } from './engine/slice.js';
 import { fitLadders, fitLaddersG } from './art/ladder-frame.js';
@@ -611,6 +611,9 @@ export class Game {
     // the first frame itself (the start view, its LODs, the selection, the cones): whatever program it still lacks is
     // linked aside now, not in that frame (engine/parallel-compile.js; a render with dt 0 advances nothing)
     if (CONFIG.render.warmFrame !== false) await safeAsync(() => this._compileAhead(() => this.render(0, 1, true)), 'first frame programs');
+    // every program linked by the warm-ups above but not drawn yet (the effects', compiled ahead: the first blast's fire
+    // pass, its smoke) has its first use now, not in the frame of the first effect that draws with it (render-only)
+    if (CONFIG.render.warmFrame !== false && this.world === world) this.firstUses = await safeAsync(() => firstUseAll(r.renderer), 'program first use');
     if (this.world !== world) return prog.cancel(), world;
     const lp = prog.done();
     // the world is built: free what earlier missions loaded and this one does not use (GPU textures, templates…)

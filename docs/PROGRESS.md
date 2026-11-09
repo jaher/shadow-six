@@ -1013,3 +1013,6 @@ Claude-Session: https://claude.ai/code/session_01J8AeHrBrbUrVcpvL5ZEEwr
 
 ## 2026-11-09 — M8 perf (perf/m08)
 - Merged 9b8d7b6f4: no deopts in M8's blast ticks and fuel blasts. Final 4x run: no tick over 16 ms of own work, no frame over 60 ms, 0 programs compiled in play. Unit 2656/0, m08-solution won at t=6688.2.
+
+## 2026-11-09 — M6 perf (perf/m06)
+- Merged 6c6f330a1: ahead-built barracks bodies, blast-hold pacing, program first use at load, late blood/panes, sliced look-aheads, exact blast-apply cuts. Sim identical (m06-solution won t=2164.2, 0 detections). Unit 2642/0. video-perf m06 AUTO still fails its wall-frame bound (66.7 ms > 51.1 ms), which the notes record as failing on master too; own work: tick max 24.0 ms, frame max 38.9 ms.

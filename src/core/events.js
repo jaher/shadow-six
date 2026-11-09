@@ -47,6 +47,16 @@ export class EventBus {
     return q.length / 4;
   }
 
+  /** Is a late handler call for `type` queued at or after queue position `from` (a length read before a tick)? */
+  lateQueued(type, from = 0) {
+    const q = this._lateQ;
+    for (let i = from - (from % 4); i < q.length; i += 4) if (q[i + 2] === type) return true;
+    return false;
+  }
+
+  /** How long the queue of late calls is now (a position for lateQueued). */
+  get lateLength() { return this._lateQ.length; }
+
   /** Forget the queued late calls (the world they were for is gone). */
   dropLate() { this._lateQ = []; }
 

@@ -63,15 +63,19 @@ export function applyBlast(pw, ev) {
   for (const u of units) {
     if (u.removed || u.state === 'inVehicle' || u.vehicle || u.state === 'carried' || u.carriedBy || u.hiddenBody || u.state === 'jailed') continue;
     const gy = groundAt(w, u.x, u.z) + (u.y || 0);
-    const occ = occlusion(pw.rw, pw.R, w, bp, u.x, u.z, gy);
+    // (the three occlusion rays only where their answer can matter: the impulse grows with the open fraction, so a man the
+    // blast would not move even with nothing in the way gets nothing whatever the walls — the same outcome, no rays)
     if (u.alive === false) {
       if (!pw.eligible(u) || u.soldierType === 'dog') { u._blastKill = undefined; continue; } // (cleared, not deleted: see world-physics)
       const fresh = u._blastKill != null || w.time - (u.deathTime ?? -1e9) < P.ragdoll.settleAt;
       const area = fresh ? P.blast.area.body : P.blast.area.body * 0.5;
-      const imp = blastImpulse(bp, u.x, gy + 1, u.z, area, P.ragdoll.mass, P.blast.maxDvBody, occ, u.id);
+      if (!fresh && blastImpulse(bp, u.x, gy + 1, u.z, area, P.ragdoll.mass, P.blast.maxDvBody, 1, u.id).dv <= 1.0) continue;
+      const imp = blastImpulse(bp, u.x, gy + 1, u.z, area, P.ragdoll.mass, P.blast.maxDvBody, occlusion(pw.rw, pw.R, w, bp, u.x, u.z, gy), u.id);
       if (fresh || imp.dv > 1.0) bodies.push({ u, imp, fresh });
       continue;
     }
+    if (!survivorReaction(blastImpulse(bp, u.x, gy + 1, u.z, P.blast.area.body, P.ragdoll.mass, P.blast.maxDvBody, 1, u.id).dv, u.stance)) continue;
+    const occ = occlusion(pw.rw, pw.R, w, bp, u.x, u.z, gy);
     const imp = blastImpulse(bp, u.x, gy + 1, u.z, P.blast.area.body, P.ragdoll.mass, P.blast.maxDvBody, occ, u.id);
     const kind = survivorReaction(imp.dv, u.stance);
     if (!kind) continue;
@@ -104,6 +108,8 @@ export function applyBlast(pw, ev) {
     const d = Math.hypot(v.x - bp.x, v.z - bp.z);
     if (d > bp.Rb) continue;
     const mass = v.def?.armored ? 12000 : (v.def?.mass ?? 2500);
+    // (no rays for a hull the open blast would not rock: dv <= 0.02 rocks nothing and throws nothing, flipDv being larger)
+    if (blastImpulse(bp, v.x, groundAt(w, v.x, v.z) + 1, v.z, 6, mass, P.blast.maxDvProp, 1, v.id).dv <= Math.min(0.02, P.vehicles.flipDv)) continue;
     const imp = blastImpulse(bp, v.x, groundAt(w, v.x, v.z) + 1, v.z, 6, mass, P.blast.maxDvProp, occlusion(pw.rw, pw.R, w, bp, v.x, v.z), v.id);
     const heavy = !!v.def?.armored || mass > 4000;
     if (imp.dv > 0.02) v.blastRock = { dx: imp.dir.x, dz: imp.dir.z, dv: imp.dv, heavy, t0: w.time, bx: bp.x, bz: bp.z };

@@ -163,3 +163,47 @@ test('replay: a section the solution marks unpaced (two flows of its own steppin
   const r = rp._step();
   assert.ok(r && typeof r.then === 'function', 'paced: waits for a frame');
 });
+
+test('replay: a tick that set off an explosion ends its frame\'s ticks and the next frame only draws; the frame after goes on (one held frame per HOLD_GAP_MS, none while fast-forwarding)', async () => {
+  const { SolutionReplay } = await import('../../src/debug/solution-replay.js');
+  const { EventBus } = await import('../../src/core/events.js');
+  const { w } = fakeWorld();
+  const ev = new EventBus();
+  ev.deferring = true; // (Game.step deferVisuals: the blast's visuals wait for the next frame)
+  let drawn = 0;
+  ev.onLate('explosion', () => { drawn++; });
+  ev.onLate('shot', () => {});
+  const booms = new Set([6, 20]), log = [];
+  w.tick = 0;
+  const game = { world: w, input: {}, state: 'playing', events: ev,
+    step(dt) { w.time += dt; w.tick++; log.push(w.tick); ev.emit('shot', {}); if (booms.has(w.tick)) ev.emit('explosion', { t: w.tick }); } };
+  const rp = new SolutionReplay(game, { id: 'm06', stages: [] }, { speed: 4 });
+  rp._camera = rp._caption = rp._syncBar = () => {};
+  // one displayed frame: the replay's frame, the game's (its late calls, its draw), then the frame's ticks
+  const frame = () => { rp._frame(1 / 60); ev.flushLate(); let n = 0; while (rp._ready()) { rp._tick(); n++; } return n; };
+  assert.equal(frame(), 4, '4x: four ticks a frame');
+  assert.equal(frame(), 2, 'the frame stops at the tick that set off the explosion (tick 6)');
+  assert.equal(drawn, 0);
+  assert.equal(frame(), 0, 'the next frame runs no tick: it only draws the blast');
+  assert.equal(drawn, 1, 'its late calls (the blast\'s visuals) were made in that frame');
+  const n4 = frame();
+  assert.ok(n4 >= 4, `the frame after goes on, its grant kept (${n4} ticks)`);
+  while (w.tick < 20) frame();
+  assert.equal(rp._blastHeld, 0, 'a second blast within HOLD_GAP_MS holds nothing');
+  assert.ok(frame() > 0, 'the frame after it runs its ticks');
+  assert.deepEqual(log, Array.from({ length: log.length }, (_, i) => i + 1), 'the same ticks, one after the other');
+  // (HOLD_GAP_MS later a blast holds again; while fast-forwarding never)
+  rp._blastAt = -Infinity;
+  booms.add(w.tick + 2);
+  const t0 = w.tick;
+  frame();
+  assert.equal(w.tick, t0 + 2, 'a blast HOLD_GAP_MS after the last hold ends its frame again');
+  assert.equal(frame(), 0, 'and holds the next one');
+  rp._blastAt = -Infinity;
+  rp.pacer.setTurbo(true);
+  booms.add(w.tick + 1);
+  const t1 = w.tick;
+  rp._frame(1 / 60); ev.flushLate();
+  for (let i = 0; i < 5 && rp._ready(); i++) rp._tick();
+  assert.equal(w.tick, t1 + 5, 'fast-forward: no hold');
+});

@@ -39,6 +39,8 @@ export const SPEEDS = Object.freeze([1, 2, 4, 8]);
 export const SELECT_GROUP_S = 0.35;
 /** Wall-clock ms of ticks per frame while fast-forwarding to a stage. */
 export const TURBO_MS = 90;
+/** At most one frame held after an explosion's tick (SolutionReplay._blastHold) per this many wall ms. */
+export const HOLD_GAP_MS = 500;
 /** Ms of queued cache fills (engine/idle-warm.js) a still screen's frame may run (at least one). */
 export const IDLE_WARM_MS = 8;
 /**
@@ -233,6 +235,11 @@ export class SolutionReplay {
     this._safe = null;
     this._safeAt = 0;
     this._waiter = null;
+    /** The late-call queue's length before the last tick (-1: looked at), the frames still to run no tick after an
+     * explosion's tick (_blastHold) and when the last one was held (wall ms). */
+    this._lateFrom = -1;
+    this._blastHeld = 0;
+    this._blastAt = -Infinity;
     this.ticks = 0;
     this.dropped = 0;
     /** Actions watched until they have visibly finished (debug/action-hold.js). */
@@ -486,12 +493,31 @@ export class SolutionReplay {
   }
 
   _ready() {
-    return this.game.state === 'playing' && this.game.world === this.world && !this.isFrozen() && this.pacer.canTick(performance.now());
+    if (this._lateFrom >= 0) this._blastHold();
+    return this.game.state === 'playing' && this.game.world === this.world && !this.isFrozen() && this._blastHeld === 0 && this.pacer.canTick(performance.now());
+  }
+
+  /**
+   * Did the last tick set off an explosion? Its visuals wait for the next frame (Game.step deferVisuals: the blast's
+   * fireball, debris, smoke, scorch and flash are built there, then drawn for the first time) while every guard who
+   * heard it plans his way in the tick after: in one frame they made M6's 60-80 ms hitch at the Leopold. Then that tick
+   * ends its frame's ticks and the next frame runs none: the blast's first picture is a frame of its own, the
+   * re-planning tick goes to the frame after. The ticks and the orders are the same, only their wall-clock pacing
+   * differs. One frame held per HOLD_GAP_MS at most: a chain of blasts (a barrage, a row of drums) slows by a frame per
+   * half second, no more.
+   */
+  _blastHold() {
+    const from = this._lateFrom;
+    this._lateFrom = -1;
+    if (this.pacer.turbo || this._blastHeld > 0) return;
+    const now = performance.now();
+    if (now - this._blastAt > HOLD_GAP_MS && this.game.events?.lateQueued?.('explosion', from)) { this._blastAt = now; this._blastHeld = 2; }
   }
 
   _tick() {
     if (this.stopped) throw new this.sol.SolutionAborted();
     this._thinking = false;
+    this._lateFrom = this.game.events?.lateLength ?? -1; // (did it set off an explosion? _blastHold, before the next)
     this.pacer.take();
     this.game.step(this.simDt);
     this.ticks++;
@@ -502,6 +528,10 @@ export class SolutionReplay {
     const g = this.game;
     if (this.stopped) return;
     if (g.world !== this.world) { this.stop(); return; } // another mission was launched / quit to the title
+    // (the last tick's explosion if no tick asked yet — before this frame's draw makes the late calls; then a frame held
+    // after one passes)
+    if (this._lateFrom >= 0) this._blastHold();
+    if (this._blastHeld > 0) this._blastHeld--;
     if (g.state === 'won' || g.state === 'lost') {
       // the game is over: wake the driver so its end loop sees it
     } else if (g.state === 'playing' && !this.isFrozen()) this.pacer.frame(dt, performance.now());

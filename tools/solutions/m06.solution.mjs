@@ -6,7 +6,7 @@
  * Wins with every objective done, 0 detections and 0 exposures (driver's exposure watch), headless and in the browser;
  * the only alarm is the mission's own one after the Leopold blows (the blast kills e21 by the gun).
  */
-import { clearFor, routeClear, unwitnessed, bodySeen, predict, walking, sneak, staticSees, dummyAt } from './sneak.mjs';
+import { clearFor, routeClear, routeClearGen, unwitnessed, bodySeen, predict, walking, sneak, staticSees, dummyAt } from './sneak.mjs';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { mirrorOf, ghostOn } from './ghost.mjs';
@@ -208,13 +208,18 @@ const E29_TURN = [104, 20];
  */
 async function runSouthEdge(D, role, { east = true } = {}) {
   const u = D.c(role), why = [];
+  // (each check asks the guard who saw him last time first — routeClear `hint`: the same answer, tick for tick — and
+  // the walk round the wire belt is asked before the run along the edge: the run is clear for most of the wait while the
+  // wire belt is not (e15/e16), and a clear look-ahead asks every guard in full. Both ways every guard's walking() is
+  // read whichever is asked — the hint path — so the order changes nothing but the time it takes)
+  const hints = [{ e: null }, { e: null }];
   await D.until(() => {
     why.length = 0;
     const v = car(D);
     if (v && !(v.x < 26 && v.z < 60)) return false; // (at its west turn-round or swinging round it)
     let L = 0, p0 = [u.x, u.z]; for (const q of SOUTH_RUN) { L += Math.hypot(q[0] - p0[0], q[1] - p0[1]); p0 = q; }
-    return (routeClear(D, SOUTH_RUN, { mode: 'walk', from: [u.x, u.z], speed: 4.0, delay: 1.0, hold: 1, slack: 1.5, why })
-      && routeClear(D, SE_WALK, { mode: 'walk', from: SOUTH_RUN.at(-1), speed: 4.0, delay: 1.0 + L / 4.0, hold: 1, slack: 2.0, why })) || dbg(D, why, `${role} along the south edge`);
+    return (routeClear(D, SE_WALK, { mode: 'walk', from: SOUTH_RUN.at(-1), speed: 4.0, delay: 1.0 + L / 4.0, hold: 1, slack: 2.0, why, hint: hints[1] })
+      && routeClear(D, SOUTH_RUN, { mode: 'walk', from: [u.x, u.z], speed: 4.0, delay: 1.0, hold: 1, slack: 1.5, why, hint: hints[0] })) || dbg(D, why, `${role} along the south edge`);
   }, 400, `${role}: the car at its west turn-round, the south edge unwatched`);
   await D.stance(role, 'stand');
   await D.path(role, SOUTH_RUN, { run: true });
@@ -235,11 +240,17 @@ export const STAGES = [
     // e1 walks his beat south of the rocks: when he sets off east from his west halt, the Green Beret runs out after him
     // (only when nobody else — e36 on the north edge above all — will see him walk after e1 and back with the body)
     const why = [];
-    await D.until(() => {
+    // (the look along his stalk is the walkthrough's first: ~35 ms of code never run before, one long frame at the start
+    // of play — asked sliced, D.runSliced: the same check at the same tick, the frame handed back every PLAN_SLICE_MS
+    // with no tick in between in the live replay, at once headless)
+    await D.untilAsync(async () => {
       why.length = 0;
       if (e1.brain.atWait || Math.cos(e1.heading) < 0.9 || e1.x < 13.5 || e1.x > 16) return false;
       // (he walks out at 2.2 m/s, then keeps 2 m behind e1 at 1 m/s: both paces tried)
-      return [1.2, 2.2].every((v) => routeClear(D, E1_STALK, { mode: 'walk', from: [gb.x, gb.z], speed: v, delay: 0.5, hold: 2, slack: 1.5, pad: 0.4, why, except: [e1] })) || dbg(D, why, 'after e1');
+      for (const v of [1.2, 2.2]) {
+        if (!(await D.runSliced(routeClearGen(D, E1_STALK, { mode: 'walk', from: [gb.x, gb.z], speed: v, delay: 0.5, hold: 2, slack: 1.5, pad: 0.4, why, except: [e1] })))) return dbg(D, why, 'after e1');
+      }
+      return true;
     }, 900, 'e1 sets off east, nobody else looking');
     await stalk(D, e1, { gap: 2.0, maxSec: 30 });
     await knife(D, e1, { reach: 3.0, maxSec: 20, follow: 2.0, quiet: 10 });
@@ -317,9 +328,13 @@ export const STAGES = [
     // and the other posts are all just out of its reach. The Green Beret lies off by the gun's north-west end
     await sneak(D, DECOY_NEAR[0], DECOY_NEAR[1], { mode: 'crawl', role: 'greenberet', label: 'GB towards the decoy spot' });
     // (there and back in one go, crawling, when nobody will look at the spot while he lays it)
+    // (the guard who saw him last time is asked first — routeClear `hint`: the same answer, tick for tick; this wait
+    // asks it for ~2 minutes while e27 alone keeps it false, ~24 guards before him in line: 2.7 ms a tick held AUTO's
+    // time-lapse down to ~2×, 64 s of wall time)
+    const hint = { e: null };
     await D.until(() => {
       why.length = 0;
-      return routeClear(D, [[...DECOY_AT, 2.0], DECOY_NEAR], { mode: 'crawl', from: [gb.x, gb.z], speed: 0.75, delay: 0.3, hold: 2, slack: 1.0, why, pad: 0.5 }) || dbg(D, why, 'decoy spot');
+      return routeClear(D, [[...DECOY_AT, 2.0], DECOY_NEAR], { mode: 'crawl', from: [gb.x, gb.z], speed: 0.75, delay: 0.3, hold: 2, slack: 1.0, why, pad: 0.5, hint }) || dbg(D, why, 'decoy spot');
     }, 300, 'the decoy spot unwatched');
     await D.go('greenberet', ...DECOY_AT, { tol: 0.4 });
     D.ability('greenberet', 'decoyDrop');

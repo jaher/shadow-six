@@ -164,6 +164,28 @@ const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 
   'sheenColorMap', 'sheenRoughnessMap', 'transmissionMap', 'thicknessMap', 'iridescenceMap', 'iridescenceThicknessMap', 'anisotropyMap', 'gradientMap', 'matcap'];
 
 /**
+ * The first use of every program linked so far that has not had one (three's onFirstUse: the link status and info
+ * logs, the uniform and attribute tables — synchronous GL queries, a round trip to the GPU process each): now, a slice at
+ * a time, not in the frame that first draws with it. Programs compiled by renderer.compileAsync (the VFX, blood and
+ * blast-mark warm-ups) are linked but never used before their first effect: M6's Leopold blast drew the fire pass's
+ * for the first time — 15 ms of getProgramInfoLog in that frame, behind the frame's own draw commands. Visual only.
+ * @param {THREE.WebGLRenderer} renderer @param {number} [budget] ms a slice @returns {Promise<number>} programs used
+ */
+export async function firstUseAll(renderer, budget = SLICE_MS) {
+  const list = renderer?.info?.programs;
+  if (!Array.isArray(list)) return 0;
+  let n = 0, s0 = performance.now();
+  for (const p of list.slice()) {
+    let ready = true;
+    try { ready = !p.program || p.isReady?.() !== false; } catch { ready = true; }
+    if (!p.program || !ready) continue; // (never one still linking: that would wait)
+    try { p.getUniforms(); p.getAttributes(); n++; } catch { /* reported by three on its own first use */ }
+    if (performance.now() - s0 > budget) { await nextTask(); s0 = performance.now(); }
+  }
+  return n;
+}
+
+/**
  * Upload (renderer.initTexture: three's own upload path, the one its first draw would take) every texture these
  * materials sample that is not on the GPU yet — slots and uniforms, those added by onBeforeCompile included — a few
  * per task. Render targets are left alone. @returns {Promise<number>} textures uploaded

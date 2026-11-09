@@ -115,7 +115,25 @@ export function buildAhead(opts) {
   if (!ctx.ready || !HR.characterLibrary()) return;
   const o = { faction: 'enemy', ...opts }, k = aheadKey(o);
   if (!k || AHEAD.has(k)) return;
-  try { AHEAD.set(k, HR.createRealHumanoid(realOpts(o))); } catch (e) { console.warn('[unit-model] build ahead', e); }
+  let real;
+  try { AHEAD.set(k, (real = HR.createRealHumanoid(realOpts(o)))); } catch (e) { console.warn('[unit-model] build ahead', e); return; }
+  // (once built, its meshes made ready to draw — shadows, x-ray, cloth wind: ~2.5 ms a body — and its clips grounded, on
+  // a still screen too: a woken barracks (M6's blast) spawned six men in one frame, ~15 ms of _onReady before its draw.
+  // The same meshes and curves _onReady and the first plays would make: prepareMeshes leaves a prepared mesh as it is)
+  real.ready?.then(() => {
+    if (AHEAD.get(k) !== real || !real.inner) return;
+    idleWarm.add(`ahead ready ${o.spawnId}`, () => {
+      if (!real.inner) return;
+      prepareMeshes(real.root);
+      for (const n of [...WARM_CLIPS.filter((c) => !PRONE_CLIP.test(c)), ...ALARM_CLIPS]) groundClip(real, n);
+    });
+  }, () => {});
+}
+
+/** A German body's ground curve for clip `n` (enemy runtime warmGround; a pure cache fill: the pose is the same either way). */
+function groundClip(R, n) {
+  const H = R?.inner;
+  try { if (H?.warmGround) H.warmGround([n]); } catch (e) { console.warn('[unit-model] warm', n, e); }
 }
 
 /** Queue (idle-warm) the bodies of every barracks squad's first release (gen 0), within each pool. */
@@ -146,8 +164,15 @@ export async function awaitUnitModels(units, ms = 15000) {
 }
 
 /** Clips whose grounding is computed lazily on first use (runtime ground curves): done once at load instead. */
-const WARM_CLIPS = ['idle', 'walk', 'run', 'die', 'dead', 'die_prone', 'dead_prone', 'crawl', 'crawl_idle', 'kneel_shoot',
+export const WARM_CLIPS = ['idle', 'walk', 'run', 'die', 'dead', 'die_prone', 'dead_prone', 'crawl', 'crawl_idle', 'kneel_shoot',
   'aim', 'shoot', 'crouch_idle', 'carried'];
+/**
+ * The clips a German first plays when the base wakes: the gait variants a walk or a run switches to by its speed
+ * (enemy_runtime GAIT: walk_fast, run_slow, run_fast) and a blast's hit. Grounded on still screens (queueIdleWarm, the
+ * ahead-built reinforcements), not lazily in the alarm's first frames: M6's blast grounded ~30 of them (0.5-3.5 ms each)
+ * in its first four frames.
+ */
+export const ALARM_CLIPS = ['walk_fast', 'run_slow', 'run_fast', 'hit'];
 
 /**
  * Precompute every body's per-clip grounding (runtime caches, per template / variant) behind the loading screen, so a
@@ -240,6 +265,18 @@ export function queueIdleWarm(units) {
     if (!lib?.clips) continue;
     for (const nm of ['die_prone', 'dead_prone']) if (lib.clips.has(nm)) add(R, nm, `${R.characterId} ${nm}`);
     for (const nm of lib.clips.keys()) if (/^(die|dead)/.test(nm) && FITTED(lib.meta?.[nm], nm, R.entry?.runtime)) add(R, nm, `${R.characterId} ${nm}`);
+  }
+  // the Germans' alarm clips (ALARM_CLIPS), grounded per body template (the curves are cached per variant)
+  for (const u of units) {
+    const R = u.model?.real;
+    if (!R?.inner?.warmGround || u.model?.dog || u.faction === 'player') continue;
+    for (const nm of ALARM_CLIPS) {
+      const k = `${R.characterId}|${nm}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      idleWarm.add(`${R.characterId} ${nm}`, () => groundClip(R, nm));
+      n++;
+    }
   }
   for (const [, R, nm, label] of rest) add(R, nm, label);
   return n;

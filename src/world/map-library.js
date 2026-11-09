@@ -272,7 +272,9 @@ export function wireLibraryDoors(world, built) {
     a.needsUpdate = true;
     if (!world.brokenPanes.includes(p.id)) world.brokenPanes.push(p.id);
   };
-  const offBlast = world.events.on('blast:front', (ev) => {
+  // (drawn only: under a deferring host — Game.step deferVisuals — at the next frame, not inside the blast's tick:
+  // ~0.6 ms of M20's HQ blast over every pane and door of the map)
+  const offBlast = world.events.onLate('blast:front', (ev) => {
     for (const p of panes) {
       if (p.broken) continue;
       const dx = p.x - ev.x, dz = p.z - ev.z, d = Math.hypot(dx, dz);

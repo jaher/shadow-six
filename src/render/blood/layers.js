@@ -19,13 +19,16 @@ export function createBloodLayers(sys, scene) {
   let lastT = 0;
   let visible = true;
   const fresh = new Set();
+  // (the decal instances written in the frame, from the records as they stand: a blast's tick adds dozens and drops the
+  // oldest, each drop rewriting every instance — ~0.5 ms of M20's HQ blast; only the draw reads them)
+  let decalsDirty = false;
   return {
     uniforms: U, pools, decals, smears, stains, mask,
     addPool(p) { pools.add(p); fresh.add(p); },
     removePool(p) { pools.remove(p); fresh.delete(p); },
     poolChanged(p) { pools.upload(p, gl()); if (p.sim && (p.sim.frozen || p.sim.steps % 5 === 0)) mask.pool(p); },
-    addDecal(d) { decals.add(d); if (!d.n) mask.disc(d.x, d.z, d.s * 0.3, d.op * 0.8); },
-    dropDecals() { decals.rebuild(sys.decals); const d = sys.decals[sys.decals.length - 1]; if (d && !d.n) mask.disc(d.x, d.z, d.s * 0.3, d.op * 0.8); },
+    addDecal(d) { decalsDirty = true; if (!d.n) mask.disc(d.x, d.z, d.s * 0.3, d.op * 0.8); },
+    dropDecals() { decalsDirty = true; const d = sys.decals[sys.decals.length - 1]; if (d && !d.n) mask.disc(d.x, d.z, d.s * 0.3, d.op * 0.8); },
     addSmear(s) { smears.add(s); mask.line(s.x0, s.z0, s.x1, s.z1, s.w * 0.8, s.i); },
     dropSmears(list) { smears.drop(list); },
     stainsChanged(u, list) { stains.changed(u, list); },
@@ -37,11 +40,12 @@ export function createBloodLayers(sys, scene) {
     /** Rebuild everything from the records (first frame after the layers load asynchronously). */
     rebuild() {
       for (const p of sys.pools) { pools.add(p); fresh.add(p); }
-      decals.rebuild(sys.decals);
+      decals.rebuild(sys.decals); decalsDirty = false;
       smears.clear(); for (const s of sys.smears) smears.add(s);
       for (const [id, list] of sys.stains) { const u = sys.world.byId?.(id); if (u) stains.changed(u, list); }
     },
     frame(time) {
+      if (decalsDirty) { decalsDirty = false; decals.rebuild(sys.decals); }
       U.uBloodTime.value = time;
       const px = sys.world.game?.cameraController?.pxPerMeter?.();
       if (px > 0) U.uBloodPx.value = px;
@@ -53,7 +57,7 @@ export function createBloodLayers(sys, scene) {
       if (visible) stains.frame(time);
       mask.flush(gl(), Math.max(0, time - lastT)); lastT = time;
     },
-    clear() { mask.clear(); decals.clear(); smears.clear(); stains.clear(); for (const p of [...pools.slot.keys()]) pools.remove(p); fresh.clear(); },
+    clear() { decalsDirty = false; mask.clear(); decals.clear(); smears.clear(); stains.clear(); for (const p of [...pools.slot.keys()]) pools.remove(p); fresh.clear(); },
     dispose() { mask.dispose(); pools.dispose(); decals.dispose(); smears.dispose(); stains.dispose(); },
   };
 }

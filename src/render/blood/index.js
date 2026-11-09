@@ -48,7 +48,17 @@ export class BloodSystem {
     this.layers = o.layers || null;
     // (`layersReady`: the load waits for them, so they join the scene at the same point of every load — Game.loadMission)
     this.layersReady = this.visual && !this.layers ? this._makeLayers() : Promise.resolve();
-    const on = (ev, fn) => world.events.on(ev, (e) => { try { fn(e || {}); } catch (err) { console.error(`[blood] ${ev}`, err); } });
+    // (drawn only — §B.0, nothing of the sim reads it: under a deferring host — Game.step deferVisuals, video mode — a
+    // death's spatter, pool and stains are laid at the next draw, not inside the tick, with the blood clock wound back
+    // to the event's moment while they are: the same seeds, ages and timers. M20's HQ blast: ~0.6 ms of its tick)
+    const late = typeof world.listenLate === 'function';
+    const on = (ev, fn) => (late
+      ? world.listenLate(ev, (e, _t, at) => {
+        const now = this.time;
+        if (at != null) this.time = at;
+        try { fn(e || {}); } catch (err) { console.error(`[blood] ${ev}`, err); } finally { this.time = now; }
+      }, () => this.time)
+      : world.events.on(ev, (e) => { try { fn(e || {}); } catch (err) { console.error(`[blood] ${ev}`, err); } }));
     this._off = [
       on('unit:damaged', (e) => this.onDamaged(e)),
       on('unit:killed', (e) => this.onKilled(e)),
