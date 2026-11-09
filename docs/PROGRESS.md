@@ -1016,3 +1016,6 @@ Claude-Session: https://claude.ai/code/session_01J8AeHrBrbUrVcpvL5ZEEwr
 
 ## 2026-11-09 — M6 perf (perf/m06)
 - Merged 6c6f330a1: ahead-built barracks bodies, blast-hold pacing, program first use at load, late blood/panes, sliced look-aheads, exact blast-apply cuts. Sim identical (m06-solution won t=2164.2, 0 detections). Unit 2642/0. video-perf m06 AUTO still fails its wall-frame bound (66.7 ms > 51.1 ms), which the notes record as failing on master too; own work: tick max 24.0 ms, frame max 38.9 ms.
+
+## 2026-11-09 — Flaky CI test (fix/flaky-gameplay-inputs)
+- Merged 9e52376d6: user "Github action failing". Unit shard 4/4 failed 6 of the last 12 public CI runs on 'gameplay inputs: awaited however long they take, a slow one logged while it is pending' (logged while pending (1)): the input resolved after a fixed 60 ms and timers coalesced on a loaded runner. The test now resolves the input on the 3rd warning (5 s safety timeout), so it is deterministic. No other failing test in the last 12 runs. 50/50 plain and 20/20 under CPU stress; unit 2675/0 over 4 shards

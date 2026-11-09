@@ -23,17 +23,22 @@ import { loadGrid } from './mission-check.mjs';
 const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
 
 test('gameplay inputs: awaited however long they take, a slow one logged while it is pending', async () => {
+  // Deterministic: the input resolves only once the 3rd "still waiting" warning has been seen (never a fixed delay, which
+  // coalesces timers on a loaded CI runner); a 5 s safety timeout fails the test clearly if the warnings never come.
   const warn = console.warn, seen = [];
-  console.warn = (m) => seen.push(String(m));
+  let release; const pending = new Promise((ok) => { release = () => ok(42); });
+  console.warn = (m) => { seen.push(String(m)); if (seen.length === 3) release(); };
+  let safety;
   try {
-    const v = await awaitGameplayInput(new Promise((ok) => setTimeout(() => ok(42), 60)), 'the test input', { everyMs: 15 });
+    const guard = new Promise((_, no) => { safety = setTimeout(() => no(new Error(`no 3 "still waiting" warnings within 5 s (${seen.length})`)), 5000); });
+    const v = await Promise.race([awaitGameplayInput(pending, 'the test input', { everyMs: 15 }), guard]);
     assert.equal(v, 42);
-    assert.ok(seen.length >= 2 && seen.every((m) => /still waiting for the test input/.test(m)), `logged while pending (${seen.length})`);
+    assert.ok(seen.length >= 3 && seen.every((m) => /still waiting for the test input/.test(m)), `logged while pending (${seen.length})`);
     const n = seen.length;
     await new Promise((ok) => setTimeout(ok, 50));
     assert.equal(seen.length, n, 'no log once it is in');
     assert.equal(await awaitGameplayInput(7, 'a plain value'), 7);
-  } finally { console.warn = warn; }
+  } finally { clearTimeout(safety); console.warn = warn; }
 });
 
 test('gameplay inputs: the load never races what the gameplay world measures against a clock', () => {
