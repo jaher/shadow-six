@@ -100,7 +100,7 @@ export class World {
     this._byId = new Map();
     this._hash = new Map();
     this._subs = [];
-    this._removals = [];
+    anyFields(this, [], '_removals'); // (rewritten at each tick's removals: written to from the start, core/shapes)
     /** What burns (world/fires.js): the sim's fires, stamped on grid.fire while they burn (the enemies keep out). */
     this.fires = new FireField(this);
     this.fires.addMissionFx(mission); // (campfires the mission lights: they burn all mission)

@@ -50,6 +50,7 @@ import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { beginDrawnFrame, endDrawnFrame } from './engine/pose-frame.js';
+import { uploadQueued, clearGeometryUploads, geometryUploadsPending } from './engine/geometry-warm.js';
 import { kitBegin, kitEnd } from './art/kit-batch.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { idleWarm } from './engine/idle-warm.js';
@@ -57,7 +58,7 @@ import { awaitGameplayInput } from './engine/gameplay-inputs.js';
 import { knifeKillFrame, queueContactMarks } from './art/knife-kill.js';
 import { barrelCarryFrame } from './art/barrel-carry.js';
 import { warmAvoidMasks, rewarmAvoidMasks } from './world/body-clearance.js';
-import { warmAreas, rewarmAreas, warmPathCosts } from './world/pathfinding.js';
+import { warmAreas, rewarmAreas, warmPathCosts, warmSearchCode } from './world/pathfinding.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
 /** The briefing's still page (Game._frame): ms of engine/idle-warm.js work a frame, one task at least (no draw then). */
@@ -440,6 +441,8 @@ export class Game {
       // (the walk areas the first tick's plans ask for — the guards' patrol routes, the squad's first orders: first in line)
       for (const u of [...world.commandos, ...world.enemies]) idleWarm.add('walk areas', () => { if (this.world === world) warmAreas(world.grid, u.pathQuery?.() || {}); });
       idleWarm.add('path costs', () => { if (this.world === world) warmPathCosts(world.grid); }); // (the searches' cost layers: the first orders')
+      // (the search's rarely run parts, once a page: met first in play they threw its optimized code out mid-tick)
+      idleWarm.add('path code', () => { if (this.world === world) warmSearchCode(world.grid); });
       queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world);
       queueContactMarks([...world.commandos, ...world.enemies], idleWarm); // (the first knife kill's landmarks)
     }, 'idle warm queue');
@@ -844,6 +847,7 @@ export class Game {
     if (this.world) deferMaterialDisposal();
     this.events?.dropLate?.(); // (the visual handlers still waiting for a draw: their world is going)
     this.textureWarmer?.clear();
+    clearGeometryUploads();
     safe(() => this.cones?.dispose?.(), 'cones dispose');
     this.cones = null;
     this.selection.detach();
@@ -1287,6 +1291,8 @@ export class Game {
         this.cameraRig.render(this.renderer, dt);
         if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
       } finally { kitEnd(); endDrawnFrame(); scene.matrixWorldAutoUpdate = autoMW; }
+      // (vertex buffers drawn soon but not yet — a ruin's other levels of detail — a few a frame: engine/geometry-warm.js)
+      if (geometryUploadsPending()) safe(() => uploadQueued(this.renderer.renderer, this.renderer.camera), 'geometry uploads');
     }
     safe(() => this.hud?.update?.(dt), 'hud');
   }

@@ -8,7 +8,7 @@
  *   B  gun 1 …
  * Orders only (move / crawl / stance / ability / leave & board the boat); timing reads what a player sees: the cones.
  */
-import { sneak, clearFor, routeClear, alarmEta, alarmEtaInfo, teamBoat, predict, unwitnessed, viewersOf, walking, walkerSees, wheeling, staticSees } from './sneak.mjs';
+import { sneak, clearFor, routeClear, routeClearGen, alarmEta, alarmEtaInfo, teamBoat, predict, unwitnessed, viewersOf, walking, walkerSees, wheeling, staticSees } from './sneak.mjs';
 import { T } from '../../src/world/grid.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
@@ -60,18 +60,22 @@ async function moveOpen(D, role, pts, { mode = 'crawl', maxWait = 240, label = '
   if (mode !== 'crawl' && !fast) fast = 2.3; // (a walker: 2.25 m/s)
   const why = [];
   let lastDbg = D.t;
-  await D.until(() => {
+  // (each check run sliced — D.runSliced: the frame handed back between slices, no tick meanwhile, so the world it reads
+  // stands still and each answer is the unsliced one, asked at the same ticks: M14's F2, the alarm turning both barracks
+  // out, cost ~19 ms of routeClear in one displayed frame at 4x)
+  const clear = (q, o) => D.runSliced(routeClearGen(D, q, o));
+  await D.untilAsync(async () => {
     if (D.t - lastDbg > 30) { lastDbg = D.t; D.log?.(`DBG ${label}: waiting [${why.slice(0, 4).join(' ')}]`); }
     why.length = 0;
     if (also && !also()) { why.push('not quiet'); return false; }
-    if (rise && !routeClear(D, [[u.x, u.z]], { mode, from: [u.x, u.z], delay: rise / 2, slack: rise / 2 + 0.2, why, pad })) return false;
-    if (!routeClear(D, pts, { mode, from: [u.x, u.z], speed: sp, delay: 0.2 + rise, slack, why, pad })) return false;
+    if (rise && !(await clear([[u.x, u.z]], { mode, from: [u.x, u.z], delay: rise / 2, slack: rise / 2 + 0.2, why, pad }))) return false;
+    if (!(await clear(pts, { mode, from: [u.x, u.z], speed: sp, delay: 0.2 + rise, slack, why, pad }))) return false;
     // (`fast`: his true pace may be quicker on a long run: the route tried at that pace too)
-    if (fast && !routeClear(D, pts, { mode, from: [u.x, u.z], speed: fast, delay: 0.2 + rise, slack, why, pad })) return false;
+    if (fast && !(await clear(pts, { mode, from: [u.x, u.z], speed: fast, delay: 0.2 + rise, slack, why, pad }))) return false;
     let t = 0.2 + rise, [x, z] = [u.x, u.z];
     for (const [px, pz] of pts) { t += Math.hypot(px - x, pz - z) / sp; x = px; z = pz; }
     const end = pts[pts.length - 1];
-    for (let h = 0; h <= hold; h += 0.5) if (!routeClear(D, [end], { mode, from: end, delay: t + h, slack: 0, why, pad })) return false;
+    for (let h = 0; h <= hold; h += 0.5) if (!(await clear([end], { mode, from: end, delay: t + h, slack: 0, why, pad }))) return false;
     return true;
   }, maxWait, `${label} → (${pts[pts.length - 1]}) clear`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   if (mode !== 'crawl') await D.stance(role, 'stand');
@@ -553,14 +557,19 @@ const RUNGS = [[84.3, 60, 0], [84.6, 60, 0.7], [84.9, 60, 1.4], [85.2, 60, 2.1],
  * passes each rung in turn: timed, a guard glancing at the foot while he is at the top does not count).
  */
 function rungsClear(D, t0, t1, why = null, pad = 0.6, except = []) {
+  const it = rungsClearG(D, t0, t1, why, pad, except);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+/** rungsClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back) */
+function* rungsClearG(D, t0, t1, why = null, pad = 0.6, except = []) {
   const w = D.world;
   // (a man walking his beat looks ahead: no extra glance margin for the rungs, 20 m and more from any beat)
   // (a man at a halt sweeps his head to a clock: where it points then, give or take 0.2 s)
   const m0 = w.sneakMargin, a0 = w.sneakWalkAmp, h0 = w.sneakHaltExact;
   w.sneakMargin = 0; w.sneakWalkAmp = 0; w.sneakHaltExact = 0.2;
-  try { return rungsClear0(D, t0, t1, why, pad, except); } finally { w.sneakMargin = m0; w.sneakWalkAmp = a0; w.sneakHaltExact = h0; }
+  try { return yield* rungsClear0(D, t0, t1, why, pad, except); } finally { w.sneakMargin = m0; w.sneakWalkAmp = a0; w.sneakHaltExact = h0; }
 }
-function rungsClear0(D, t0, t1, why, pad, except) {
+function* rungsClear0(D, t0, t1, why, pad, except) {
   const w = D.world;
   const win = typeof t0 === 'function' ? t0 : () => [t0, t1];
   const T0 = Math.min(...RUNGS.map(([, , y]) => win(y)[0])), T1 = Math.max(...RUNGS.map(([, , y]) => win(y)[1]));
@@ -572,6 +581,7 @@ function rungsClear0(D, t0, t1, why, pad, except) {
     const moving = walking(e), far = (e.vision.far ?? 36) + pad + 1, mill = milling(e);
     if (Math.hypot(e.x - 85, e.z - 60) > far + (moving ? 1.2 * T1 + 2 : 0)) continue;
     for (let t = Math.max(0, T0); t <= T1 + 1e-6; t += 0.1) {
+      yield;
       const q = moving ? predict(e, t) : e;
       for (const [x, z, y] of RUNGS) {
         const [a, b] = win(y);
@@ -694,32 +704,33 @@ const pathLen = (from, pts) => { let L = 0, p = from; for (const q of pts) { L +
  * north along the west wall to the block's north-west corner, and lying there a while (out of every cone)? Returns the
  * first part that would be seen ('' = none).
  */
-function descentSeen(D, why) {
+function* descentSeen(D, why) {
   const crawl1 = [G3_WEST[0], G3_CORNER];
   // (measured: below head height ~1.6 s after setting off from the top, at the foot ~3.6 s, down on his belly ~4.2 s;
   // each rung watched ±1.2 s round that, from the top: a descent half a second slower than the measure — the foot at
   // +4.2 s — had him seen low on the ladder by p3c / p1b out of a ±0.8 s window, barrel-carry branch 2026-10-22)
-  if (!rungsClear(D, (h) => (h > 0 ? [Math.max(0, 1.6 + (2.45 - h) / 1.2 - 1.2), 1.6 + (2.45 - h) / 1.2 + 1.2] : [2.6, 5.4]), null, why, 0.35)) return 'rungs';
-  for (const c1 of [0.8, 1.05]) if (!routeClear(D, crawl1, { mode: 'crawl', from: LADDER_FOOT, speed: c1, delay: 5.4, pad: 1.2, why })) return 'crawl';
+  // (a generator: the look-ahead is sliced in the live replay — waitUnseen; the same answers in the same order)
+  if (!(yield* rungsClearG(D, (h) => (h > 0 ? [Math.max(0, 1.6 + (2.45 - h) / 1.2 - 1.2), 1.6 + (2.45 - h) / 1.2 + 1.2] : [2.6, 5.4]), null, why, 0.35))) return 'rungs';
+  for (const c1 of [0.8, 1.05]) if (!(yield* routeClearGen(D, crawl1, { mode: 'crawl', from: LADDER_FOOT, speed: c1, delay: 5.4, pad: 1.2, why }))) return 'crawl';
   const tCorner = 5.4 + pathLen(LADDER_FOOT, crawl1) / 0.8;
-  if (!routeClear(D, [G3_CORNER], { mode: 'crawl', from: G3_CORNER, delay: tCorner, slack: 6, pad: 1.2, why })) return 'corner';
+  if (!(yield* routeClearGen(D, [G3_CORNER], { mode: 'crawl', from: G3_CORNER, delay: tCorner, slack: 6, pad: 1.2, why }))) return 'corner';
   return '';
 }
 /** Then, from the corner: up, along the north face and round the end of the wire, walking; on his belly into the gap. */
-function retreatSeen(D, why) {
+function* retreatSeen(D, why) {
   if (proneAnywhere(D)) { // (all the way on his belly)
-    for (const c of [0.8, 1.1]) if (!routeClear(D, retreatCrawl(), { mode: 'crawl', from: G3_CORNER, speed: c, delay: 0.2, pad: 1.2, why })) return 'crawl';
+    for (const c of [0.8, 1.1]) if (!(yield* routeClearGen(D, retreatCrawl(), { mode: 'crawl', from: G3_CORNER, speed: c, delay: 0.2, pad: 1.2, why }))) return 'crawl';
     const t = 0.2 + pathLen(G3_CORNER, retreatCrawl()) / 0.8;
-    return routeClear(D, [G3_HOLD], { mode: 'crawl', from: G3_HOLD, delay: t + 1.5, slack: 1.5, pad: 1.2, why }) ? '' : 'hold';
+    return (yield* routeClearGen(D, [G3_HOLD], { mode: 'crawl', from: G3_HOLD, delay: t + 1.5, slack: 1.5, pad: 1.2, why })) ? '' : 'hold';
   }
   const walkPts = [...[...G3_NORTH_FACE].reverse(), ...[...G3_WIRE_TURN].reverse(), G3_WIRE_END];
   const lenWalk = pathLen(G3_CORNER, walkPts), lenCrawl2 = pathLen(G3_WIRE_END, [G3_HOLD]);
-  if (!routeClear(D, [G3_CORNER], { mode: 'walk', from: G3_CORNER, delay: 0.35, slack: 0.6, pad: 0.3, why })) return 'rise';
+  if (!(yield* routeClearGen(D, [G3_CORNER], { mode: 'walk', from: G3_CORNER, delay: 0.35, slack: 0.6, pad: 0.3, why }))) return 'rise';
   for (const [w1, c2] of [[2.1, 0.8], [2.3, 0.95]]) {
     const tWire = 0.7 + lenWalk / w1;
-    if (!routeClear(D, walkPts, { mode: 'walk', from: G3_CORNER, speed: w1, delay: 0.7, slack: 0.3, why })) return 'walk';
-    if (!routeClear(D, [G3_HOLD], { mode: 'crawl', from: G3_WIRE_END, speed: c2, delay: tWire + 0.5, pad: 1.2, why })) return 'crawl';
-    if (!routeClear(D, [G3_HOLD], { mode: 'crawl', from: G3_HOLD, delay: tWire + 0.5 + lenCrawl2 / c2 + 1.5, slack: 1.5, pad: 1.2, why })) return 'hold';
+    if (!(yield* routeClearGen(D, walkPts, { mode: 'walk', from: G3_CORNER, speed: w1, delay: 0.7, slack: 0.3, why }))) return 'walk';
+    if (!(yield* routeClearGen(D, [G3_HOLD], { mode: 'crawl', from: G3_WIRE_END, speed: c2, delay: tWire + 0.5, pad: 1.2, why }))) return 'crawl';
+    if (!(yield* routeClearGen(D, [G3_HOLD], { mode: 'crawl', from: G3_HOLD, delay: tWire + 0.5 + lenCrawl2 / c2 + 1.5, slack: 1.5, pad: 1.2, why }))) return 'hold';
   }
   return '';
 }
@@ -750,6 +761,27 @@ async function waitUnseen(D, check, maxSec, label) {
   D.log?.(`DBG ${label} at t=${D.t.toFixed(1)}`);
 }
 
+/**
+ * waitUnseen for a check made as a generator (descentSeen, retreatSeen): the same check at the same moments (every 0.1 s
+ * of game time), run sliced — in the live replay the frame is handed back every few milliseconds of it with no tick in
+ * between (driver runSliced), so the world it reads stands still and the answer is the unsliced one: M14's descent check
+ * cost up to ~35 ms in one go (a 55 ms frame of the AUTO walkthrough at t≈2626).
+ */
+async function waitUnseenSliced(D, check, maxSec, label) {
+  const why = [], stats = {};
+  let lastDbg = D.t, next = -Infinity;
+  await D.untilAsync(async () => {
+    if (D.world.time < next) return false;
+    next = D.world.time + 0.1;
+    if (D.t - lastDbg > 60) { lastDbg = D.t; D.log?.(`DBG ${label}: waiting ${JSON.stringify(stats)}`); }
+    why.length = 0;
+    const part = await D.runSliced(check(D, why));
+    if (part) { const k = `${part}:${why[0]?.split('@')[0]}`; stats[k] = (stats[k] || 0) + 1; }
+    return !part;
+  }, maxSec, label).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
+  D.log?.(`DBG ${label} at t=${D.t.toFixed(1)}`);
+}
+
 /** (with the walkers' turns as they set off: w.sneakTurns) */
 async function ladderDown(D, role, o = {}) {
   const w = D.world, t0 = w.sneakTurns;
@@ -762,7 +794,7 @@ async function ladderDown0(D, role, { maxSec = 1500 } = {}) {
   if ((u.y || 0) > 2) {
     // first to the ladder's top, still on the roof (nobody below sees him there)
     await D.go(role, ...LADDER_TOP, { tol: 0.35, max: 20 });
-    await waitUnseen(D, (D, why) => (settledNear(D, why) ? descentSeen(D, why) : 'unsettled'), maxSec, `${role}: down the ladder to the turret's corner unwatched`);
+    await waitUnseenSliced(D, function* (D, why) { return settledNear(D, why) ? yield* descentSeen(D, why) : 'unsettled'; }, maxSec, `${role}: down the ladder to the turret's corner unwatched`);
     const t0 = D.t;
     D.order(role, { type: 'move', x: LADDER_FOOT[0], z: LADDER_FOOT[1] });
     await D.until(() => (u.y || 0) < 2.5, 20, `${role} down the ladder`);
@@ -773,7 +805,7 @@ async function ladderDown0(D, role, { maxSec = 1500 } = {}) {
     for (const q of [G3_WEST[0], G3_CORNER]) await D.go(role, ...q, { tol: 0.4, max: 40 });
   }
   if (Math.hypot(u.x - G3_HOLD[0], u.z - G3_HOLD[1]) < 1.5) return;
-  await waitUnseen(D, (D, why) => (settledNear(D, why) ? retreatSeen(D, why) : 'unsettled'), maxSec, `${role}: along the turret's north face unwatched`);
+  await waitUnseenSliced(D, function* (D, why) { return settledNear(D, why) ? yield* retreatSeen(D, why) : 'unsettled'; }, maxSec, `${role}: along the turret's north face unwatched`);
   if (proneAnywhere(D)) { for (const q of retreatCrawl()) await D.go(role, ...q, { tol: 0.4, max: 60 }); return; }
   await D.stance(role, 'stand');
   for (const q of [...[...G3_NORTH_FACE].reverse(), ...[...G3_WIRE_TURN].reverse(), G3_WIRE_END]) await D.go(role, ...q, { tol: 0.4, max: 40 });

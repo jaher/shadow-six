@@ -172,7 +172,9 @@ export function restampProp(w, it) {
     const cells = footprintCells(w, it, x + dx, z + dz, -yaw);
     if (!cells || !cells.length) continue;
     for (const k of cells) { w.grid.block[k] = cls; w.grid.owner[k] = it.owner; }
-    w.grid.version++;
+    // (a bump confined to the footprint's rows: the searches' per-version layers redo those rows only — NavGrid.dirtyRowsSince)
+    const r = w.grid._rowsOf(cells);
+    w.grid._bumpRows(r.j0, r.j1, r.i0, r.i1);
     return { x: r4(x + dx), z: r4(z + dz), cells };
   }
   return null;

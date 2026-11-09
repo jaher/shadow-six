@@ -5,7 +5,8 @@
  * @module world/pathfinding
  */
 
-import { T, B, MAX_STEP } from './grid.js';
+import { T, B, MAX_STEP, NavGrid } from './grid.js';
+import { anyFields } from '../core/shapes.js';
 
 const SQRT2 = Math.SQRT2;
 /** Extra cost factor for wading through shallow water / swimming, so land & bridges are preferred. */
@@ -21,8 +22,10 @@ export const AVOID_CLEARANCE = 0.2;
 
 /** Min-heap of node indices keyed by an external Float64Array of f-scores. */
 class NodeHeap {
-  constructor(capacity, f) {
-    this.items = new Int32Array(capacity);
+  /** `items`: the array to keep the heap in (buffers' own, grown as needed and kept for the next search: no 4 KB array
+   * made per search) or a capacity. */
+  constructor(items, f) {
+    this.items = typeof items === 'number' ? new Int32Array(items) : items;
     this.size = 0;
     this.f = f;
   }
@@ -33,28 +36,29 @@ class NodeHeap {
       grown.set(this.items);
       this.items = grown;
     }
-    const a = this.items, f = this.f;
+    const a = this.items, f = this.f, fn = f[n];
     let i = this.size++;
     while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (f[a[p]] <= f[n]) break;
-      a[i] = a[p];
+      const p = (i - 1) >> 1, ap = a[p];
+      if (f[ap] <= fn) break;
+      a[i] = ap;
       i = p;
     }
     a[i] = n;
   }
 
   pop() {
+    // (the same sift as ever — each key read once per step, the last item's once: f is only read here, never written)
     const a = this.items, f = this.f;
     const top = a[0];
-    const last = a[--this.size];
+    const size = --this.size, last = a[size], fl = f[last];
     let i = 0;
-    const half = this.size >> 1;
+    const half = size >> 1;
     while (i < half) {
-      let c = 2 * i + 1;
-      if (c + 1 < this.size && f[a[c + 1]] < f[a[c]]) c++;
-      if (f[a[c]] >= f[last]) break;
-      a[i] = a[c];
+      let c = 2 * i + 1, ac = a[c], fc = f[ac];
+      if (c + 1 < size) { const ar = a[c + 1], fr = f[ar]; if (fr < fc) { c++; ac = ar; fc = fr; } }
+      if (fc >= fl) break;
+      a[i] = ac;
       i = c;
     }
     a[i] = last;
@@ -69,20 +73,24 @@ function buffers(grid) {
   if (!b || b.n !== grid.size) {
     b = {
       n: grid.size,
+      // (by slot: a search numbers the cells it reaches in the order it reaches them — the heap's keys, the g a step
+      // compares, lie together in these, not spread over the map: a blast tick's searches waited on memory)
       g: new Float64Array(grid.size),
       f: new Float64Array(grid.size),
-      parent: new Int32Array(grid.size),
-      stamp: new Uint32Array(grid.size), // == search id → g/parent valid
-      closed: new Uint32Array(grid.size), // == search id → closed
+      parent: new Int32Array(grid.size), // the slot it was reached from (-1: the start)
       via: new Int32Array(grid.size), // link id used to reach the node (0 = grid step)
+      cellOf: new Int32Array(grid.size),
+      heap: new Int32Array(1024), // (the open set's array, kept between searches: NodeHeap grows it, searchPath keeps the growth)
+      // (by cell: 2·search → reached this search, its slot in slotOf; 2·search + 1 → closed)
+      st: new Uint32Array(grid.size),
+      slotOf: new Int32Array(grid.size),
       search: 0,
     };
     scratch.set(grid, b);
   }
   b.search++;
-  if (b.search >= 0xfffffff0) {
-    b.stamp.fill(0);
-    b.closed.fill(0);
+  if (b.search >= 0x7ffffff0) {
+    b.st.fill(0);
     b.search = 1;
   }
   return b;
@@ -148,6 +156,8 @@ export function clearOfWalls(grid, x, z, i = Math.floor(x / grid.cell), j = Math
 
 /** Extra cost factor of a cell edge-adjacent to a blocked cell (walls, buildings, visual nav blocks). */
 export const HUG_COST = 1.35;
+/** staticLayers' step cost codes → the factor: 0 open ground, 1 beside a wall (HUG_COST), 2 water or shallows off a bridge. */
+const MUL_OF = new Float64Array([1, HUG_COST, WATER_COST]);
 /** Is cell (i, j) edge-adjacent to a structure-blocked cell (block or navBlock; water and map edges don't count)? */
 export function hugsObstacle(grid, i, j) {
   const { cols, rows, block, navBlock } = grid;
@@ -163,9 +173,9 @@ export function hugsObstacle(grid, i, j) {
 /**
  * The static layers every search reads at each neighbour, worked out once per grid version (like areasFor's labels,
  * kept until the grid's layers change): `open[swim]` — grid.isWalkable's static test (block, nav stamps, cut fence
- * holes, bridges, water) without the dynamic layer or a clearance mask; `mul` — the step's cost factor on that cell
- * (WATER_COST on water or shallows off a bridge, else HUG_COST beside a wall: hugsObstacle, else 1). Same answers as
- * the tests made cell by cell; a blast's tick reads them a few hundred thousand times.
+ * holes, bridges, water) without the dynamic layer or a clearance mask; `mul` — the step's cost factor on that cell as
+ * a code, MUL_OF[code] (WATER_COST on water or shallows off a bridge, else HUG_COST beside a wall: hugsObstacle, else
+ * 1). Same answers as the tests made cell by cell; a blast's tick reads them a few hundred thousand times.
  */
 const _layers = new WeakMap();
 /** staticLayers' open test for cells [k0, k1) into `o`. */
@@ -182,21 +192,93 @@ function openRowsDive(grid, o, k0, k1) {
   const { block, navBlock, bridge, terrain } = grid, NONE = B.NONE, W = T.WATER, S = T.SHALLOW;
   for (let k = k0; k < k1; k++) { const t = terrain[k]; o[k] = (t === W || t === S) && !bridge[k] && block[k] === NONE && !navBlock[k] ? 1 : 0; }
 }
-/** staticLayers' step cost factor for rows [j0, j1) into `m`. */
+/** staticLayers' step cost factor for rows [j0, j1) into `m`, as a code: MUL_OF[code] (a byte a cell, not a double: an eighth of
+ * the memory a search reads at each neighbour and a blast's tick copies at each version — the same factors). */
 function mulRows(grid, m, j0, j1) {
   // (a row per call: one long call with the loop over a row inside was compiled on the stack for the row loop and thrown
   // out again at every row's end — ~200 deopts, a few ms, at the first search of a mission)
   for (let j = j0; j < j1; j++) mulRow(grid, m, j);
 }
-function mulRow(grid, m, j) {
+function mulRow(grid, m, j, ia = 0, ib = grid.cols - 1) {
   const { block, navBlock, bridge, terrain, cols, rows } = grid, NONE = B.NONE;
-  for (let i = 0, k = j * cols; i < cols; i++, k++) {
+  for (let i = ia, k = j * cols + ia; i <= ib; i++, k++) {
     const t = terrain[k];
-    if ((t === T.WATER || t === T.SHALLOW) && !bridge[k]) m[k] = WATER_COST;
+    if ((t === T.WATER || t === T.SHALLOW) && !bridge[k]) m[k] = 2;
     else m[k] = (i + 1 < cols && (block[k + 1] !== NONE || !!navBlock[k + 1])) || (i > 0 && (block[k - 1] !== NONE || !!navBlock[k - 1]))
-      || (j + 1 < rows && (block[k + cols] !== NONE || !!navBlock[k + cols])) || (j > 0 && (block[k - cols] !== NONE || !!navBlock[k - cols])) ? HUG_COST : 1;
+      || (j + 1 < rows && (block[k + cols] !== NONE || !!navBlock[k + cols])) || (j > 0 && (block[k - cols] !== NONE || !!navBlock[k - cols])) ? 1 : 0;
   }
 }
+/**
+ * The step masks of rows [j0, j1) into `nb` over the walk layer `o` (staticLayers' nb): bit d (DI / DJ's order: E W S N,
+ * SE NE SW NW) when the neighbour that way is on the map, open in `o` and a step reaches it (grid.canStep's height and
+ * run tests from this cell) — and for a diagonal, when both edge neighbours beside it are so too (no corner cutting).
+ * searchPath's fast path reads one byte a cell expanded for the eight neighbours' static walk and step tests; the
+ * vehicles, the clearance mask and the search's own state it still reads cell by cell. Same tests, same order.
+ */
+function stepMaskRows(grid, o, nb, j0, j1) {
+  for (let j = j0; j < j1; j++) stepMaskRow(grid, o, nb, j);
+}
+function stepMaskRow(grid, o, nb, j, ia = 0, ib = grid.cols - 1) {
+  const cols = grid.cols, rows = grid.rows, elev = grid.elev, runOf = grid.runOf;
+  for (let i = ia, k = j * cols + ia; i <= ib; i++, k++) {
+    const ek = elev[k], rk = runOf ? runOf[k] : 0;
+    const kE = k + 1, kW = k - 1, kS = k + cols, kN = k - cols;
+    const e = i + 1 < cols && o[kE] === 1 && Math.abs(ek - elev[kE]) <= MAX_STEP && (!runOf || rk === runOf[kE] || grid.canStep(k, kE));
+    const w = i > 0 && o[kW] === 1 && Math.abs(ek - elev[kW]) <= MAX_STEP && (!runOf || rk === runOf[kW] || grid.canStep(k, kW));
+    const s = j + 1 < rows && o[kS] === 1 && Math.abs(ek - elev[kS]) <= MAX_STEP && (!runOf || rk === runOf[kS] || grid.canStep(k, kS));
+    const n = j > 0 && o[kN] === 1 && Math.abs(ek - elev[kN]) <= MAX_STEP && (!runOf || rk === runOf[kN] || grid.canStep(k, kN));
+    let m = (e ? 1 : 0) | (w ? 2 : 0) | (s ? 4 : 0) | (n ? 8 : 0);
+    if (e && s) { const q = kS + 1; if (o[q] === 1 && Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q))) m |= 16; }
+    if (e && n) { const q = kN + 1; if (o[q] === 1 && Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q))) m |= 32; }
+    if (w && s) { const q = kS - 1; if (o[q] === 1 && Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q))) m |= 64; }
+    if (w && n) { const q = kN - 1; if (o[q] === 1 && Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q))) m |= 128; }
+    nb[k] = m;
+  }
+}
+/** staticLayers' step masks for walk layer `si` (0 on foot, 1 swimming), made in full at their first use. */
+function stepMasksOf(L, grid, si) {
+  let b = L.nb[si];
+  if (!b) { b = new Uint8Array(grid.size); stepMaskRows(grid, L.open[si], b, 0, grid.rows); L.nb[si] = b; }
+  return b;
+}
+/** The cells k in [k0, k1) where layers `a` and `b` differ, onto `out`. */
+function changedCells(a, b, k0, k1, out) {
+  for (let k = k0; k < k1; k++) if (a[k] !== b[k]) out.push(k);
+}
+/**
+ * The static layers' changes from one version to the next, as staticLayers' row path made them (the last LAYER_LOG_MAX):
+ * `from` → `to`, the cells whose walk test (on foot, swimming) or step cost changed, `have` which layers were compared
+ * (1 on foot, 2 swimming, 4 the costs; one made afresh later is not). A version reached by a whole rebuild (a plain bump,
+ * the links changed) has no record: nothing before it carries over (findPath's carryChains).
+ */
+const _layerLog = new WeakMap();
+const LAYER_LOG_MAX = 32;
+function logLayers(grid, from, to, ch, have) {
+  let log = _layerLog.get(grid);
+  if (!log) _layerLog.set(grid, (log = []));
+  log.push({ from, to, ch: Int32Array.from(ch), have });
+  if (log.length > LAYER_LOG_MAX) log.shift();
+}
+/** staticLayers' walk layer `si` (1 swimming, 2 diving) at L's version: patched from the last version that had it
+ * (L.src: its array, the rows changed since), else made whole. The swimmers' step masks come along when that version had
+ * them (stepMasksOf otherwise makes them whole). */
+function layerOf(grid, L, si) {
+  const N = grid.size, S = L.src[si];
+  if (S) {
+    const o = S.o.slice(), cols = grid.cols;
+    for (let j = S.j0; j < S.j1; j++) { const a = j * cols + S.ia, b = j * cols + S.ib + 1; if (si === 2) openRowsDive(grid, o, a, b); else openRows(grid, si === 1, o, a, b); }
+    L.open[si] = o;
+    if (si === 1 && S.nb) { const b = S.nb.slice(); for (let j = S.j0; j < S.j1; j++) stepMaskRow(grid, o, b, j, S.ia, S.ib); L.nb[1] = b; }
+    L.src[si] = null;
+  } else {
+    const o = new Uint8Array(N);
+    if (si === 2) openRowsDive(grid, o, 0, N); else openRows(grid, si === 1, o, 0, N);
+    L.open[si] = o;
+  }
+  return L.open[si];
+}
+/** The step masks of this grid version for tests (tests/unit/step-masks): on foot, or swimming. */
+export function stepMasksFor(grid, swim = false) { return stepMasksOf(staticLayers(grid, swim), grid, swim ? 1 : 0); }
 /** staticLayers for tests: the per-version open / cost layers a search reads (tests/unit/static-layers). */
 export function staticLayersOf(grid, swim = false) { return staticLayers(grid, swim); }
 function staticLayers(grid, swim, costs = true, dive = false) {
@@ -208,19 +290,32 @@ function staticLayers(grid, swim, costs = true, dive = false) {
     const same = L && L.size === grid.size && L.links === grid.links && L.index === grid._linkIndex;
     const d = same ? grid.dirtyRowsSince?.(L.version) : null;
     const P = d ? L : null;
-    L = { version: grid.version, size: grid.size, links: grid.links, index: grid._linkIndex, open: [null, null, null], mul: null, linked: undefined };
+    L = { version: grid.version, size: grid.size, links: grid.links, index: grid._linkIndex, open: [null, null, null], mul: null, linked: undefined, nb: [null, null], src: [null, null, null] };
     if (P) {
-      const j0 = Math.max(0, d.j0 - 1), j1 = Math.min(grid.rows, d.j1 + 2), k0 = j0 * grid.cols, k1 = j1 * grid.cols;
-      for (const si of [0, 1, 2]) if (P.open[si]) { const o = P.open[si].slice(); if (j1 > j0) { if (si === 2) openRowsDive(grid, o, k0, k1); else openRows(grid, si === 1, o, k0, k1); } L.open[si] = o; }
-      if (P.mul) { const m = P.mul.slice(); if (j1 > j0) mulRows(grid, m, j0, j1); L.mul = m; }
+      // (the rectangle the writers named — NavGrid's dirty log keeps their columns too — grown by one cell: a cost reads
+      // its four neighbours, a step mask its eight)
+      const cols = grid.cols, j0 = Math.max(0, d.j0 - 1), j1 = Math.min(grid.rows, d.j1 + 2), ia = Math.max(0, d.i0 - 1), ib = Math.min(cols - 1, d.i1 + 1);
+      // (and the cells whose walk test or step cost the redone rows changed, logged: findPath's chain reuse across versions)
+      const ch = [];
+      if (P.open[0]) { const o = P.open[0].slice(); for (let j = j0; j < j1; j++) { const a = j * cols + ia, b = j * cols + ib + 1; openRows(grid, false, o, a, b); changedCells(P.open[0], o, a, b, ch); } L.open[0] = o; }
+      if (P.mul) { const m = P.mul.slice(); for (let j = j0; j < j1; j++) { mulRow(grid, m, j, ia, ib); changedCells(P.mul, m, j * cols + ia, j * cols + ib + 1, ch); } L.mul = m; }
       L.linked = P.linked;
+      if (P.nb[0] && L.open[0]) { const b = P.nb[0].slice(); for (let j = j0; j < j1; j++) stepMaskRow(grid, L.open[0], b, j, ia, ib); L.nb[0] = b; }
+      // (the swimming and diving layers — and the swimmers' masks — when first asked at this version: from the last
+      // version that had them, its rectangle since redone (layerOf); a blast's tick asks for few of them)
+      for (const si of [1, 2]) {
+        const Q = P.src[si];
+        L.src[si] = P.open[si] ? { o: P.open[si], nb: si === 1 ? P.nb[1] : null, j0, j1, ia, ib }
+          : Q ? { o: Q.o, nb: Q.nb, j0: Math.min(Q.j0, j0), j1: Math.max(Q.j1, j1), ia: Math.min(Q.ia, ia), ib: Math.max(Q.ib, ib) } : null;
+      }
+      logLayers(grid, P.version, L.version, ch, (P.open[0] ? 1 : 0) | (P.mul ? 4 : 0));
     }
     _layers.set(grid, L);
   }
   const si = dive ? 2 : swim ? 1 : 0, N = grid.size;
-  if (!L.open[si]) { const o = new Uint8Array(N); if (dive) openRowsDive(grid, o, 0, N); else openRows(grid, swim, o, 0, N); L.open[si] = o; }
+  if (!L.open[si]) layerOf(grid, L, si);
   if (!costs) return L; // (areasFor: the open cells only)
-  if (!L.mul) { const m = new Float64Array(N); mulRows(grid, m, 0, grid.rows); L.mul = m; }
+  if (!L.mul) { const m = new Uint8Array(N); mulRows(grid, m, 0, grid.rows); L.mul = m; }
   // (the cells a link touches — grid.linksAt's own index — as flags: most expanded cells have none to look up)
   if (L.linked === undefined) {
     const idx = grid._linkIndex;
@@ -241,6 +336,8 @@ function staticLayers(grid, swim, costs = true, dive = false) {
 const failMemos = new WeakMap();
 /** Cells expanded by every A* search so far (a running count: callers budget their searches per tick by it). */
 export const searchStats = { expanded: 0 };
+/** How often findPath answered from a search it kept (tests): the same points (`found`), the same two cells (`chain`). */
+export const reuseStats = { found: 0, chain: 0 };
 const maskIds = new WeakMap();
 let nextMaskId = 1;
 /** Failed-search sets kept per epoch (each a byte per cell). */
@@ -248,10 +345,23 @@ const FAIL_MEMO_MAX = 24;
 function failMemo(grid, epoch) {
   let m = failMemos.get(grid);
   if (!m || m.epoch !== epoch || m.version !== grid.version) {
-    m = { epoch, version: grid.version, sets: new Map(), pockets: new Map(), wide: new Set(), n: 0 };
+    m = { epoch, version: grid.version, sets: new Map(), pockets: new Map(), n: 0 };
     failMemos.set(grid, m);
   }
   return m;
+}
+/**
+ * The goals (failKey|goal cell) found this grid version to have more than POCKET_MAX cells able to reach them: in no small
+ * pocket, whatever the start — searchPath skips the pocket test for them. Kept for the grid version, not the epoch (the
+ * failed-search memo's tick): the enumeration reads the grid as it stands under the key's rules and mask (a mask is never
+ * written once made) and nothing else — and a goal found wide only lets the search run on, as the test would have. M14's
+ * squads re-plan to one goal tick after tick: each tick's first search flooded its pocket again (0.2-1.3 ms).
+ */
+const _wide = new WeakMap();
+function wideOf(grid) {
+  let W = _wide.get(grid);
+  if (!W || W.version !== grid.version) _wide.set(grid, (W = { version: grid.version, set: new Set() }));
+  return W.set;
 }
 function failKey(walkOpts, opts) {
   let mask = 0;
@@ -333,6 +443,18 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
   if (bare.dive) { open = new Uint8Array(N); for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0; }
   // (grid.isWalkable's own test for these rules, cell by cell: no dynamic layer, no mask — the searches' own copy)
   else open = staticLayers(grid, bare.swim, false).open[bare.swim ? 1 : 0];
+  // (the grid changed only in known rows since these rules were last labelled — a blast's cleared cells, its nav stamps:
+  // NavGrid.dirtyRowsSince — and no cell there went from open to shut: the last labelling, joined where the cells that
+  // opened join it — the same partition a full flood gives, ~0.5 ms instead of ~3 ms after each of a blast's bumps)
+  const lastOf = _areasLast.get(grid) || (_areasLast.set(grid, new Map()), _areasLast.get(grid)), last = lastOf.get(key);
+  if (!bare.dive && last && last.links === grid.links) {
+    const inc = relabelOpened(grid, last, open, role, opts, hasLinks);
+    if (inc) {
+      per.map.set(key, inc.lab);
+      lastOf.set(key, { version: grid.version, links: grid.links, lab: inc.lab, open, next: inc.next });
+      return inc.lab;
+    }
+  }
   // (links by cell, the ones this search may take)
   let adj = null, adjAt = null;
   if (hasLinks) {
@@ -370,7 +492,174 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
     }
   }
   per.map.set(key, lab);
+  if (!bare.dive) lastOf.set(key, { version: grid.version, links: grid.links, lab, open, next });
   return lab;
+}
+
+/** relabelOpened: at most this many cells shut by the changes it joins (more: a full flood). */
+const SHUT_MAX = 4096;
+/** shutKeepsAreas looks this many cells round the shut ones for a way between their neighbours. */
+const SHUT_WINDOW = 16;
+/** A pocket the shut cells cut off an area (shutKeepsAreas) is labelled on its own up to this many cells (more: a full flood). */
+const POCKET_CELLS = 4096;
+/**
+ * What the shut cells do to the areas they cut through: for each old area, the cells beside the shut ones (its 8
+ * neighbours with a step to them, a link's other end) still open must be joined by steps among open cells within
+ * SHUT_WINDOW of the shut ones (any area's, or newly open) — then any way through a shut cell has a detour and the
+ * area stays whole (joined to others only where newly open cells join them). One that is not is followed on, as far
+ * as it goes: back to the rest (a detour farther out), or round a pocket of the old area's own cells closed off (no
+ * newly open cell in it, at most POCKET_CELLS) — a new area of its own. @returns {number[][]|null} the pockets (cells),
+ * or null: a full flood answers (a corridor shut across, a pocket too big or joined to newly open cells).
+ */
+function shutKeepsAreas(grid, shut, oldLab, oldOpen, open, oldLinks, links, steps) {
+  const cols = grid.cols, rows = grid.rows;
+  let i0 = Infinity, i1 = -Infinity, j0 = Infinity, j1 = -Infinity;
+  for (const k of shut) { const i = k % cols, j = (k - i) / cols; if (i < i0) i0 = i; if (i > i1) i1 = i; if (j < j0) j0 = j; if (j > j1) j1 = j; }
+  i0 = Math.max(0, i0 - SHUT_WINDOW); i1 = Math.min(cols - 1, i1 + SHUT_WINDOW); j0 = Math.max(0, j0 - SHUT_WINDOW); j1 = Math.min(rows - 1, j1 + SHUT_WINDOW);
+  // the cells beside the shut ones (by the steps a flood took over the old layer), still open, by old area
+  const byArea = new Map();
+  for (const s of shut) steps(s, oldOpen, oldLinks, (nk) => {
+    if (!open[nk]) return;
+    const a = oldLab[nk];
+    if (!a) return;
+    let set = byArea.get(a); if (!set) byArea.set(a, (set = new Set())); set.add(nk);
+  });
+  const inWin = (k) => { const i = k % cols, j = (k - i) / cols; return i >= i0 && i <= i1 && j >= j0 && j <= j1; };
+  const pockets = [];
+  for (const [area, set] of byArea) {
+    if (set.size < 2) continue;
+    for (const k of set) if (!inWin(k)) return null; // (a link's far end out of the window: no local answer)
+    const seen = new Set(), queue = [];
+    const first = set.values().next().value;
+    seen.add(first); queue.push(first);
+    let left = set.size - 1;
+    for (let q = 0; q < queue.length && left > 0; q++) {
+      steps(queue[q], open, links, (nk) => {
+        if (seen.has(nk) || !inWin(nk)) return;
+        seen.add(nk); queue.push(nk);
+        if (set.has(nk)) left--;
+      });
+    }
+    if (!left) continue;
+    // the neighbours not reached: followed on without the window — back to the rest, or round a pocket of their own
+    for (const u of set) {
+      if (seen.has(u)) continue;
+      const P = new Set([u]), pq = [u];
+      let back = false, bad = false;
+      for (let q = 0; q < pq.length && !back && !bad; q++) {
+        steps(pq[q], open, links, (nk) => {
+          if (back || bad || P.has(nk)) return;
+          if (seen.has(nk)) { back = true; return; } // (the rest of the area, after all)
+          if (oldLab[nk] !== area || P.size >= POCKET_CELLS) { bad = true; return; } // (newly open, another area's, too big)
+          P.add(nk); pq.push(nk);
+        });
+      }
+      if (bad) return null;
+      if (back) { for (const k of P) seen.add(k); continue; }
+      pockets.push([...P]);
+      for (const k of P) seen.add(k); // (its other neighbours: in this pocket)
+    }
+  }
+  return pockets;
+}
+
+/**
+ * The last labelling built per rules (areasFor's key) — its grid version, the open layer it was flooded over (static
+ * layers are never written once made: a change makes a copy), its last label id — for relabelOpened.
+ */
+const _areasLast = new WeakMap();
+/**
+ * `last`'s labelling brought to the grid as it stands, or null (a full flood then): every change since `last.version`
+ * confined to known rows (NavGrid.dirtyRowsSince) and none of them shut an open cell — the walk layer's rows compared
+ * with the one `last` was flooded over; elevation, ramps and links change only with a version bump of their own (no rows
+ * known). Cells that only opened can only join areas: each run of newly open cells takes a new label, and the areas it
+ * touches (by the flood's own steps: the 8 neighbours, the elevation step, a ramp's sides either way, an allowed link
+ * with both ends open) become one, under the least of their labels. Labels are compared for equality only.
+ */
+function relabelOpened(grid, last, open, role, opts, hasLinks) {
+  const d = grid.dirtyRowsSince(last.version);
+  if (!d) return null;
+  const cols = grid.cols, N = grid.size, old = last.open, opened = [], shut = [];
+  // (the cells the writers named: a cell's walk test reads only its own layers)
+  for (let j = Math.max(0, d.j0), je = Math.min(grid.rows - 1, d.j1); j <= je; j++) {
+    for (let k = j * cols + Math.max(0, d.i0), ke = j * cols + Math.min(cols - 1, d.i1); k <= ke; k++) {
+      if (open[k] === old[k]) continue;
+      if (open[k]) opened.push(k); else shut.push(k);
+    }
+  }
+  if (!opened.length && !shut.length) return { lab: last.lab, next: last.next }; // (the same open cells: the same areas — shared, never written)
+  if (shut.length > SHUT_MAX) return null;
+  const elev = grid.elev, runOf = grid.runOf;
+  // (the steps a flood takes from cell k under the open layer `o`: the 8 neighbours with the elevation step and a ramp's
+  // sides either way, and the allowed links with both ends open)
+  const linksOf = (o) => {
+    if (!hasLinks) return null;
+    const m = new Map();
+    for (const L of grid.links) {
+      if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
+      if (!o[L.ka] || !o[L.kb]) continue;
+      (m.get(L.ka) || m.set(L.ka, []).get(L.ka)).push(L.kb);
+      (m.get(L.kb) || m.set(L.kb, []).get(L.kb)).push(L.ka);
+    }
+    return m;
+  };
+  const adj = linksOf(open);
+  const steps = (k, o, links, fn) => {
+    const i = k % cols, m = (i + 1 < cols ? 1 : 0) | (i > 0 ? 2 : 0) | (k + cols < N ? 4 : 0) | (k >= cols ? 8 : 0), ek = elev[k];
+    for (let dd = 0; dd < 8; dd++) {
+      if ((m & NBR_NEED[dd]) !== NBR_NEED[dd]) continue;
+      const nk = k + DI[dd] + DJ[dd] * cols;
+      if (!o[nk]) continue;
+      if (Math.abs(ek - elev[nk]) > MAX_STEP) continue;
+      if (runOf && runOf[k] !== runOf[nk] && !grid.canStep(k, nk) && !grid.canStep(nk, k)) continue;
+      fn(nk);
+    }
+    const ls = links?.get(k);
+    if (ls) for (const nk of ls) fn(nk);
+  };
+  const pockets = shut.length ? shutKeepsAreas(grid, shut, last.lab, old, open, linksOf(old), adj, steps) : [];
+  if (!pockets) return null;
+  const lab = last.lab.slice(), parent = new Map();
+  for (const k of shut) lab[k] = 0;
+  let next = last.next;
+  for (const P of pockets) { const id = ++next; for (const k of P) lab[k] = id; }
+  const find = (l) => { let r = l; while (parent.has(r)) r = parent.get(r); return r; };
+  let joined = false;
+  const queue = new Int32Array(opened.length);
+  for (const s0 of opened) {
+    if (lab[s0]) continue; // (reached from an earlier one)
+    const id = ++next, touched = new Set();
+    let qh = 0, qt = 0;
+    queue[qt++] = s0; lab[s0] = id;
+    let bad = false;
+    const reach = (nk) => {
+      if (lab[nk] === 0) { if (qt >= queue.length) { bad = true; return; } lab[nk] = id; queue[qt++] = nk; } // (shut before: newly open)
+      else if (lab[nk] !== id) touched.add(lab[nk]);
+    };
+    while (qh < qt) steps(queue[qh++], open, adj, reach);
+    if (bad) return null; // (an open cell unlabelled outside the rows compared: never — a full flood rather than a guess)
+    if (!touched.size) continue;
+    // (one area: under the least label among them)
+    let c = id;
+    for (const l of touched) { const r = find(l); if (r < c) c = r; }
+    for (const l of [id, ...touched]) { const r = find(l); if (r !== c) parent.set(r, c); }
+    joined = true;
+  }
+  if (joined) {
+    const canon = new Int32Array(next + 1);
+    let oldMoved = false;
+    for (let l = 0; l <= next; l++) { const r = parent.size ? find(l) : l; canon[l] = r; if (r !== l && l <= last.next) oldMoved = true; }
+    // (two areas of the last labelling joined: their cells lie anywhere — every cell. Else only labels made here moved —
+    // the newly open cells' runs (joined to the areas they touch) and the pockets': their cells are those lists, and the
+    // rest of the grid keeps its labels — the same array, without a pass over the whole grid, cold code at a blast:
+    // ~0.45 ms of M14's barrel tick each time, for its 2 opened cells)
+    if (oldMoved) { for (let k = 0; k < N; k++) { const l = lab[k]; if (l) lab[k] = canon[l]; } }
+    else {
+      for (const k of opened) { const l = lab[k]; if (l) lab[k] = canon[l]; }
+      for (const P of pockets) for (const k of P) { const l = lab[k]; if (l) lab[k] = canon[l]; }
+    }
+  }
+  return { lab, next };
 }
 
 /**
@@ -385,7 +674,14 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
  * (engine/idle-warm.js) instead of the first tick of play, whose first orders paid ~2-3 ms for them (M18).
  */
 export function warmPathCosts(grid) {
-  if (grid?.size) staticLayers(grid, false);
+  if (grid?.size) stepMasksOf(staticLayers(grid, false), grid, 0); // (and the step masks on foot: made in full once)
+}
+
+/** The area labelling a search under these rules reads (areasFor; tests/unit/areas-incremental). */
+export function areaLabelsOf(grid, opts = {}) {
+  const o = { role: opts.role, noLinks: !!opts.noLinks, noWalkLinks: !!opts.noWalkLinks };
+  const hasLinks = (!o.noLinks || !o.noWalkLinks) && grid.links && grid.links.length > 0;
+  return areasFor(grid, { swim: !!(opts.swim || opts.allowWater), dive: false }, o.role, o, hasLinks);
 }
 
 export function warmAreas(grid, opts = {}) {
@@ -439,9 +735,30 @@ function ladderEnds(grid) {
   if (!c || c.links !== links || c.n !== links.length) {
     const set = new Set();
     for (const L of links) if (L.kind === 'ladder') { set.add(L.ka); set.add(L.kb); }
-    _ladderEnds.set(grid, (c = { links, n: links.length, set }));
+    _ladderEnds.set(grid, (c = { links, n: links.length, set, flags: null, near: null }));
   }
   return c.set;
+}
+/** The cells beside a ladder's end (one of their eight neighbours is one): searchPath's step-mask path leaves them to the
+ * cell-by-cell path, which notes a ladder end the mask shuts (noteEnd). Per links, as ladderEnds. */
+function ladderEndNear(grid) {
+  const fl = ladderEndFlags(grid), c = _ladderEnds.get(grid);
+  if (!c.near || c.near.length !== grid.size) {
+    const nr = new Uint8Array(grid.size), cols = grid.cols, rows = grid.rows;
+    for (let k = 0; k < fl.length; k++) {
+      if (fl[k] !== 1) continue;
+      const i = k % cols, j = (k - i) / cols;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const a = i + di, b = j + dj; if (a >= 0 && b >= 0 && a < cols && b < rows) nr[b * cols + a] = 1; }
+    }
+    c.near = nr;
+  }
+  return c.near;
+}
+/** ladderEnds as one flag a cell (1: a ladder's end): the search's quick look before it asks the set (isEnd). */
+function ladderEndFlags(grid) {
+  const set = ladderEnds(grid), c = _ladderEnds.get(grid);
+  if (!c.flags || c.flags.length !== grid.size) { const fl = new Uint8Array(grid.size); for (const k of set) if (k >= 0 && k < fl.length) fl[k] = 1; c.flags = fl; }
+  return c.flags;
 }
 /**
  * Is goal cell `goalK` inside a pocket of at most POCKET_MAX cells — every cell from which a search can step (or climb,
@@ -450,6 +767,52 @@ function ladderEnds(grid) {
  * blown inside a bunker nobody can walk into: every guard who hears it flooded the whole map, ~20 ms each).
  * @returns {number[]|null} the pocket's cells, or null = can't tell (it is larger, or holds the start): search on
  */
+/**
+ * goalPocketExcludes for a search on the static walk layer (searchPath's fast path): the same enumeration — the same
+ * cells in the same order, the same early answers — with grid.isWalkable's test for these rules written out on the layer
+ * (the vehicles, the mask; a ladder end the mask shuts open as one, `endF`: searchPath's pocketOpen) and canStep's
+ * height test before its call: no call per cell.
+ */
+function goalPocketExcludesOpen(grid, goalK, startK, sOpen, dynB, avM, frM, endF, role, hasLinks, noLinks, info) {
+  const cols = grid.cols, rows = grid.rows, elev = grid.elev, runOf = grid.runOf, NONE = B.NONE;
+  let mark = _pocketSeen.get(grid);
+  if (!mark || mark.a.length !== grid.size) { mark = { a: new Uint32Array(grid.size), id: 0 }; _pocketSeen.set(grid, mark); }
+  if (++mark.id >= 0xfffffff0) { mark.a.fill(0); mark.id = 1; }
+  const seen = mark.a, id = mark.id, queue = [goalK];
+  seen[goalK] = id;
+  // (`open`: pocketOpen — walked, or a ladder end the mask shuts; `walk`: grid.isWalkable, the corner rule's own test)
+  const open = (q) => sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (frM === null || frM[q] === 0) && (avM === null || !avM[q] || (endF !== null && endF[q] === 1));
+  const walk = (q) => sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0);
+  const step = (a, b) => Math.abs(elev[a] - elev[b]) <= MAX_STEP && (!runOf || runOf[a] === runOf[b] || grid.canStep(a, b));
+  for (let q = 0; q < queue.length; q++) {
+    const k = queue[q], i = k % cols, j = (k - i) / cols;
+    for (let d = 0; d < 8; d++) {
+      const pi = i - DI[d], pj = j - DJ[d];
+      if (pi < 0 || pj < 0 || pi >= cols || pj >= rows) continue;
+      const pk = pj * cols + pi;
+      if (!open(pk)) continue;
+      if (seen[pk] === id) continue;
+      if (d >= 4 && (!walk(pk + DI[d]) || !walk(pk + DJ[d] * cols))) continue; // (both on the map: pk and k are)
+      if (!step(pk, k)) continue;
+      if (d >= 4 && (!step(pk, pj * cols + i) || !step(pk, j * cols + pi))) continue;
+      if (pk === startK) return null;
+      seen[pk] = id; queue.push(pk);
+      if (queue.length > POCKET_MAX) { if (info) info.wide = true; return null; }
+    }
+    if (hasLinks) {
+      for (const L of grid.linksAt(k)) {
+        if (!grid.linkAllowed(L, role) || (noLinks && !L.walk)) continue;
+        const pk = L.ka === k ? L.kb : L.ka;
+        if (seen[pk] === id) continue;
+        if (pk < 0 || pk >= grid.size || !open(pk)) continue;
+        if (pk === startK) return null;
+        seen[pk] = id; queue.push(pk);
+        if (queue.length > POCKET_MAX) { if (info) info.wide = true; return null; }
+      }
+    }
+  }
+  return queue;
+}
 function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks, open = (i, j) => grid.isWalkable(i, j, walkOpts), info = null) {
   const cols = grid.cols;
   let mark = _pocketSeen.get(grid);
@@ -517,43 +880,137 @@ function stepOutToward(grid, sx, sz, tx, tz, nearest, walkOpts) {
 }
 
 /**
- * The last search findPath ran to its goal on a grid, kept for the one after it when that one asks the same or differs
- * only in its body-clearance mask (`avoid`) — Unit._planPath asks the same way once per inflation tier, every guard who hears a
- * blast (M2's depot: ~30 searches in its tick). Neither mask holding a cell within REUSE_PAD of the box the first search
- * looked at (start and goal, every cell it expanded and their neighbours, the links' far ends — the smoothing's lines
- * run between its path's points, inside it), both searches test the same cells with the same answers: the same path,
- * the same cells expanded (counted again on searchStats). Never for a search that moved its start or goal (the nearest
- * free cell: a ring search), went past AREAS_AT cells (caches keyed by its mask), a dynamic one (the vehicle layer is
- * restamped within a tick), a dive, a crawler's (alignRuns looks further) — and only within one grid version and epoch.
+ * The searches findPath ran to their goal on a grid version (the last FOUND_MAX of them), kept for a later one that asks
+ * the same — the same start and goal, the same rules — or differs only in its body-clearance mask (`avoid`) outside the
+ * box the first search looked at: Unit._planPath asks the same way once per inflation tier, every guard who hears a
+ * blast (M2's depot: ~30 searches in its tick), a guard stood still asks again a tick later (M14's barrel blast: a 15 700-
+ * cell search twice, the second time ~8 ms — the masks are made afresh each tick, the same within the box). Both masks
+ * holding the same cells within REUSE_PAD of that box (start and goal, every cell it expanded and their neighbours, the
+ * links' far ends — the smoothing's lines run between its path's points, inside it), both searches test the same cells
+ * with the same answers: the same path, the same cells expanded (counted again on searchStats). A path found does not
+ * depend on the epoch (the failed-search memo answers only searches that fail: one that reaches its goal never meets
+ * it), so a later tick reuses it too. Never for a search that moved its start or goal (the nearest free cell: a ring
+ * search), a dynamic one (the vehicle layer is restamped within a tick), a dive, a crawler's (alignRuns looks further) —
+ * and only within one grid version. (Masks are never written once made: body-clearance.js makes a new one per change.)
  */
-const _lastFound = new WeakMap();
+const _found = new WeakMap();
+const FOUND_MAX = 32;
+/**
+ * The cell chains of those searches, for another start and goal in the same two cells (CHAIN_MAX of a grid version):
+ * the A* reads only cells — its start and goal cells, the rules, the grid, the mask — so a search between the same two
+ * cells under the same rules, the masks equal within its box, expands the same cells in the same order and finds the
+ * same chain; only the points at its ends and the smoothing from them are this query's own (finishPath). M14's
+ * charges: a squad of twenty re-plans to one goal from sixteen cells. Never for a moved start or goal (the nearest free
+ * cell is a ring search from the point itself).
+ */
+const _chains = new WeakMap();
+const CHAIN_MAX = 48;
 const REUSE_PAD = 2;
 const sameRules = (a, b) => a.role === b.role && !!a.noLinks === !!b.noLinks && !!a.noWalkLinks === !!b.noWalkLinks && !!a.swim === !!b.swim
-  && (a.maxNodes ?? 40000) === (b.maxNodes ?? 40000) && a.smooth === b.smooth && !!a.taut === !!b.taut && a.memo === b.memo
+  && (a.maxNodes ?? 40000) === (b.maxNodes ?? 40000) && a.smooth === b.smooth && !!a.taut === !!b.taut
   && (a.fire || null) === (b.fire || null);
-function maskClear(grid, m, box) {
-  if (!m) return true;
+/** Is a kept search's answer (`L`: its fire version) good for these rules under the fires as they burn? A search round
+ * the fires (opts.fire, world/fires.js) is kept for its fire version only: the layer is written in place, never `version`. */
+const fireSame = (opts, L, grid) => !opts.fire || L.fireV === grid.fireVersion;
+/** Do masks `a` and `b` (null: no mask) hold the same cells within REUSE_PAD of `box`? */
+function maskSame(grid, a, b, box) {
+  if (a === b) return true;
   const cols = grid.cols, i0 = Math.max(0, box[0] - REUSE_PAD), j0 = Math.max(0, box[1] - REUSE_PAD);
   const i1 = Math.min(cols - 1, box[2] + REUSE_PAD), j1 = Math.min(grid.rows - 1, box[3] + REUSE_PAD);
-  for (let j = j0; j <= j1; j++) for (let k = j * cols + i0, e = j * cols + i1; k <= e; k++) if (m[k]) return false;
+  if (!a || !b) {
+    const m = a || b;
+    for (let j = j0; j <= j1; j++) for (let k = j * cols + i0, e = j * cols + i1; k <= e; k++) if (m[k]) return false;
+    return true;
+  }
+  for (let j = j0; j <= j1; j++) for (let k = j * cols + i0, e = j * cols + i1; k <= e; k++) if (a[k] !== b[k]) return false;
   return true;
 }
 const copyPath = (p) => p.map((q) => (q.link ? { ...q, link: { ...q.link } } : { ...q }));
+/**
+ * The chains kept from an earlier grid version brought to this one (`C.version` → grid.version): kept when every change
+ * between them is in staticLayers' log (row-confined bumps: the walk layers and step costs compared cell by cell; heights,
+ * ramps and links change only with a plain bump, which has no record) and none of the cells it changed lies at or next
+ * to a cell the search expanded, or is a link end it looked at (`foot`): the A* reads nothing else of the grid — the
+ * walk test, height, run and cost of the expanded cells' eight neighbours, the links of the expanded cells — so run
+ * again it expands the same cells in the same order and finds the same chain; the smoothing is redone on the grid as it
+ * is (finishPath). M14's charges: the guards standing in the casemate's yard plan again after each bump, from the same
+ * cells, while the changes lie at the far guns. Otherwise dropped.
+ */
+function carryChains(grid, C) {
+  const to = grid.version;
+  staticLayers(grid, false, true, false); // (the layers brought to this version: their row path logs what changed)
+  const log = _layerLog.get(grid), chs = [];
+  let v = C.version, have = 7;
+  if (log) for (const r of log) if (r.from === v) { if (r.ch.length) chs.push(r.ch); have &= r.have; v = r.to; if (v === to) break; }
+  C.version = to;
+  if (v !== to) { C.list.length = 0; return; }
+  if (!chs.length) return;
+  const cols = grid.cols;
+  C.list = C.list.filter((E) => {
+    if (!E.foot || (have & 4) === 0 || (have & (E.opts.swim ? 2 : 1)) === 0) return false;
+    const b = E.box, w = b[2] - b[0] + 1, foot = E.foot;
+    for (const ch of chs) {
+      for (let n = 0; n < ch.length; n++) {
+        const k = ch[n], ci = k % cols, cj = (k - ci) / cols;
+        if (ci < b[0] - 1 || ci > b[2] + 1 || cj < b[1] - 1 || cj > b[3] + 1) continue;
+        for (let j = Math.max(b[1], cj - 1), j1 = Math.min(b[3], cj + 1); j <= j1; j++) {
+          for (let i = Math.max(b[0], ci - 1), i1 = Math.min(b[2], ci + 1); i <= i1; i++) if (foot[(j - b[1]) * w + i - b[0]]) return false;
+        }
+      }
+    }
+    return true;
+  });
+}
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const plain = !opts.dynamic && !opts.dive && !opts.lying;
+  let F = null;
   if (plain) {
-    const L = _lastFound.get(grid);
-    if (L && L.version === grid.version && L.sx === sx && L.sz === sz && L.tx === tx && L.tz === tz && (!opts.fire || L.fireV === grid.fireVersion)
-      && sameRules(opts, L.opts) && (opts.avoid === L.avoid || maskClear(grid, opts.avoid, L.box))) {
-      searchStats.expanded += L.expanded;
+    F = _found.get(grid);
+    if (!F || F.version !== grid.version) _found.set(grid, (F = { version: grid.version, list: [] }));
+    const avoid = opts.avoid || null;
+    for (let n = F.list.length - 1; n >= 0; n--) {
+      const L = F.list[n];
+      if (L.sx !== sx || L.sz !== sz || L.tx !== tx || L.tz !== tz || !sameRules(opts, L.opts) || !fireSame(opts, L, grid) || !maskSame(grid, avoid, L.avoid, L.box)) continue;
+      searchStats.expanded += L.expanded; reuseStats.found++;
       return copyPath(L.path);
     }
   }
-  const info = { endBlocked: true, moved: false, box: null, expanded: 0 };
+  if (plain) {
+    const C = _chains.get(grid);
+    if (C && C.version !== grid.version) carryChains(grid, C);
+    if (C && C.list.length) {
+      const c = grid.cell, si = Math.floor(sx / c), sj = Math.floor(sz / c), gi = Math.floor(tx / c), gj = Math.floor(tz / c);
+      if (grid.inBounds(si, sj) && grid.inBounds(gi, gj) && (si !== gi || sj !== gj)) {
+        const startK = sj * grid.cols + si, goalK = gj * grid.cols + gi, avoid = opts.avoid || null;
+        for (let n = C.list.length - 1; n >= 0; n--) {
+          const E = C.list[n];
+          if (E.startK !== startK || E.goalK !== goalK || !sameRules(opts, E.opts) || !fireSame(opts, E, grid) || !maskSame(grid, avoid, E.avoid, E.box)) continue;
+          searchStats.expanded += E.expanded; reuseStats.chain++;
+          // (searchPath's rules: the fires only while any burn)
+          const fire = opts.fire && grid.fireCells > 0 ? opts.fire : null;
+          const walkOpts = { swim: !!opts.swim, dynamic: false, dive: false, avoid, fire, fireV: fire ? grid.fireVersion : 0 };
+          const goal = clearOfWalls(grid, tx, tz, gi, gj, GOAL_CLEARANCE);
+          const p = finishPath(grid, E.chain, E.chainVia, { x: sx, z: sz }, goal, opts, walkOpts, E.fast ? staticLayers(grid, !!opts.swim, true, false).open[opts.swim ? 1 : 0] : null);
+          F.list.push({ sx, sz, tx, tz, avoid, fireV: grid.fireVersion, opts: { ...opts }, box: E.box, expanded: E.expanded, path: copyPath(p) });
+          if (F.list.length > FOUND_MAX) F.list.shift();
+          return p;
+        }
+      }
+    }
+  }
+  const info = { endBlocked: true, moved: false, box: null, expanded: 0, chain: null, chainVia: null, fast: false, plain, foot: null };
   info.endBlocked = false; // (a field that changes — a search giving back its cells writes it: not a constant, core/shapes.js)
   const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
-  if (p && plain && info.box && !info.moved && info.expanded < AREAS_AT && maskClear(grid, opts.avoid, info.box)) {
-    _lastFound.set(grid, { version: grid.version, fireV: grid.fireVersion, sx, sz, tx, tz, avoid: opts.avoid || null, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
+  if (p && plain && info.box && !info.moved) {
+    F.list.push({ sx, sz, tx, tz, avoid: opts.avoid || null, fireV: grid.fireVersion, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
+    if (F.list.length > FOUND_MAX) F.list.shift();
+    if (info.chain && info.chain.length > 1) {
+      let C = _chains.get(grid);
+      if (C && C.version !== grid.version) carryChains(grid, C);
+      if (!C) _chains.set(grid, (C = { version: grid.version, list: [] }));
+      C.list.push({ startK: info.chain[0], goalK: info.chain[info.chain.length - 1], avoid: opts.avoid || null, fireV: grid.fireVersion, opts: { ...opts }, box: info.box, expanded: info.expanded, chain: info.chain, chainVia: info.chainVia, fast: info.fast, foot: info.foot });
+      if (C.list.length > CHAIN_MAX) C.list.shift();
+    }
   }
   if (p || !info.endBlocked) return p;
   // (shut out where a body-clearance mask covers a ladder's end — a tank ladder's foot a step from its shell, M8's deck
@@ -584,6 +1041,213 @@ function walker(grid, walkOpts) {
   };
 }
 
+/**
+ * The search's own code warmed once a page, at a mission's load (Game's idle warm): long searches on the mission's grid
+ * as it stands, the area labelling taken as not at hand (`codeWarm`), so that searchPath's rarely run parts — the late
+ * area answer at AREAS_AT, the goal pocket at POCKET_AT, the heap grown past its first size, the clearance mask's ladder
+ * ends — have run before its optimized code is made. Met first in play, each threw that code out mid-tick and the tick's
+ * remaining searches ran unoptimized: M14's barrel blast, a 15.7k-cell search at twice the time a cell. Cache fills
+ * only (this grid version's labels and layers, as warmAreas / warmPathCosts): no search answers differently after it,
+ * and the cells it counts are given back to searchStats.
+ * @returns {boolean} the warm-up ran
+ */
+let codeWarm = false, codeWarmed = false;
+export function warmSearchCode(grid) {
+  if (codeWarmed || !grid?.size) return false;
+  const lab = areaLabelsOf(grid), o = staticLayers(grid, false, false).open[0], N = grid.size, c = grid.cell, cols = grid.cols;
+  // two open cells of one walk area far apart: the first from the map's first corner, the last of its area from the other
+  let a = -1, b = -1;
+  for (let k = 0; k < N && a < 0; k++) if (o[k] === 1 && lab[k]) a = k;
+  for (let k = N - 1; k > a && a >= 0 && b < 0; k--) if (o[k] === 1 && lab[k] === lab[a]) b = k;
+  if (a < 0 || b < 0) return false;
+  const at = (k) => [((k % cols) + 0.5) * c, (Math.floor(k / cols) + 0.5) * c];
+  const [ax, az] = at(a), [bx, bz] = at(b);
+  const e0 = searchStats.expanded, info = () => { const o = { endBlocked: true, moved: false, box: null, expanded: 0, chain: null, chainVia: null, fast: false, plain: false, foot: null }; o.endBlocked = false; return o; };
+  // (and a search round the fires — world/fires.js, a blast's first: the fire layer's tests in the A* and the smoothing's
+  // lines — with an empty fire layer of its own, `fireCells` counted for it alone: the same answer as without)
+  const fc = grid.fireCells;
+  codeWarm = true; codeWarmed = true;
+  try {
+    searchPath(grid, ax, az, bx, bz, { maxNodes: 6000 }, false, info());
+    searchPath(grid, ax, az, bx, bz, { maxNodes: 6000, avoid: new Uint8Array(N), role: '*' }, false, info());
+    if (!fc) { grid.fireCells = 1; searchPath(grid, ax, az, bx, bz, { maxNodes: 6000, fire: new Uint8Array(N) }, false, info()); }
+  } finally { codeWarm = false; searchStats.expanded = e0; grid.fireCells = fc; }
+  // (and the labelling's own paths after a change in known rows — a ring of cells shut round a pocket, then opened again —
+  // with the layers redone over those rows: relabelOpened, shutKeepsAreas, staticLayers' row path; on a small grid of
+  // its own, nothing of the mission's touched)
+  const s = new NavGrid(12, 12), sc = s.cols, ring = [];
+  for (let j = 8; j <= 14; j++) for (let i = 8; i <= 14; i++) if (i === 8 || i === 14 || j === 8 || j === 14) ring.push(j * sc + i);
+  staticLayers(s, false, true); areaLabelsOf(s);
+  for (const v of [B.HIGH, B.NONE]) { for (const k of ring) s.block[k] = v; s._bumpRows(8, 14); staticLayers(s, false, true); areaLabelsOf(s); }
+  return true;
+}
+
+/** searchPath's area answer: start and goal cells in two walk areas of this grid version (areasFor) — no search joins them. */
+function areasApart(grid, walkOpts, role, opts, hasLinks, startK, goalK) {
+  const lab = areasFor(grid, walkOpts, role, opts, hasLinks);
+  return !!(lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]);
+}
+/** searchPath's note of a ladder end the clearance mask shuts, met at (i, j) (`info.endBlocked`): isEnd's test. */
+function noteEnd(grid, allEnds, bare, info, i, j) {
+  if (!info.endBlocked && grid.inBounds(i, j) && allEnds.has(j * grid.cols + i) && grid.isWalkable(i, j, bare)) info.endBlocked = true;
+}
+
+/**
+ * searchPath's A* over the step masks, in a function of its own: it pops and expands cells — the step masks' path, the
+ * same pushes in the same order — until the goal (1), the node cap (2), the heap dry (0), or a cell its caller expands
+ * itself (3: the cell in `S.s` / `S.k`, closed and counted already — at AREAS_AT / POCKET_AT cells, one with links, one
+ * beside a ladder end). Only what every search runs is in it: a rare path met first in play (a moved start, a link, a
+ * mask's ladder end) threw searchPath's optimised code out — M14's blasts: the next searches ran unoptimised at ~3× the
+ * time a cell while it was made again (~130 ms of compiling, so large a function). Its state lives in HOT between runs.
+ */
+const HOT = { heap: null, cellOf: null, st: null, slotOf: null, g: null, f: null, parent: null, via: null, nbm: null, nearE: null, lk: null, dynB: null, avM: null, frM: null, mul: null,
+  cid: 0, oid: 0, goalK: 0, gi: 0, gj: 0, cols: 0, maxNodes: 0, a1: 0, a2: 0, ns: 0, expanded: 0, bi0: 0, bi1: 0, bj0: 0, bj1: 0, s: 0, k: 0 };
+anyFields(HOT, null, 'nearE', 'lk', 'dynB', 'avM', 'frM');
+function hotRun(S) {
+  const heap = S.heap, cellOf = S.cellOf, st = S.st, slotOf = S.slotOf, g = S.g, f = S.f, parent = S.parent, via = S.via;
+  const nbm = S.nbm, nearE = S.nearE, lk = S.lk, dynB = S.dynB, avM = S.avM, frM = S.frM, mul = S.mul, NONE = B.NONE;
+  const cid = S.cid, oid = S.oid, goalK = S.goalK, gi = S.gi, gj = S.gj, cols = S.cols, maxNodes = S.maxNodes, a1 = S.a1, a2 = S.a2;
+  let ns = S.ns, expanded = S.expanded, bi0 = S.bi0, bi1 = S.bi1, bj0 = S.bj0, bj1 = S.bj1, out = 0;
+  while (heap.size > 0) {
+    const s = heap.pop(), k = cellOf[s];
+    if (st[k] === cid) continue;
+    st[k] = cid;
+    if (k === goalK) { S.s = s; out = 1; break; }
+    if (++expanded > maxNodes) { out = 2; break; }
+    searchStats.expanded++;
+    const i = k % cols, j = (k - i) / cols;
+    if (i < bi0) bi0 = i; else if (i > bi1) bi1 = i;
+    if (j < bj0) bj0 = j; else if (j > bj1) bj1 = j;
+    if (expanded === a1 || expanded === a2 || (lk !== null && lk[k] !== 0) || (nearE !== null && nearE[k] !== 0)) { S.s = s; S.k = k; out = 3; break; }
+    const m = nbm[k];
+    if (m !== 0) {
+      const gk = g[s], kE = k + 1, kW = k - 1, kS = k + cols, kN = k - cols;
+      const dE = (m & 0x31) !== 0 && (dynB === null || dynB[kE] === NONE) && (avM === null || !avM[kE]) && (frM === null || frM[kE] === 0);
+      const dW = (m & 0xc2) !== 0 && (dynB === null || dynB[kW] === NONE) && (avM === null || !avM[kW]) && (frM === null || frM[kW] === 0);
+      const dS = (m & 0x54) !== 0 && (dynB === null || dynB[kS] === NONE) && (avM === null || !avM[kS]) && (frM === null || frM[kS] === 0);
+      const dN = (m & 0xa8) !== 0 && (dynB === null || dynB[kN] === NONE) && (avM === null || !avM[kN]) && (frM === null || frM[kN] === 0);
+      if ((m & 1) !== 0 && dE && st[kE] !== cid) { // E
+        let step = 1;
+        step *= MUL_OF[mul[kE]];
+        const ng = gk + step;
+        let t = -1;
+        if (st[kE] !== oid) { t = ns++; st[kE] = oid; slotOf[kE] = t; cellOf[t] = kE; } else if (ng < g[slotOf[kE]]) t = slotOf[kE];
+        if (t >= 0) {
+          g[t] = ng; parent[t] = s; via[t] = 0;
+          const hi = i + 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+          f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+          heap.push(t);
+        }
+      }
+      if ((m & 2) !== 0 && dW && st[kW] !== cid) { // W
+        let step = 1;
+        step *= MUL_OF[mul[kW]];
+        const ng = gk + step;
+        let t = -1;
+        if (st[kW] !== oid) { t = ns++; st[kW] = oid; slotOf[kW] = t; cellOf[t] = kW; } else if (ng < g[slotOf[kW]]) t = slotOf[kW];
+        if (t >= 0) {
+          g[t] = ng; parent[t] = s; via[t] = 0;
+          const hi = i - 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+          f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+          heap.push(t);
+        }
+      }
+      if ((m & 4) !== 0 && dS && st[kS] !== cid) { // S
+        let step = 1;
+        step *= MUL_OF[mul[kS]];
+        const ng = gk + step;
+        let t = -1;
+        if (st[kS] !== oid) { t = ns++; st[kS] = oid; slotOf[kS] = t; cellOf[t] = kS; } else if (ng < g[slotOf[kS]]) t = slotOf[kS];
+        if (t >= 0) {
+          g[t] = ng; parent[t] = s; via[t] = 0;
+          const hi = i, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+          f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+          heap.push(t);
+        }
+      }
+      if ((m & 8) !== 0 && dN && st[kN] !== cid) { // N
+        let step = 1;
+        step *= MUL_OF[mul[kN]];
+        const ng = gk + step;
+        let t = -1;
+        if (st[kN] !== oid) { t = ns++; st[kN] = oid; slotOf[kN] = t; cellOf[t] = kN; } else if (ng < g[slotOf[kN]]) t = slotOf[kN];
+        if (t >= 0) {
+          g[t] = ng; parent[t] = s; via[t] = 0;
+          const hi = i, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+          f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+          heap.push(t);
+        }
+      }
+      if ((m & 16) !== 0 && dE && dS) { // SE
+        const q = kS + 1;
+        if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+          let step = SQRT2;
+          step *= MUL_OF[mul[q]];
+          const ng = gk + step;
+          let t = -1;
+          if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i + 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if ((m & 32) !== 0 && dE && dN) { // NE
+        const q = kN + 1;
+        if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+          let step = SQRT2;
+          step *= MUL_OF[mul[q]];
+          const ng = gk + step;
+          let t = -1;
+          if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i + 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if ((m & 64) !== 0 && dW && dS) { // SW
+        const q = kS - 1;
+        if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+          let step = SQRT2;
+          step *= MUL_OF[mul[q]];
+          const ng = gk + step;
+          let t = -1;
+          if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i - 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if ((m & 128) !== 0 && dW && dN) { // NW
+        const q = kN - 1;
+        if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+          let step = SQRT2;
+          step *= MUL_OF[mul[q]];
+          const ng = gk + step;
+          let t = -1;
+          if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i - 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+    }
+  }
+  S.ns = ns; S.expanded = expanded; S.bi0 = bi0; S.bi1 = bi1; S.bj0 = bj0; S.bj1 = bj1;
+  return out;
+}
+
 /** findPath's A*; `openEnds`: the ladder ends a clearance mask shuts are open as ladder ends (stepped onto to climb,
  * stepped off from it, never walked through); `info.endBlocked`: set when a search without them met one. */
 function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
@@ -605,7 +1269,9 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const isEnd = (i, j) => allEnds !== null && grid.inBounds(i, j) && allEnds.has(j * cols + i) && grid.isWalkable(i, j, bare);
   const walk = walker(grid, walkOpts);
   const open = ends ? (i, j) => walk(i, j) || isEnd(i, j) : walk;
-  const meet = info && allEnds ? (i, j) => { if (!info.endBlocked && isEnd(i, j)) info.endBlocked = true; } : null;
+  // (`meet`: the search notes a ladder end the mask shuts that it met — noteEnd, a module function: no closure a search
+  // for the optimized code's calls to see change)
+  const meet = !!(info && allEnds);
   // (the goal's pocket counts the ends open either way: a pocket shut without them is shut with them too, or not one)
   const pocketOpen = allEnds ? (i, j) => walk(i, j) || isEnd(i, j) : open;
 
@@ -648,47 +1314,45 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   // goal joins two cells of one area, and one that learns late that the areas differ returns null as it would have at
   // once — the cells it expanded taken back off searchStats, its ladder-end note (info.endBlocked) as it found it)
   let areasDone = !!walkOpts.dive;
-  if (!areasDone) {
+  if (!areasDone && !codeWarm) {
     const lab = areasCached(grid, walkOpts, role, opts, hasLinks);
     if (lab) { areasDone = true; if (lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]) return null; }
   }
-  const apart = () => {
-    areasDone = true;
-    const lab = areasFor(grid, walkOpts, role, opts, hasLinks);
-    return !!(lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]);
-  };
+  // (the late area answer — areasApart, areasDone set first — is a module function, and giving back the cells counted is
+  // written out where it is asked: the optimized search meets no closure of an earlier search there — M14's barrel blast
+  // threw the search's optimized code out twice, mid-tick: 'insufficient type feedback', then 'wrong call target')
   // (a failed search this epoch reached this start but not this goal: the goal is out of this start's reach too)
   const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
   const memoKey = memo ? failKey(walkOpts, opts) + (ends ? '|ends' : '') : null;
   if (memo) {
     // (null either way: the areas asked only where they decide whether the reach's ladder-end note passes on — a
     // labelling flooded for nothing else was ~2-5 ms of M8's blast tick, a guard who heard it from a pocket's reach)
-    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (info && reach.endBlocked) { if (!areasDone && apart()) return null; info.endBlocked = true; } return null; }
+    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (info && reach.endBlocked) { if (!areasDone) { areasDone = true; if (areasApart(grid, walkOpts, role, opts, hasLinks, startK, goalK)) return null; } info.endBlocked = true; } return null; }
     // (or this goal's pocket — every cell that can reach it — was enumerated this epoch, without this start)
     const pocket = memo.pockets.get(`${memoKey}|${goalK}`);
     if (pocket && !pocket.has(startK)) return null;
   }
   const b = buffers(grid);
-  const { g, f, parent, stamp, closed, via } = b;
-  const id = b.search;
-  const heap = new NodeHeap(1024, f);
+  const { g, f, parent, via, cellOf, st, slotOf } = b;
+  const oid = 2 * b.search, cid = oid + 1;
+  const heap = new NodeHeap(b.heap, f);
   const h = (i, j) => {
     const dx = Math.abs(i - gi), dz = Math.abs(j - gj);
     return (dx + dz) + (SQRT2 - 2) * Math.min(dx, dz);
   };
-  g[startK] = 0;
-  f[startK] = h(si, sj);
-  parent[startK] = -1;
-  via[startK] = 0;
-  stamp[startK] = id;
-  heap.push(startK);
+  st[startK] = oid; slotOf[startK] = 0; cellOf[0] = startK;
+  g[0] = 0;
+  f[0] = h(si, sj);
+  parent[0] = -1;
+  via[0] = 0;
+  heap.push(0);
+  let ns = 1, goalS = -1;
   let expanded = 0;
   let found = false, capped = false;
-  // (what an at-once area answer would have left: see `apart` above)
+  // (what an at-once area answer would have left: the late answer gives the cells counted back — areasApart above)
   const expanded0 = searchStats.expanded, endBlocked0 = info ? info.endBlocked : false;
   // (the box of cells the search looks at: the cells it expands, the links' far ends — findPath's reuse)
   let bi0 = Math.min(si, gi), bi1 = Math.max(si, gi), bj0 = Math.min(sj, gj), bj1 = Math.max(sj, gj);
-  const giveBack = () => { searchStats.expanded = expanded0; if (info) info.endBlocked = endBlocked0; return null; };
   const terrain = grid.terrain, bridge = grid.bridge;
   // (the common case — on foot or swimming, no ladder ends to open: `open` is grid.isWalkable(walkOpts) — tested inline
   // on the layers, cell by cell: the same answers without the call and its option lookups per neighbour)
@@ -698,70 +1362,421 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const fast = ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain && (!dive || !!under), rows = grid.rows;
   const { block, navBlock, fenceHole, dynamicBlock } = grid, dyn = walkOpts.dynamic, avoid = walkOpts.avoid;
   const SL = fast ? staticLayers(grid, swim, true, dive) : null, sOpen = SL ? SL.open[dive ? 2 : swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
-  // (a diver: an underpass cell is open whatever else; the clearance mask is no diver's — grid.isWalkable)
-  const walkK = dive ? (q) => under[q] !== 0 || (sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE))
-    : fire ? (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]) && fire[q] === 0
-      : (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
-  // (grid.canStep, inline: the elevation step, then a ramp / stair run's sides — the grid's own test)
+  // (the fast path's walk test, written out where it is asked — no call per neighbour: the static layer, then the
+  // vehicles and the mask; a diver's underpass cells are open whatever else, the clearance mask is no diver's —
+  // grid.isWalkable. `undQ` / `dynB` / `avM`: null when the rule does not apply; `frM`: the fires' layer while any burn —
+  // a burning cell kept out of like the mask's, whatever the ladder ends: world/fires.js)
+  const NONE = B.NONE, undQ = fast && dive ? under : null, dynB = fast && dyn ? dynamicBlock : null, avM = fast && !dive && avoid ? avoid : null;
+  const frM = fast && fire ? fire : null;
+  // (`meet` asked only where a ladder end lies: the others are none — isEnd's set lookup per shut neighbour, spared)
+  const endF = fast && meet ? ladderEndFlags(grid) : null;
+  // (the step masks of this walk layer — staticLayers' nb — and, when ladder ends are noted, the cells beside one: those
+  // take the cell-by-cell path below; not a diver's search)
+  const nbm = SL !== null && !dive ? stepMasksOf(SL, grid, swim ? 1 : 0) : null, nearE = endF !== null ? ladderEndNear(grid) : null;
+  // (grid.canStep, inline, from the cell being expanded — its height and run read once for its eight neighbours: the
+  // elevation step, then a ramp / stair run's sides, the grid's own test)
   const elev = grid.elev, runOf = grid.runOf;
-  const stepK = (a, q) => Math.abs(elev[a] - elev[q]) <= MAX_STEP && (!runOf || runOf[a] === runOf[q] || grid.canStep(a, q));
+  let ek = 0, rk = 0, kk = 0;
+  const stepOut = (q) => Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(kk, q));
   // (hugsObstacle, inline: an edge neighbour blocked by a structure)
   const hugsK = (hi, hj, q) => (hi + 1 < cols && (block[q + 1] !== B.NONE || !!navBlock[q + 1])) || (hi > 0 && (block[q - 1] !== B.NONE || !!navBlock[q - 1]))
     || (hj + 1 < rows && (block[q + cols] !== B.NONE || !!navBlock[q + cols])) || (hj > 0 && (block[q - cols] !== B.NONE || !!navBlock[q - cols]));
 
-  while (heap.size > 0) {
-    const k = heap.pop();
-    if (closed[k] === id) continue;
-    closed[k] = id;
-    if (k === goalK) { found = true; break; }
-    if (++expanded > maxNodes) { capped = true; break; }
-    searchStats.expanded++;
-    if (expanded === AREAS_AT && !areasDone && apart()) return giveBack();
+  // (the step masks' cells in hotRun, a function of its own; the cells it hands back — and every cell when the masks do not
+  // serve — in this loop, as ever)
+  const hot = nbm !== null && (!hasLinks || linked !== null) ? HOT : null;
+  if (hot !== null) {
+    hot.heap = heap; hot.cellOf = cellOf; hot.st = st; hot.slotOf = slotOf; hot.g = g; hot.f = f; hot.parent = parent; hot.via = via;
+    hot.nbm = nbm; hot.nearE = nearE; hot.lk = hasLinks ? linked : null; hot.dynB = dynB; hot.avM = avM; hot.frM = frM; hot.mul = mul;
+    hot.cid = cid; hot.oid = oid; hot.goalK = goalK; hot.gi = gi; hot.gj = gj; hot.cols = cols; hot.maxNodes = maxNodes; hot.a2 = POCKET_AT;
+  }
+  for (;;) {
+    let s, k;
+    if (hot !== null) {
+      hot.a1 = areasDone ? -1 : AREAS_AT;
+      hot.ns = ns; hot.expanded = expanded; hot.bi0 = bi0; hot.bi1 = bi1; hot.bj0 = bj0; hot.bj1 = bj1;
+      const r = hotRun(hot);
+      ns = hot.ns; expanded = hot.expanded; bi0 = hot.bi0; bi1 = hot.bi1; bj0 = hot.bj0; bj1 = hot.bj1;
+      if (r === 1) { found = true; goalS = hot.s; break; }
+      if (r === 2) { capped = true; break; }
+      if (r === 0) break;
+      s = hot.s; k = hot.k;
+    } else {
+      if (heap.size === 0) break;
+      s = heap.pop(); k = cellOf[s];
+      if (st[k] === cid) continue;
+      st[k] = cid;
+      if (k === goalK) { found = true; goalS = s; break; }
+      if (++expanded > maxNodes) { capped = true; break; }
+      searchStats.expanded++;
+    }
+    if (expanded === AREAS_AT && !areasDone) {
+      areasDone = true;
+      if (areasApart(grid, walkOpts, role, opts, hasLinks, startK, goalK)) { searchStats.expanded = expanded0; if (info) info.endBlocked = endBlocked0; return null; }
+    }
     // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
     // (a goal already found this epoch to have more than POCKET_MAX cells able to reach it is in no small pocket, whatever
     // the start: that enumeration never depended on the start but to stop at it — three guards off to one blast ask once)
-    if (expanded === POCKET_AT && !(memo && memo.wide.has(`${memoKey}|${goalK}`))) {
+    if (expanded === POCKET_AT && !(memo && wideOf(grid).has(`${memoKey}|${goalK}`))) {
       const po = { wide: false };
-      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen, po);
+      const pocket = fast && !dive ? goalPocketExcludesOpen(grid, goalK, startK, sOpen, dynB, avM, frM, allEnds ? ladderEndFlags(grid) : null, role, hasLinks, !!opts.noLinks, po)
+        : goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen, po);
       if (pocket) { if (memo) memo.pockets.set(`${memoKey}|${goalK}`, new Set(pocket)); return null; }
-      if (po.wide && memo) memo.wide.add(`${memoKey}|${goalK}`);
+      if (po.wide && memo) wideOf(grid).add(`${memoKey}|${goalK}`);
     }
     const i = k % cols, j = (k - i) / cols;
     if (i < bi0) bi0 = i; else if (i > bi1) bi1 = i;
     if (j < bj0) bj0 = j; else if (j > bj1) bj1 = j;
     // (a ladder end the clearance mask shuts, reached on foot: only its ladder goes on from it)
-    const endOnly = ends !== null && walkOpts.avoid[k] && via[k] === 0 && k !== startK;
-    for (let d = 0; d < 8 && !endOnly; d++) {
+    const endOnly = ends !== null && walkOpts.avoid[k] && via[s] === 0 && k !== startK;
+    const gk = g[s];
+    ek = elev[k]; rk = runOf ? runOf[k] : 0; kk = k;
+    if (nbm !== null && (nearE === null || nearE[k] === 0)) {
+      // (the step masks: the eight neighbours' static walk and step tests — the corner rule's two cells for a diagonal —
+      // in one byte; the vehicles and the clearance mask still asked of each cell: its own, and a diagonal's two beside
+      // it. The same pushes in the same order (E W S N, SE NE SW NW) as the cell-by-cell path below)
+      const m = nbm[k];
+      if (m !== 0) {
+        const kE = k + 1, kW = k - 1, kS = k + cols, kN = k - cols;
+        const dE = (m & 0x31) !== 0 && (dynB === null || dynB[kE] === NONE) && (avM === null || !avM[kE]) && (frM === null || frM[kE] === 0);
+        const dW = (m & 0xc2) !== 0 && (dynB === null || dynB[kW] === NONE) && (avM === null || !avM[kW]) && (frM === null || frM[kW] === 0);
+        const dS = (m & 0x54) !== 0 && (dynB === null || dynB[kS] === NONE) && (avM === null || !avM[kS]) && (frM === null || frM[kS] === 0);
+        const dN = (m & 0xa8) !== 0 && (dynB === null || dynB[kN] === NONE) && (avM === null || !avM[kN]) && (frM === null || frM[kN] === 0);
+        if ((m & 1) !== 0 && dE && st[kE] !== cid) { // E
+          {
+            let step = 1;
+            step *= MUL_OF[mul[kE]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[kE] !== oid) { t = ns++; st[kE] = oid; slotOf[kE] = t; cellOf[t] = kE; } else if (ng < g[slotOf[kE]]) t = slotOf[kE];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i + 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 2) !== 0 && dW && st[kW] !== cid) { // W
+          {
+            let step = 1;
+            step *= MUL_OF[mul[kW]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[kW] !== oid) { t = ns++; st[kW] = oid; slotOf[kW] = t; cellOf[t] = kW; } else if (ng < g[slotOf[kW]]) t = slotOf[kW];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i - 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 4) !== 0 && dS && st[kS] !== cid) { // S
+          {
+            let step = 1;
+            step *= MUL_OF[mul[kS]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[kS] !== oid) { t = ns++; st[kS] = oid; slotOf[kS] = t; cellOf[t] = kS; } else if (ng < g[slotOf[kS]]) t = slotOf[kS];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 8) !== 0 && dN && st[kN] !== cid) { // N
+          {
+            let step = 1;
+            step *= MUL_OF[mul[kN]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[kN] !== oid) { t = ns++; st[kN] = oid; slotOf[kN] = t; cellOf[t] = kN; } else if (ng < g[slotOf[kN]]) t = slotOf[kN];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 16) !== 0 && dE && dS) { // SE
+          const q = kS + 1;
+          if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+            let step = SQRT2;
+            step *= MUL_OF[mul[q]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i + 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 32) !== 0 && dE && dN) { // NE
+          const q = kN + 1;
+          if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+            let step = SQRT2;
+            step *= MUL_OF[mul[q]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i + 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 64) !== 0 && dW && dS) { // SW
+          const q = kS - 1;
+          if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+            let step = SQRT2;
+            step *= MUL_OF[mul[q]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i - 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+        if ((m & 128) !== 0 && dW && dN) { // NW
+          const q = kN - 1;
+          if ((dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0) && st[q] !== cid) {
+            let step = SQRT2;
+            step *= MUL_OF[mul[q]];
+            const ng = gk + step;
+            let t = -1;
+            if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+            if (t >= 0) {
+              g[t] = ng; parent[t] = s; via[t] = 0;
+              const hi = i - 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+              f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+              heap.push(t);
+            }
+          }
+        }
+      }
+    } else if (fast) {
+      // (grid.isWalkable under these rules, inline: on the map, the static layer, the vehicles, the mask — the four edge
+      // neighbours' walk tests once, their step tests once when first asked (`s?`: -1 not yet); then the eight in DI / DJ's
+      // order, written out one by one: E W S N, SE NE SW NW. A ladder end off the map is none: `noteEnd` asks only on it)
+      const inE = i + 1 < cols, inW = i > 0, inS = j + 1 < rows, inN = j > 0, kE = k + 1, kW = k - 1, kS = k + cols, kN = k - cols;
+      const wE = inE && ((undQ !== null && undQ[kE] !== 0) || (sOpen[kE] === 1 && (dynB === null || dynB[kE] === NONE) && (avM === null || !avM[kE]) && (frM === null || frM[kE] === 0))), wW = inW && ((undQ !== null && undQ[kW] !== 0) || (sOpen[kW] === 1 && (dynB === null || dynB[kW] === NONE) && (avM === null || !avM[kW]) && (frM === null || frM[kW] === 0)));
+      const wS = inS && ((undQ !== null && undQ[kS] !== 0) || (sOpen[kS] === 1 && (dynB === null || dynB[kS] === NONE) && (avM === null || !avM[kS]) && (frM === null || frM[kS] === 0))), wN = inN && ((undQ !== null && undQ[kN] !== 0) || (sOpen[kN] === 1 && (dynB === null || dynB[kN] === NONE) && (avM === null || !avM[kN]) && (frM === null || frM[kN] === 0)));
+      let sE = -1, sW = -1, sS = -1, sN = -1;
+      if (!wE) { if (endF !== null && inE && endF[kE] === 1) noteEnd(grid, allEnds, bare, info, i + 1, j); }
+      else if (st[kE] !== cid) {
+        if (!(Math.abs(ek - elev[kE]) <= MAX_STEP && (!runOf || rk === runOf[kE] || grid.canStep(k, kE)))) sE = 0;
+        else {
+          sE = 1;
+          let step = 1;
+          if (mul) step *= MUL_OF[mul[kE]];
+          else { const t = terrain[kE]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[kE]) step *= WATER_COST; else if (hugsK(i + 1, j, kE)) step *= HUG_COST; }
+          const ng = gk + step;
+          let t = -1;
+          if (st[kE] !== oid) { t = ns++; st[kE] = oid; slotOf[kE] = t; cellOf[t] = kE; } else if (ng < g[slotOf[kE]]) t = slotOf[kE];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i + 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if (!wW) { if (endF !== null && inW && endF[kW] === 1) noteEnd(grid, allEnds, bare, info, i - 1, j); }
+      else if (st[kW] !== cid) {
+        if (!(Math.abs(ek - elev[kW]) <= MAX_STEP && (!runOf || rk === runOf[kW] || grid.canStep(k, kW)))) sW = 0;
+        else {
+          sW = 1;
+          let step = 1;
+          if (mul) step *= MUL_OF[mul[kW]];
+          else { const t = terrain[kW]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[kW]) step *= WATER_COST; else if (hugsK(i - 1, j, kW)) step *= HUG_COST; }
+          const ng = gk + step;
+          let t = -1;
+          if (st[kW] !== oid) { t = ns++; st[kW] = oid; slotOf[kW] = t; cellOf[t] = kW; } else if (ng < g[slotOf[kW]]) t = slotOf[kW];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i - 1, hj = j, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if (!wS) { if (endF !== null && inS && endF[kS] === 1) noteEnd(grid, allEnds, bare, info, i, j + 1); }
+      else if (st[kS] !== cid) {
+        if (!(Math.abs(ek - elev[kS]) <= MAX_STEP && (!runOf || rk === runOf[kS] || grid.canStep(k, kS)))) sS = 0;
+        else {
+          sS = 1;
+          let step = 1;
+          if (mul) step *= MUL_OF[mul[kS]];
+          else { const t = terrain[kS]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[kS]) step *= WATER_COST; else if (hugsK(i, j + 1, kS)) step *= HUG_COST; }
+          const ng = gk + step;
+          let t = -1;
+          if (st[kS] !== oid) { t = ns++; st[kS] = oid; slotOf[kS] = t; cellOf[t] = kS; } else if (ng < g[slotOf[kS]]) t = slotOf[kS];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if (!wN) { if (endF !== null && inN && endF[kN] === 1) noteEnd(grid, allEnds, bare, info, i, j - 1); }
+      else if (st[kN] !== cid) {
+        if (!(Math.abs(ek - elev[kN]) <= MAX_STEP && (!runOf || rk === runOf[kN] || grid.canStep(k, kN)))) sN = 0;
+        else {
+          sN = 1;
+          let step = 1;
+          if (mul) step *= MUL_OF[mul[kN]];
+          else { const t = terrain[kN]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[kN]) step *= WATER_COST; else if (hugsK(i, j - 1, kN)) step *= HUG_COST; }
+          const ng = gk + step;
+          let t = -1;
+          if (st[kN] !== oid) { t = ns++; st[kN] = oid; slotOf[kN] = t; cellOf[t] = kN; } else if (ng < g[slotOf[kN]]) t = slotOf[kN];
+          if (t >= 0) {
+            g[t] = ng; parent[t] = s; via[t] = 0;
+            const hi = i, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+            f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+            heap.push(t);
+          }
+        }
+      }
+      if (inE && inS) { // SE
+        const q = kS + 1;
+        if (!((undQ !== null && undQ[q] !== 0) || (sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0)))) { if (endF !== null && endF[q] === 1) noteEnd(grid, allEnds, bare, info, i + 1, j + 1); }
+        // (no corner cutting: both edge neighbours free and steppable)
+        else if (wE && wS && st[q] !== cid && (Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q)))) {
+          if (sE === -1) sE = (Math.abs(ek - elev[kE]) <= MAX_STEP && (!runOf || rk === runOf[kE] || grid.canStep(k, kE))) ? 1 : 0;
+          if (sE === 1) {
+            if (sS === -1) sS = (Math.abs(ek - elev[kS]) <= MAX_STEP && (!runOf || rk === runOf[kS] || grid.canStep(k, kS))) ? 1 : 0;
+            if (sS === 1) {
+              let step = SQRT2;
+              if (mul) step *= MUL_OF[mul[q]];
+              else { const t = terrain[q]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[q]) step *= WATER_COST; else if (hugsK(i + 1, j + 1, q)) step *= HUG_COST; }
+              const ng = gk + step;
+              let t = -1;
+              if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+              if (t >= 0) {
+                g[t] = ng; parent[t] = s; via[t] = 0;
+                const hi = i + 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+                f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+                heap.push(t);
+              }
+            }
+          }
+        }
+      }
+      if (inE && inN) { // NE
+        const q = kN + 1;
+        if (!((undQ !== null && undQ[q] !== 0) || (sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0)))) { if (endF !== null && endF[q] === 1) noteEnd(grid, allEnds, bare, info, i + 1, j - 1); }
+        // (no corner cutting: both edge neighbours free and steppable)
+        else if (wE && wN && st[q] !== cid && (Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q)))) {
+          if (sE === -1) sE = (Math.abs(ek - elev[kE]) <= MAX_STEP && (!runOf || rk === runOf[kE] || grid.canStep(k, kE))) ? 1 : 0;
+          if (sE === 1) {
+            if (sN === -1) sN = (Math.abs(ek - elev[kN]) <= MAX_STEP && (!runOf || rk === runOf[kN] || grid.canStep(k, kN))) ? 1 : 0;
+            if (sN === 1) {
+              let step = SQRT2;
+              if (mul) step *= MUL_OF[mul[q]];
+              else { const t = terrain[q]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[q]) step *= WATER_COST; else if (hugsK(i + 1, j - 1, q)) step *= HUG_COST; }
+              const ng = gk + step;
+              let t = -1;
+              if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+              if (t >= 0) {
+                g[t] = ng; parent[t] = s; via[t] = 0;
+                const hi = i + 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+                f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+                heap.push(t);
+              }
+            }
+          }
+        }
+      }
+      if (inW && inS) { // SW
+        const q = kS - 1;
+        if (!((undQ !== null && undQ[q] !== 0) || (sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0)))) { if (endF !== null && endF[q] === 1) noteEnd(grid, allEnds, bare, info, i - 1, j + 1); }
+        // (no corner cutting: both edge neighbours free and steppable)
+        else if (wW && wS && st[q] !== cid && (Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q)))) {
+          if (sW === -1) sW = (Math.abs(ek - elev[kW]) <= MAX_STEP && (!runOf || rk === runOf[kW] || grid.canStep(k, kW))) ? 1 : 0;
+          if (sW === 1) {
+            if (sS === -1) sS = (Math.abs(ek - elev[kS]) <= MAX_STEP && (!runOf || rk === runOf[kS] || grid.canStep(k, kS))) ? 1 : 0;
+            if (sS === 1) {
+              let step = SQRT2;
+              if (mul) step *= MUL_OF[mul[q]];
+              else { const t = terrain[q]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[q]) step *= WATER_COST; else if (hugsK(i - 1, j + 1, q)) step *= HUG_COST; }
+              const ng = gk + step;
+              let t = -1;
+              if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+              if (t >= 0) {
+                g[t] = ng; parent[t] = s; via[t] = 0;
+                const hi = i - 1, hj = j + 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+                f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+                heap.push(t);
+              }
+            }
+          }
+        }
+      }
+      if (inW && inN) { // NW
+        const q = kN - 1;
+        if (!((undQ !== null && undQ[q] !== 0) || (sOpen[q] === 1 && (dynB === null || dynB[q] === NONE) && (avM === null || !avM[q]) && (frM === null || frM[q] === 0)))) { if (endF !== null && endF[q] === 1) noteEnd(grid, allEnds, bare, info, i - 1, j - 1); }
+        // (no corner cutting: both edge neighbours free and steppable)
+        else if (wW && wN && st[q] !== cid && (Math.abs(ek - elev[q]) <= MAX_STEP && (!runOf || rk === runOf[q] || grid.canStep(k, q)))) {
+          if (sW === -1) sW = (Math.abs(ek - elev[kW]) <= MAX_STEP && (!runOf || rk === runOf[kW] || grid.canStep(k, kW))) ? 1 : 0;
+          if (sW === 1) {
+            if (sN === -1) sN = (Math.abs(ek - elev[kN]) <= MAX_STEP && (!runOf || rk === runOf[kN] || grid.canStep(k, kN))) ? 1 : 0;
+            if (sN === 1) {
+              let step = SQRT2;
+              if (mul) step *= MUL_OF[mul[q]];
+              else { const t = terrain[q]; if ((t === T.WATER || t === T.SHALLOW) && !bridge[q]) step *= WATER_COST; else if (hugsK(i - 1, j - 1, q)) step *= HUG_COST; }
+              const ng = gk + step;
+              let t = -1;
+              if (st[q] !== oid) { t = ns++; st[q] = oid; slotOf[q] = t; cellOf[t] = q; } else if (ng < g[slotOf[q]]) t = slotOf[q];
+              if (t >= 0) {
+                g[t] = ng; parent[t] = s; via[t] = 0;
+                const hi = i - 1, hj = j - 1, hx = hi > gi ? hi - gi : gi - hi, hz = hj > gj ? hj - gj : gj - hj; // (h, written out)
+                f[t] = ng + ((hx + hz) + (SQRT2 - 2) * (hx < hz ? hx : hz));
+                heap.push(t);
+              }
+            }
+          }
+        }
+      }
+    } else for (let d = 0; d < 8 && !endOnly; d++) {
       const ni = i + DI[d], nj = j + DJ[d];
       const nk = nj * cols + ni;
-      if (fast) {
-        // (grid.isWalkable under these rules, inline: in bounds, the static layers, the vehicles, the mask)
-        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows || !walkK(nk)) { if (meet) meet(ni, nj); continue; }
-        if (d >= 4 && (!walkK(j * cols + ni) || !walkK(nk - DI[d]))) continue;
-      } else {
-        if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
-        // No corner cutting: a diagonal step needs both orthogonal neighbours free.
-        if (d >= 4 && (!walk(i + DI[d], j) || !walk(i, j + DJ[d]))) continue;
-      }
-      if (closed[nk] === id) continue;
-      if (!stepK(k, nk)) continue; // elevation discontinuity (raised areas: links only)
-      if (d >= 4 && (!stepK(k, j * cols + ni) || !stepK(k, nk - DI[d]))) continue;
+      if (!open(ni, nj)) { if (meet) noteEnd(grid, allEnds, bare, info, ni, nj); continue; }
+      // No corner cutting: a diagonal step needs both orthogonal neighbours free.
+      if (d >= 4 && (!walk(i + DI[d], j) || !walk(i, j + DJ[d]))) continue;
+      if (st[nk] === cid) continue;
+      if (!stepOut(nk)) continue; // elevation discontinuity (raised areas: links only)
+      if (d >= 4 && (!stepOut(j * cols + ni) || !stepOut(nk - DI[d]))) continue;
       let step = d >= 4 ? SQRT2 : 1;
-      if (mul) step *= mul[nk]; // (the same factor, worked out per grid version: staticLayers)
+      if (mul) step *= MUL_OF[mul[nk]]; // (the same factor, worked out per grid version: staticLayers)
       else {
         const t = terrain[nk];
         if ((t === T.WATER || t === T.SHALLOW) && !bridge[nk]) step *= WATER_COST;
         // clearance (placement rule e): a body is ~0.35 m wide with arms and rifle — prefer cells not touching a wall
         else if (hugsK(ni, nj, nk)) step *= HUG_COST;
       }
-      const ng = g[k] + step;
-      if (stamp[nk] !== id || ng < g[nk]) {
-        stamp[nk] = id;
-        g[nk] = ng;
-        parent[nk] = k;
-        via[nk] = 0;
-        f[nk] = ng + h(ni, nj);
-        heap.push(nk);
+      const ng = gk + step;
+      let t = -1;
+      if (st[nk] !== oid) { t = ns++; st[nk] = oid; slotOf[nk] = t; cellOf[t] = nk; } else if (ng < g[slotOf[nk]]) t = slotOf[nk];
+      if (t >= 0) {
+        g[t] = ng;
+        parent[t] = s;
+        via[t] = 0;
+        f[t] = ng + h(ni, nj);
+        heap.push(t);
       }
     }
     // Off-grid links (climb edges, ladders) touching this cell.
@@ -769,29 +1784,34 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
       for (const L of grid.linksAt(k)) {
         if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
         const nk = L.ka === k ? L.kb : L.ka;
-        if (closed[nk] === id) continue;
+        if (st[nk] === cid) continue;
         const ni = nk % cols, nj = (nk - ni) / cols;
         if (ni < bi0) bi0 = ni; else if (ni > bi1) bi1 = ni;
         if (nj < bj0) bj0 = nj; else if (nj > bj1) bj1 = nj;
-        if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
-        const ng = g[k] + Math.hypot(ni - i, nj - j) + L.cost / c;
-        if (stamp[nk] !== id || ng < g[nk]) {
-          stamp[nk] = id;
-          g[nk] = ng;
-          parent[nk] = k;
-          via[nk] = L.id;
-          f[nk] = ng + h(ni, nj);
-          heap.push(nk);
+        if (!open(ni, nj)) { if (meet) noteEnd(grid, allEnds, bare, info, ni, nj); continue; }
+        const ng = g[s] + Math.hypot(ni - i, nj - j) + L.cost / c;
+        let t = -1;
+        if (st[nk] !== oid) { t = ns++; st[nk] = oid; slotOf[nk] = t; cellOf[t] = nk; } else if (ng < g[slotOf[nk]]) t = slotOf[nk];
+        if (t >= 0) {
+          g[t] = ng;
+          parent[t] = s;
+          via[t] = L.id;
+          f[t] = ng + h(ni, nj);
+          heap.push(t);
         }
       }
     }
   }
+  b.heap = heap.items; // (grown: kept for the next search)
   if (!found) {
-    if (!areasDone && apart()) return giveBack();
+    if (!areasDone) {
+      areasDone = true;
+      if (areasApart(grid, walkOpts, role, opts, hasLinks, startK, goalK)) { searchStats.expanded = expanded0; if (info) info.endBlocked = endBlocked0; return null; }
+    }
     // every cell this start reaches is closed now: remember them for the epoch (see failMemo)
     if (memo && !capped && memo.n < FAIL_MEMO_MAX) {
       const reach = new Uint8Array(grid.size);
-      for (let k = 0; k < reach.length; k++) if (closed[k] === id) reach[k] = 1;
+      for (let t = 0; t < ns; t++) { const q = cellOf[t]; if (st[q] === cid) reach[q] = 1; } // (every closed cell has a slot)
       if (info?.endBlocked) reach.endBlocked = true;
       const list = memo.sets.get(memoKey);
       if (list) list.push(reach); else memo.sets.set(memoKey, [reach]);
@@ -805,18 +1825,50 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     const gpi = Math.floor(goal.x / c), gpj = Math.floor(goal.z / c), spi = Math.floor(start.x / c), spj = Math.floor(start.z / c);
     info.box = [Math.min(bi0, gpi, spi), Math.min(bj0, gpj, spj), Math.max(bi1, gpi, spi), Math.max(bj1, gpj, spj)];
     info.expanded = expanded;
+    // (a plain search's footprint for findPath's chain reuse across versions: the cells it expanded — it read them and
+    // their eight neighbours — and the far ends of the links it looked down, by box)
+    if (info.plain) {
+      const b = info.box, w = b[2] - b[0] + 1, foot = new Uint8Array(w * (b[3] - b[1] + 1));
+      for (let t = 0; t < ns; t++) {
+        const q = cellOf[t];
+        if (st[q] !== cid) continue;
+        const qi = q % cols;
+        foot[((q - qi) / cols - b[1]) * w + qi - b[0]] = 1;
+        if (hasLinks && (!linked || linked[q])) {
+          for (const L of grid.linksAt(q)) {
+            if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
+            const e = L.ka === q ? L.kb : L.ka, ei = e % cols, ej = (e - ei) / cols;
+            if (ei >= b[0] && ei <= b[2] && ej >= b[1] && ej <= b[3]) foot[(ej - b[1]) * w + ei - b[0]] = 1;
+          }
+        }
+      }
+      info.foot = foot;
+    }
   }
-  // Reconstruct cell chain.
-  const cellsRev = [];
-  for (let k = goalK; k !== -1; k = parent[k]) cellsRev.push(k);
-  const pts = new Array(cellsRev.length);
+  // Reconstruct cell chain (start to goal, with the link each cell was reached by: findPath's cell reuse keeps it).
+  let len = 0;
+  for (let t = goalS; t !== -1; t = parent[t]) len++;
+  const chain = new Int32Array(len), chainVia = new Int32Array(len);
+  for (let t = goalS, n = len - 1; t !== -1; t = parent[t], n--) { chain[n] = cellOf[t]; chainVia[n] = via[t]; }
+  if (info) { info.chain = chain; info.chainVia = chainVia; info.fast = !!sOpen && !dive; }
+  return finishPath(grid, chain, chainVia, start, goal, opts, walkOpts, dive ? null : sOpen);
+}
+
+/**
+ * searchPath's path from its cell chain (start → goal, `chainVia`: the link id each was reached by, 0 for a step):
+ * cell centres and link ends, the start and goal points at its ends, then smoothed. The same for a chain found again
+ * (findPath's cell reuse) with this query's own start and goal points. `cellOpen`: the walk layer the search read.
+ */
+function finishPath(grid, chain, chainVia, start, goal, opts, walkOpts, cellOpen) {
+  const c = grid.cell, cols = grid.cols;
+  const pts = new Array(chain.length);
   const linkAt = []; // indices in pts reached through a link
-  for (let n = 0; n < cellsRev.length; n++) {
-    const k = cellsRev[cellsRev.length - 1 - n];
+  for (let n = 0; n < chain.length; n++) {
+    const k = chain[n];
     const i = k % cols, j = (k - i) / cols;
     pts[n] = { x: (i + 0.5) * c, z: (j + 0.5) * c };
-    if (via[k]) {
-      const L = grid.links.find((l) => l.id === via[k]);
+    if (chainVia[n]) {
+      const L = grid.links.find((l) => l.id === chainVia[n]);
       const end = L.ka === k ? L.a : L.b;
       pts[n] = { x: end.x, z: end.z, y: end.y, link: { id: L.id, kind: L.kind, ...(L.walk ? { walk: L.walk } : null) } };
       const prev = L.ka === k ? L.b : L.a;
@@ -832,6 +1884,8 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const aligned = (p) => (opts.lying ? alignRuns(grid, p, walkOpts) : p);
   // (a crawler keeps the full clearance off the body mask too: he turns his whole length at a corner)
   const sm = { taut: !!opts.taut, lying: !!opts.lying };
+  // (the smoothing's line tests read the walk layer this search read, for these rules and this version: walkableLine)
+  if (cellOpen) walkOpts.cellOpen = cellOpen;
   if (!linkAt.length) return aligned(straightenFlights(grid, smoothPath(grid, pts, walkOpts, sm), walkOpts));
   // Smooth each grid-only run separately; links are kept verbatim.
   const out = [];

@@ -71,6 +71,21 @@ test('pacer: tickMs caps the wall time of one frame\'s ticks; the rest of its bu
   assert.equal(k, 8, 'no cap by default');
 });
 
+test('pacer: endFrame ends this frame\'s ticks; the next frame goes on with the rest of the budget (fast-forward unaffected)', () => {
+  const p = new TickPacer({ simDt: 1 / 60, maxPerFrame: 8, speeds: [1, 4], speed: 4 });
+  p.frame(2 / 60, 0); // 8 ticks granted
+  let n = 0;
+  while (p.canTick(0)) { p.take(0); n++; if (n === 3) p.endFrame(); }
+  assert.equal(n, 3, 'the frame stops at the tick that ended it');
+  assert.ok(p.budget >= 4.99, `the rest kept (${p.budget})`);
+  p.frame(1 / 60, 16);
+  let m = 0;
+  while (p.canTick(16)) { p.take(16); m++; }
+  assert.equal(m, 9, `next frame: the rest and its own grant (${m})`);
+  p.setTurbo(true); p.frame(1 / 60, 32); p.endFrame();
+  assert.equal(p.canTick(33), true, 'a fast-forward runs by wall time');
+});
+
 test('pacer: paused grants nothing; fast-forward runs by wall time per frame', () => {
   const p = new TickPacer({ simDt: 1 / 60 });
   p.paused = true;

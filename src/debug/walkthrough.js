@@ -716,7 +716,10 @@ export class Walkthrough extends SolutionReplay {
       m.moving = moving;
       m.t = t;
     }
-    const armed = this._bombs.some((b) => !b.removed && !b.exploded);
+    // (a charge that can go off by itself — a time bomb's fuse, a remote one's once its detonator is pressed — is watched
+    // at the chosen pace; a remote charge lying armed waits for its detonator, an order (M20's lay armed through stages
+    // K..M: 1 300 s of game played at 4× unskipped)
+    const armed = this._bombs.some((b) => !b.removed && !b.exploded && Number.isFinite(b.fuse));
     const busy = m.moving || armed || t < this._calmUntil || this._held();
     if (busy || !this.skipWaits) this._idleSince = null;
     else if (this._idleSince == null) this._idleSince = t;

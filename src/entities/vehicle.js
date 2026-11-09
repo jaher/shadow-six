@@ -439,7 +439,7 @@ export class Vehicle extends Entity {
     // (set later — driving, routes, boarding, blasts, the hull's measures — declared here, undefined until then as when
     // absent: one hidden-class shape per vehicle class; a field first added in play threw away the optimised code)
     this._turretKeep = undefined; this._hdSize = undefined; this._halfDiag = undefined; this.blastRock = undefined;
-    this.blastFlip = undefined; this._arcKey = undefined; this._arc = undefined; this._arcVer = -1; this._arcY0 = undefined; this._arcJ0 = 0; this._arcJ1 = -1; this._boarders = undefined;
+    this.blastFlip = undefined; this._arcKey = undefined; this._arc = undefined; this._arcVer = -1; this._arcY0 = undefined; this._arcJ0 = 0; this._arcJ1 = -1; this._arcI0 = 0; this._arcI1 = -1; this._boarders = undefined;
     this.seats = undefined; this.reversing = undefined; this.steerK = undefined; this._planMemo = undefined;
     this._skipHulls = undefined; this._blocker = undefined; this.blockedT = undefined; this.passedExit = undefined;
     this.proxy = undefined; this.offMapOK = undefined; this._routeJob = undefined; this._routeFail = undefined;
@@ -2151,10 +2151,11 @@ export class Vehicle extends Entity {
     // the grid changed since, the hull did not move: the arc reads the cells within its reach only (barrel, rear,
     // housing) and the ground under its pivot — when the grid's dirty-row log shows no write in those rows since
     // (NavGrid.dirtyRowsSince: a blast's stamps across the map, a door elsewhere) and that ground stands, it is the same
-    // arc (a blast at M8's depot recomputed both guns' 72 angles by the bridge, ~2-3 ms of its tick)
+    // arc (a blast at M8's depot recomputed both guns' 72 angles by the bridge, ~2-3 ms of its tick) — nor in those rows
+    // but beside the reach, its columns (the log's: a write's cells, M14's barrel blast in the guns' rows 40 m off)
     if (this._arcKey === key && this._arcY0 === y0 && this._arcVer >= 0) {
       const d = G.dirtyRowsSince?.(this._arcVer);
-      if (d && (d.j1 < this._arcJ0 || d.j0 > this._arcJ1)) { this._arcVer = G.version; return this._arc; }
+      if (d && (d.j1 < this._arcJ0 || d.j0 > this._arcJ1 || d.i1 < this._arcI0 || d.i0 > this._arcI1)) { this._arcVer = G.version; return this._arc; }
     }
     this._arcKey = key; this._arcVer = G.version; this._arcY0 = y0;
     // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
@@ -2163,6 +2164,7 @@ export class Vehicle extends Entity {
     // diagonal of the pivot; a cell more for the rounding)
     const R = Math.max((g.len ?? 0) + 0.35, (g.back ?? 0) + 0.22, g.hl ? g.hl + (g.hw ?? 0) : 0) + G.cell;
     this._arcJ0 = Math.floor((this.z - R) / G.cell); this._arcJ1 = Math.floor((this.z + R) / G.cell);
+    this._arcI0 = Math.floor((this.x - R) / G.cell); this._arcI1 = Math.floor((this.x + R) / G.cell);
     return this._arc;
   }
 

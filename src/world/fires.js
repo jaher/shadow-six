@@ -184,16 +184,19 @@ export function fireAt(g, x, z) {
   return i >= 0 && j >= 0 && i < g.cols && j < g.rows && g.fire[j * g.cols + i] > 0;
 }
 
-/** A free cell (walkable, not burning) for `pick`'s score, within FIRE_EDGE_R of (x, z); `line`: reached from (x, z) in
- *  a straight line over walkable cells (fire or not). @returns {{x:number, z:number}|null} */
-function freeCellNear(g, x, z, swim, score, line = false) {
-  const c = g.cell, R = FIRE_EDGE_R, ci = Math.floor(x / c), cj = Math.floor(z / c), n = Math.ceil(R / c), opts = { swim: !!swim };
-  const straight = (px, pz) => {
-    const L = Math.hypot(px - x, pz - z), m = Math.max(1, Math.ceil(L / (c / 4)));
-    for (let q = 1; q < m; q++) { const qx = x + ((px - x) * q) / m, qz = z + ((pz - z) * q) / m; if (!g.walkableAt(qx, qz, opts)) return false; }
-    return true;
-  };
-  let best = null, bs = Infinity;
+/**
+ * freeCellNear's candidates round (x, z): the free cells (walkable under `swim`, not burning) within FIRE_EDGE_R, in its
+ * scan order (rows, then columns), as [px, pz, d, ...] — kept for this grid version and fire version, FREE_NEAR_MAX
+ * points: a squad sent to one spot inside a fire asks it once a man, each scoring the same cells from his own place (M14's
+ * gun 4 spill: twenty men re-planning in one tick each scanned the same 49 x 49 cells). The same cells, the same numbers.
+ */
+const _freeNear = new WeakMap();
+const FREE_NEAR_MAX = 8;
+function freeCellsNear(g, x, z, swim) {
+  let C = _freeNear.get(g);
+  if (!C || C.v !== g.version || C.fv !== g.fireVersion || C.fire !== g.fire) _freeNear.set(g, (C = { v: g.version, fv: g.fireVersion, fire: g.fire, list: [] }));
+  for (let n = C.list.length - 1; n >= 0; n--) { const e = C.list[n]; if (e.x === x && e.z === z && e.swim === swim) return e.cells; }
+  const c = g.cell, R = FIRE_EDGE_R, ci = Math.floor(x / c), cj = Math.floor(z / c), n = Math.ceil(R / c), opts = { swim }, cells = [];
   for (let j = cj - n; j <= cj + n; j++) {
     for (let i = ci - n; i <= ci + n; i++) {
       if (i < 0 || j < 0 || i >= g.cols || j >= g.rows) continue;
@@ -201,9 +204,28 @@ function freeCellNear(g, x, z, swim, score, line = false) {
       if (g.fire[k] || !g.isWalkable(i, j, opts)) continue;
       const px = (i + 0.5) * c, pz = (j + 0.5) * c, d = Math.hypot(px - x, pz - z);
       if (d > R) continue;
-      const s = score(px, pz, d);
-      if (s < bs - 1e-9 && (!line || straight(px, pz))) { bs = s; best = { x: px, z: pz }; }
+      cells.push(px, pz, d);
     }
+  }
+  C.list.push({ x, z, swim, cells });
+  if (C.list.length > FREE_NEAR_MAX) C.list.shift();
+  return cells;
+}
+
+/** A free cell (walkable, not burning) for `pick`'s score, within FIRE_EDGE_R of (x, z); `line`: reached from (x, z) in
+ *  a straight line over walkable cells (fire or not). @returns {{x:number, z:number}|null} */
+function freeCellNear(g, x, z, swim, score, line = false) {
+  const c = g.cell, opts = { swim: !!swim };
+  const straight = (px, pz) => {
+    const L = Math.hypot(px - x, pz - z), m = Math.max(1, Math.ceil(L / (c / 4)));
+    for (let q = 1; q < m; q++) { const qx = x + ((px - x) * q) / m, qz = z + ((pz - z) * q) / m; if (!g.walkableAt(qx, qz, opts)) return false; }
+    return true;
+  };
+  const cells = freeCellsNear(g, x, z, !!swim);
+  let best = null, bs = Infinity;
+  for (let q = 0; q < cells.length; q += 3) {
+    const px = cells[q], pz = cells[q + 1], s = score(px, pz, cells[q + 2]);
+    if (s < bs - 1e-9 && (!line || straight(px, pz))) { bs = s; best = { x: px, z: pz }; }
   }
   return best;
 }

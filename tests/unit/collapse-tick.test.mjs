@@ -23,9 +23,9 @@ test('clearOwner (indexOf scan) clears exactly the cell loop\'s cells and bumps 
     for (const g of [a, b]) { const q = rng(seed); for (let n = 0; n < 20; n++) g.fillRect(q() * 56, q() * 36, 0.5 + q() * 4, 0.5 + q() * 4, 'block', B.HIGH, 100 + (n % 5)); g.fillRect(10, 10, 8, 2, 'bridge', 1, 101); }
     const owner = 100 + ((r() * 5) | 0);
     // the reference: the cell loop clearOwner ran before
-    let n = 0, k0 = -1, k1 = -1;
-    for (let k = 0; k < b.size; k++) if (b.owner[k] === owner) { b.block[k] = B.NONE; b.bridge[k] = 0; b.owner[k] = 0; if (k0 < 0) k0 = k; k1 = k; n++; }
-    if (n) b._bumpRows((k0 / b.cols) | 0, (k1 / b.cols) | 0);
+    let n = 0, k0 = -1, k1 = -1, i0 = Infinity, i1 = -Infinity;
+    for (let k = 0; k < b.size; k++) if (b.owner[k] === owner) { b.block[k] = B.NONE; b.bridge[k] = 0; b.owner[k] = 0; if (k0 < 0) k0 = k; k1 = k; i0 = Math.min(i0, k % b.cols); i1 = Math.max(i1, k % b.cols); n++; }
+    if (n) b._bumpRows((k0 / b.cols) | 0, (k1 / b.cols) | 0, i0, i1); // (the rows and the columns of the cells cleared)
     const v = a.version, got = a.clearOwner(owner);
     assert.equal(got, n, 'cells cleared');
     for (const L of ['block', 'bridge', 'owner']) assert.ok(a[L].every((x, k) => x === b[L][k]), `${L} layer`);
@@ -47,10 +47,10 @@ test('navStamp / hullStamp: dirty rows are the rows of the cells that change; pa
   assert.ok(d0 && !(d0.j1 >= d0.j0), `an unchanged re-stamp dirties no row (${JSON.stringify(d0)})`);
   v = g.version;
   g.navStamp('head', [...big.filter((k) => k !== 30 * cols + 5), 31 * cols + 7]); // one cell off row 30, one onto row 31
-  assert.deepEqual(g.dirtyRowsSince(v), { j0: 30, j1: 31 }, 'only the rows that changed');
+  assert.deepEqual(g.dirtyRowsSince(v), { j0: 30, j1: 31, i0: 5, i1: 7 }, 'only the rows (and columns) that changed');
   v = g.version;
   g.hullStamp('hull', row(10, 3, 9)); g.hullStamp('hull', row(10, 3, 9));
-  assert.deepEqual(g.dirtyRowsSince(v), { j0: 10, j1: 10 }, 'hull: the first stamp\'s row only');
+  assert.deepEqual(g.dirtyRowsSince(v), { j0: 10, j1: 10, i0: 3, i1: 8 }, 'hull: the first stamp\'s row (and columns) only');
   // the patched layers (staticLayers redoes the dirty rows) equal a whole rebuild
   const p0 = staticLayersOf(g, false).open[0].slice(), p1 = staticLayersOf(g, true).open[1].slice(), pm = staticLayersOf(g, false).mul.slice();
   g._dirtyLog = null; g.version++;

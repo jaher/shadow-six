@@ -23,6 +23,7 @@
 
 import * as THREE from 'three';
 import { wreckBunker } from '../art/bunker-ruin.js';
+import { queueGeometryUpload } from '../engine/geometry-warm.js';
 import { Entity } from './entity.js';
 import { doubleFields, anyFields } from '../core/shapes.js';
 import { B, T } from '../world/grid.js';
@@ -267,6 +268,9 @@ export class Interactable extends Entity {
         addCharSpots(w, structureSpots({ ...S, x, z, r: S.r ?? this.radius, h: ruin?.H ?? S.h }, gy, String(S.id ?? this.tag ?? this.id)));
       }
     }
+    // (the ruin's levels of detail it does not show yet: their buffers go up a few a frame from now on, not all in the
+    // frame the camera first sees them — engine/geometry-warm.js; visual only)
+    if (this.object3d) queueGeometryUpload(this.object3d);
   }
 
   /** Ground height under (x, z) for the wreck's look (the world's drawn ground, else the model's foot). */

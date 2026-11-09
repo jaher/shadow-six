@@ -91,10 +91,21 @@ export class TickPacer {
      * would jump: M2's raft, 31 ticks in one frame). Video mode's AUTO sets it (its pace is wall time only).
      */
     this.lagFrames = null;
+    /** This frame's ticks are over (endFrame): the rest of its grant waits for the next frame. */
+    this.ended = false;
   }
+
+  /**
+   * End this frame's ticks: the next one waits for the next frame, as if the frame's tick time were spent. A tick that
+   * changed the walk grid makes every walker plan his way again in the next one (M14's third charge: a settled piece of
+   * debris, 36 searches, ~29 ms): that tick then starts a frame of its own instead of ending a full one (a 62 ms frame
+   * at 4×). The ticks and the orders are the same, only their wall-clock pacing differs.
+   */
+  endFrame() { this.ended = true; }
 
   /** A displayed frame of `dt` real seconds at wall time `now` (ms). */
   frame(dt, now) {
+    this.ended = false;
     // (paused: nothing owed beyond the part of a tick the picture stands at — it stays where it was, and goes on from there)
     if (this.paused) { this.budget = Math.min(this.budget, 0.999); this.lead = this.budget; return; }
     if (this.turbo) { this.deadline = now + this.turboMs; this.lead = 1; return; }
@@ -119,7 +130,7 @@ export class TickPacer {
   /** May a tick run now? */
   canTick(now) {
     if (this.paused) return false;
-    return this.turbo ? now < this.deadline : this.budget >= 1 && (this.tickFrom < 0 || now - this.tickFrom < this.tickMs);
+    return this.turbo ? now < this.deadline : this.budget >= 1 && !this.ended && (this.tickFrom < 0 || now - this.tickFrom < this.tickMs);
   }
 
   /** One granted tick used (`now`: wall ms, as canTick's). */
@@ -519,8 +530,11 @@ export class SolutionReplay {
     this._thinking = false;
     this._lateFrom = this.game.events?.lateLength ?? -1; // (did it set off an explosion? _blastHold, before the next)
     this.pacer.take();
+    const g = this.world?.grid, v0 = g?.version;
     this.game.step(this.simDt);
     this.ticks++;
+    // (the grid changed: every walker re-plans in the next tick — it starts the next frame: TickPacer.endFrame)
+    if (g && g.version !== v0 && !this.pacer.turbo) this.pacer.endFrame();
   }
 
   /** Per displayed frame (before the game's own frame): grant ticks, wake the driver, camera, captions. */

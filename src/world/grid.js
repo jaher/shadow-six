@@ -8,6 +8,7 @@
 
 import { hypot2 } from '../core/math.js';
 import { due } from '../engine/slice.js';
+import { doubleFields, anyFields } from '../core/shapes.js';
 
 /** nav stamp keys that are the walkers' clearances only (grid.visBlock): hulls test their own (hullBlocked) */
 const WALKER_STAMP = /^(vis:|low:|headroom$)/;
@@ -189,11 +190,15 @@ export class NavGrid {
      * @type {Uint8Array}
      */
     this.fire = new Uint8Array(n);
-    this.fireCells = 0;
-    this.fireVersion = 0;
-    this._dynVer = 0;
-    this._dynSig = 0; // order-free signature of this step's stamps (stampDynamic)
-    this._dynSigSeen = 0;
+    // (counts that move in play — a blast's fire first: written to from the start, core/shapes, so their first change
+    // keeps the grid's shape under its optimised readers)
+    this.fireCells = 1; this.fireCells = 0;
+    this.fireVersion = 1; this.fireVersion = 0;
+    // (the signatures are any int32 — a double past ±2^30 — and the version moves in play: double-valued, written to,
+    // from the start — core/shapes — not first at their first change in play, M14's barrel blast: the grid's shape
+    // changed there under every optimised reader of the grid, the searches of the next ticks ran unoptimised)
+    this._dynVer = -1; this._dynVer = 0;
+    doubleFields(this, 0, '_dynSig', '_dynSigSeen'); // (_dynSig: order-free signature of this step's stamps, stampDynamic)
     this._dynamicDirty = false;
     /**
      * Surface height per cell (m) for roofs, wall tops, towers, platforms (§10.2, roof rule §4.2).
@@ -297,6 +302,18 @@ export class NavGrid {
     this.ramps = undefined; this.runs = undefined; this.runOf = undefined;
     this._bb = undefined; this._bbOn = undefined; this._bbVer = undefined;
     this._wlHasRef = false; this._wlRef = NaN; this._wlOpts = null; this._wlBlocked = null; // (NaN: a double field)
+    // (and walkableLine's static-layer test, the row-confined bumps' log, the fields others hang on it — the overhang
+    // cells (overStamp), the stair field and the crawlers' step cells (map-builder) — declared here too: a scratch grid
+    // (pathfinding's warm-up) and the mission's keep one shape)
+    this._wlCo = null; this._wlDyn = null; this._wlAv = null; this._wlFr = null; this._wlBlockedCo = null;
+    /** @type {{v: number, j0: number, j1: number}[] | null} */
+    this._dirtyLog = null;
+    this.overCells = null; this.flights = null; this.crawlStep = null;
+    // (each field set in play to things of more than one kind — null or an array, a function, a set — is a field of any
+    // kind, written to, from the start (core/shapes anyFields): M14's barrel blast re-made the crawlers' step cells,
+    // crawlStep's first rewrite, and the grid's shape changed there under every optimised reader of the grid)
+    anyFields(this, null, '_wlOpts', '_wlBlocked', '_wlCo', '_wlDyn', '_wlAv', '_wlFr', '_wlBlockedCo', '_dirtyLog', 'overCells', 'crawlStep');
+    anyFields(this, undefined, '_bb', '_bbOn', '_bbVer');
   }
 
   /** Layer lookup by name. */
@@ -436,27 +453,39 @@ export class NavGrid {
    * DIRTY_LOG such bumps are kept while nothing else bumps the version in between (a writer's own `version++`
    * starts the log afresh): dirtyRowsSince tells a per-version cache (pathfinding's staticLayers) which rows to redo.
    */
-  _bumpRows(j0, j1) {
+  _bumpRows(j0, j1, i0 = 0, i1 = this.cols - 1) {
     let log = this._dirtyLog;
     if (!log || (log.length && log[log.length - 1].v !== this.version)) log = this._dirtyLog = [];
-    log.push({ v: this.version + 1, j0, j1 });
+    log.push({ v: this.version + 1, j0, j1, i0, i1 });
     if (log.length > DIRTY_LOG) log.shift();
     this.version++;
   }
 
-  /** The rows {j0, j1} every version bump after `version` up to now touched, or null when not known (redo everything). */
+  /**
+   * The rows {j0, j1} every version bump after `version` up to now touched — and the columns {i0, i1} within them (the
+   * whole width when a writer named rows only) — or null when not known (redo everything).
+   */
   dirtyRowsSince(version) {
     const log = this._dirtyLog;
     if (!log || !log.length || version >= this.version || log[log.length - 1].v !== this.version || log[0].v > version + 1) return null;
-    let j0 = Infinity, j1 = -Infinity;
-    for (let n = log.length - 1; n >= 0 && log[n].v > version; n--) { if (log[n].j0 < j0) j0 = log[n].j0; if (log[n].j1 > j1) j1 = log[n].j1; }
-    return { j0, j1 };
+    let j0 = Infinity, j1 = -Infinity, i0 = Infinity, i1 = -Infinity;
+    for (let n = log.length - 1; n >= 0 && log[n].v > version; n--) {
+      const e = log[n];
+      if (e.j0 > e.j1) continue; // (an empty range: nothing a cell layer holds)
+      if (e.j0 < j0) j0 = e.j0; if (e.j1 > j1) j1 = e.j1; if (e.i0 < i0) i0 = e.i0; if (e.i1 > i1) i1 = e.i1;
+    }
+    if (j0 > j1) return { j0: Infinity, j1: -Infinity, i0: 0, i1: -1 };
+    return { j0, j1, i0, i1 };
   }
 
-  /** Rows j0..j1 spanned by cell indices `cells` (an iterable). */
-  _rowsOf(cells, out = { j0: Infinity, j1: -Infinity }) {
+  /** Rows j0..j1 and columns i0..i1 spanned by cell indices `cells` (an iterable). */
+  _rowsOf(cells, out = { j0: Infinity, j1: -Infinity, i0: Infinity, i1: -Infinity }) {
     const cols = this.cols;
-    for (const k of cells) { const j = (k / cols) | 0; if (j < out.j0) out.j0 = j; if (j > out.j1) out.j1 = j; }
+    for (const k of cells) {
+      const j = (k / cols) | 0, i = k - j * cols;
+      if (j < out.j0) out.j0 = j; if (j > out.j1) out.j1 = j;
+      if (out.i0 !== undefined) { if (i < out.i0) out.i0 = i; if (i > out.i1) out.i1 = i; }
+    }
     return out;
   }
 
@@ -492,7 +521,10 @@ export class NavGrid {
     const j0 = Math.max(0, Math.floor(minZ / c)), j1 = Math.min(this.rows - 1, Math.floor(maxZ / c));
     const P = polyFlat(points), xs = [];
     for (let j = j0; j <= j1; j++) fillPolyRow(this, P, xs, j, i0, i1, layer, value, owner);
-    this._bumpRows(j0, j1);
+    // (heights and ramp runs: a plain bump — the row-confined ones promise the walk layers only: pathfinding's area
+    // labels are joined incrementally over the rows a bump names, elevation steps read as they were)
+    if (layer === this.elev || layer === this.runOf) this.version++;
+    else this._bumpRows(j0, j1, i0, i1);
   }
 
   /**
@@ -604,7 +636,7 @@ export class NavGrid {
    * @returns {number} number of cells cleared
    */
   clearOwner(owner) {
-    let n = 0, k0 = -1, k1 = -1;
+    let n = 0, k0 = -1, k1 = -1, i0 = Infinity, i1 = -Infinity;
     // (TypedArray indexOf jumps from one of the owner's cells to the next: a structure's destroy runs this once, in its
     // blast's tick, where a cell-by-cell loop never optimised cost ~0.8 ms on M18's 120 000 cells; the same cells)
     const O = this.owner;
@@ -614,9 +646,10 @@ export class NavGrid {
       O[k] = 0;
       if (k0 < 0) k0 = k;
       k1 = k;
+      const i = k % this.cols; if (i < i0) i0 = i; if (i > i1) i1 = i;
       n++;
     }
-    if (n) this._bumpRows((k0 / this.cols) | 0, (k1 / this.cols) | 0);
+    if (n) this._bumpRows((k0 / this.cols) | 0, (k1 / this.cols) | 0, i0, i1);
     return n;
   }
 
@@ -876,11 +909,12 @@ export class NavGrid {
     const prev = this._navStamps.get(key), next = new Set(cells), vis = WALKER_STAMP.test(key);
     // (the rows of the cells whose count changes — not every row the two sets span: M18's head room re-stamp after the
     // bridge's fall spans the whole map and changes ~400 cells by the bridge; staticLayers redoes the dirty rows)
-    const r = { j0: Infinity, j1: -Infinity }, cols = this.cols;
-    if (prev) for (const k of prev) if (!next.has(k)) { if (this.navBlock[k]) { this.navBlock[k]--; if (vis && this.visBlock[k]) this.visBlock[k]--; } const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
-    for (const k of next) if (!prev || !prev.has(k)) { this.navBlock[k] = Math.min(255, this.navBlock[k] + 1); if (vis) this.visBlock[k] = Math.min(255, this.visBlock[k] + 1); const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
+    const r = { j0: Infinity, j1: -Infinity, i0: Infinity, i1: -Infinity }, cols = this.cols;
+    const at = (k) => { const j = (k / cols) | 0, i = k - j * cols; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; if (i < r.i0) r.i0 = i; if (i > r.i1) r.i1 = i; };
+    if (prev) for (const k of prev) if (!next.has(k)) { if (this.navBlock[k]) { this.navBlock[k]--; if (vis && this.visBlock[k]) this.visBlock[k]--; } at(k); }
+    for (const k of next) if (!prev || !prev.has(k)) { this.navBlock[k] = Math.min(255, this.navBlock[k] + 1); if (vis) this.visBlock[k] = Math.min(255, this.visBlock[k] + 1); at(k); }
     if (next.size) this._navStamps.set(key, next); else this._navStamps.delete(key);
-    this._bumpRows(r.j0, r.j1);
+    this._bumpRows(r.j0, r.j1, r.i0, r.i1);
   }
 
   /**
@@ -889,11 +923,12 @@ export class NavGrid {
    */
   hullStamp(key, cells) {
     const prev = this._hullStamps.get(key), next = new Set(cells);
-    const r = { j0: Infinity, j1: -Infinity }, cols = this.cols; // (the rows of the cells that change: navStamp)
-    if (prev) for (const k of prev) if (!next.has(k)) { if (this.hullBlock[k]) this.hullBlock[k]--; const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
-    for (const k of next) if (!prev || !prev.has(k)) { this.hullBlock[k] = Math.min(255, this.hullBlock[k] + 1); const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
+    const r = { j0: Infinity, j1: -Infinity, i0: Infinity, i1: -Infinity }, cols = this.cols; // (the cells that change: navStamp)
+    const at = (k) => { const j = (k / cols) | 0, i = k - j * cols; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; if (i < r.i0) r.i0 = i; if (i > r.i1) r.i1 = i; };
+    if (prev) for (const k of prev) if (!next.has(k)) { if (this.hullBlock[k]) this.hullBlock[k]--; at(k); }
+    for (const k of next) if (!prev || !prev.has(k)) { this.hullBlock[k] = Math.min(255, this.hullBlock[k] + 1); at(k); }
     if (next.size) this._hullStamps.set(key, next); else this._hullStamps.delete(key);
-    this._bumpRows(r.j0, r.j1);
+    this._bumpRows(r.j0, r.j1, r.i0, r.i1);
   }
 
   /**
@@ -932,7 +967,7 @@ export class NavGrid {
       if (this.overLo[k] !== Infinity) over.add(k); else over.delete(k);
     }
     const r = this._rowsOf(touched);
-    this._bumpRows(r.j0, r.j1);
+    this._bumpRows(r.j0, r.j1, r.i0, r.i1);
   }
 
   /**
@@ -1113,6 +1148,53 @@ export class NavGrid {
       if (!this.inBounds(i, j)) return false;
       TV[0] = t; TV[1] = Math.min(1, tMaxX, tMaxZ);
       if (visit(this.idx(i, j))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * _traverse with walkableLine's cell test for a walk layer (`_wlCo`, walkableLine's `cellOpen` case) written out: the
+   * same cells in the same order (A's and B's apart, both side cells through an exact corner), true at the first blocked
+   * one — no visitor call per cell (path smoothing asks a few hundred thousand cells a blast tick).
+   */
+  _traverseOpen(ax, az, bx, bz) {
+    const c = this.cell, cols = this.cols, rows = this.rows, co = this._wlCo, dyn = this._wlDyn, av = this._wlAv, fr = this._wlFr, elev = this.elev;
+    const hasRef = this._wlHasRef, ref = this._wlRef, NONE = B.NONE;
+    let i = Math.floor(ax / c), j = Math.floor(az / c);
+    const ti = Math.floor(bx / c), tj = Math.floor(bz / c);
+    const dx = bx - ax, dz = bz - az;
+    const stepI = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    const stepJ = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+    const tDeltaX = stepI ? Math.abs(c / dx) : Infinity;
+    const tDeltaZ = stepJ ? Math.abs(c / dz) : Infinity;
+    let tMaxX = stepI > 0 ? ((i + 1) * c - ax) / dx : stepI < 0 ? (i * c - ax) / dx : Infinity;
+    let tMaxZ = stepJ > 0 ? ((j + 1) * c - az) / dz : stepJ < 0 ? (j * c - az) / dz : Infinity;
+    const maxSteps = Math.abs(ti - i) + Math.abs(tj - j) + 2;
+    for (let s = 0; s < maxSteps; s++) {
+      if (Math.abs(tMaxX - tMaxZ) < 1e-12) {
+        if (tMaxX > 1) return false;
+        const ni = i + stepI, nj = j + stepJ;
+        if (!(ni === ti && j === tj) && ni >= 0 && j >= 0 && ni < cols && j < rows) {
+          const k = j * cols + ni;
+          if ((hasRef && Math.abs(elev[k] - ref) > MAX_STEP) || co[k] !== 1 || (dyn !== null && dyn[k] !== NONE) || (av !== null && av[k] !== 0) || (fr !== null && fr[k] !== 0)) return true;
+        }
+        if (!(i === ti && nj === tj) && i >= 0 && nj >= 0 && i < cols && nj < rows) {
+          const k = nj * cols + i;
+          if ((hasRef && Math.abs(elev[k] - ref) > MAX_STEP) || co[k] !== 1 || (dyn !== null && dyn[k] !== NONE) || (av !== null && av[k] !== 0) || (fr !== null && fr[k] !== 0)) return true;
+        }
+        i = ni; j = nj;
+        tMaxX += tDeltaX; tMaxZ += tDeltaZ;
+      } else if (tMaxX < tMaxZ) {
+        if (tMaxX > 1) return false;
+        i += stepI; tMaxX += tDeltaX;
+      } else {
+        if (tMaxZ > 1) return false;
+        j += stepJ; tMaxZ += tDeltaZ;
+      }
+      if (i === ti && j === tj) return false;
+      if (i < 0 || j < 0 || i >= cols || j >= rows) return false;
+      const k = j * cols + i;
+      if ((hasRef && Math.abs(elev[k] - ref) > MAX_STEP) || co[k] !== 1 || (dyn !== null && dyn[k] !== NONE) || (av !== null && av[k] !== 0) || (fr !== null && fr[k] !== 0)) return true;
     }
     return false;
   }
@@ -1537,13 +1619,23 @@ export class NavGrid {
     // closure per call was steady garbage, path smoothing and every man's lane ask it many times a tick. `+ref`: the
     // number the subtraction used — null as 0)
     this._wlHasRef = ref !== undefined; this._wlRef = ref !== undefined ? +ref : 0; this._wlOpts = opts;
-    const blocked = this._wlBlocked || (this._wlBlocked = (k) => {
+    // (`cellOpen`: the static walk layer of these rules for this grid version — pathfinding's staticLayers, the path
+    // smoothing's own search read it: isWalkable's test cell by cell is that layer, the vehicles' layer and the mask)
+    const co = opts && !opts.dive ? opts.cellOpen || null : null;
+    let blocked;
+    if (co) {
+      this._wlCo = co; this._wlDyn = opts.dynamic ? this.dynamicBlock : null; this._wlAv = opts.avoid || null; this._wlFr = opts.fire || null;
+      blocked = this._wlBlockedCo || (this._wlBlockedCo = (k) => (this._wlHasRef && Math.abs(this.elev[k] - this._wlRef) > MAX_STEP)
+        || this._wlCo[k] !== 1 || (this._wlDyn !== null && this._wlDyn[k] !== B.NONE) || (this._wlAv !== null && this._wlAv[k] !== 0)
+        || (this._wlFr !== null && this._wlFr[k] !== 0));
+    } else blocked = this._wlBlocked || (this._wlBlocked = (k) => {
       const i = k % this.cols;
       if (this._wlHasRef && Math.abs(this.elev[k] - this._wlRef) > MAX_STEP) return true;
       return !this.isWalkable(i, (k - i) / this.cols, this._wlOpts);
     });
     // (`_wlOpts` keeps the last call's options until the next one: the grid's own, nothing a mission unload misses)
-    if (this._traverse(ax, az, bx, bz, blocked)) return false;
+    // (the walk layer's test written out in the traversal itself: _traverseOpen — the same cells, the same answer)
+    if (co ? this._traverseOpen(ax, az, bx, bz) : this._traverse(ax, az, bx, bz, blocked)) return false;
     if (this.runs && this.crossesRunSide(ax, az, bx, bz)) return false; // (on to a ramp / stair over its side)
     const r = opts && opts.clearance;
     if (r) {
@@ -1563,8 +1655,13 @@ export class NavGrid {
           }
         }
         const nx = (-(bz - az) / len) * r, nz = ((bx - ax) / len) * r;
-        if (this._traverse(ax + nx, az + nz, bx + nx, bz + nz, side)) return false;
-        if (this._traverse(ax - nx, az - nz, bx - nx, bz - nz, side)) return false;
+        if (co && side === blocked) {
+          if (this._traverseOpen(ax + nx, az + nz, bx + nx, bz + nz)) return false;
+          if (this._traverseOpen(ax - nx, az - nz, bx - nx, bz - nz)) return false;
+        } else {
+          if (this._traverse(ax + nx, az + nz, bx + nx, bz + nz, side)) return false;
+          if (this._traverse(ax - nx, az - nz, bx - nx, bz - nz, side)) return false;
+        }
       }
     }
     return true;

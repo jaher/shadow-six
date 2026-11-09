@@ -1,8 +1,9 @@
 /**
  * A destroyed fuel structure's wreck stamp (Interactable._stampWreck) lowers the same cells as a test of every cell of the
  * map did, and logs their rows with its version bump (NavGrid._bumpRows): pathfinding's static layers patched over those
- * rows equal a whole rebuild. A gun's traverse arc (Vehicle.gunArc) is kept across a grid change whose dirty rows miss
- * its reach (a blast elsewhere: M8's depot vs the guns by the bridge) and is the arc turretArc works out afresh, every
+ * rows equal a whole rebuild. A gun's traverse arc (Vehicle.gunArc) is kept across a grid change whose dirty rows — or
+ * columns — miss its reach (a blast elsewhere: M8's depot vs the guns by the bridge, M14's barrel in the guns' rows 40 m
+ * off) and is the arc turretArc works out afresh, every
  * time; a change inside its reach, a plain version bump or a new ground under it recomputes it.
  *   node tests/unit/run.mjs wreck-arc-rows
  */
@@ -55,7 +56,7 @@ test('wreck stamp: the same cells lowered as the whole-map test, one version, it
 function gun(g, x, z, groundY = () => 0) {
   const world = { grid: g, structures: new Map(), groundY };
   return { world, model: { gun: { len: 2.4, h: 1.1, back: 0.6, hl: 0.8, hw: 0.6, top: 1.6 } }, destroyed: false, x, z, y: 0,
-    _groundAt: Vehicle.prototype._groundAt, gunArc: Vehicle.prototype.gunArc, _arcKey: undefined, _arc: undefined, _arcVer: -1, _arcY0: undefined, _arcJ0: 0, _arcJ1: -1 };
+    _groundAt: Vehicle.prototype._groundAt, gunArc: Vehicle.prototype.gunArc, _arcKey: undefined, _arc: undefined, _arcVer: -1, _arcY0: undefined, _arcJ0: 0, _arcJ1: -1, _arcI0: 0, _arcI1: -1 };
 }
 const freshArc = (v) => { const g = v.model.gun; return turretArc(v.world.grid, v.x, v.z, { len: g.len, h: g.h, back: g.back, housing: { hl: g.hl, hw: g.hw, top: g.top }, heightOf: () => null, y0: Math.max(v.y || 0, v._groundAt(v.x, v.z)) }); };
 
@@ -92,6 +93,15 @@ test('gun arc: a write inside its reach, a moved hull or a new ground under it a
   // far rows only: kept
   g.navStamp('far', [1 * g.cols + 2]);
   assert(v.gunArc() === a1, 'a stamp 10 m away keeps it');
+  // its own rows but 12 m off to the side (the log's columns): kept too, and still the fresh arc
+  const row = ((12 / g.cell) | 0) * g.cols;
+  g.navStamp('side', [row + ((27 / g.cell) | 0)]);
+  assert(v.gunArc() === a1 && same(a1, freshArc(v)), 'a stamp in its rows beyond its reach keeps it');
+  // the same rows, inside its reach: recomputed
+  g.navStamp('side', [row + ((16.4 / g.cell) | 0)]);
+  const a2 = v.gunArc();
+  assert(a2 !== a1 && same(a2, freshArc(v)), 'a stamp in its rows within its reach recomputes it');
+  g.navStamp('side', []); v.gunArc();
   // the ground under the pivot rises: recomputed though no row changed
   let gy = 0; v.world.groundY = () => gy;
   v.gunArc(); gy = 0.7; g.navStamp('far', []);
