@@ -72,7 +72,7 @@ against world surfaces in every theater.
 
 | Kind | Technique |
 |---|---|
-| `explosion_large` (E1) | HDR flash + light pulse (420 cd → 0) → 80 + 26 FIRE puffs expanding radially (high drag, 0.3 s) with a single coherent hot core from frame 1, buoyant roll-up, blackbody cooling (2000–2900 K) into lit soot → 3 staggered secondary blasts → narrow buoyant aftermath column (26 s) → 45 instanced chunks (35% smoke-trailing, 30% burning), 200 sparks, 100 embers, shock ring (screen-space refraction) + dust skirt, scorch decal, 18 s residual flame field, heat haze, shake, chain-reaction blast (14 m) |
+| `explosion_large` (E1) | HDR flash + light pulse (420 cd → 0) → 80 + 26 FIRE puffs expanding radially (high drag, 0.3 s) with a single coherent hot core from frame 1, buoyant roll-up, blackbody cooling (2000–2900 K) into lit soot → 3 staggered secondary blasts → narrow buoyant aftermath column (26 s: its first 2.5 s as before, then a smooth `plume`) → 45 instanced chunks (35% smoke-trailing, 30% burning), 200 sparks, 100 embers, shock ring (screen-space refraction) + dust skirt, scorch decal, 18 s residual flame field, heat haze, shake, chain-reaction blast (14 m) |
 | `explosion_small` | Shell / mortar: short flash, small fireball (0.6–1.4 s), dirt fountain (14 jets), dust body + dark smoke, sparks, shock + skirt, scorch |
 | `grenade` (E2) | NO fireball. 50 ms flash + 1-frame light, **dirt fountain**: 16 ballistic jets (10–18 m/s, cone ≤ 0.5 rad) of velocity-stretched dark clods (surface-dependent colour) plus 22 instanced clods. Grey-brown dust body (delayed 60 ms so the jets read first), dust skirt, crater decal |
 | `barrel_explosion` (E6, hero) | Rupture flash, sooty fuel fireball (1700–2300 K, strong buoyancy → rolling mushroom in 3 waves), torn shell + lid (hero meshes, tumbling, smouldering flames when resting, glowing edges decay), chunks, then `fuel_pool_fire`. Chained barrels (`chainFrom`) get 60% fireball, no extra smoke burst and a smaller pool, so a 4-drum chain does not fog the screen |
@@ -81,7 +81,7 @@ against world surfaces in every theater.
 | `fuel_pool_fire` | A volumetric fire over 5 random lobes (irregular pool), black column, embers, light, haze, dark fuel-stain decals; dies down over its second half (`hold`). M17's burning spill (a legacy `fire` with a radius) is one, 4.5 m and 120 s |
 | `fire_small` | Campfire: a small volumetric timber fire, embers, thin grey-white wood-smoke plume (the chimney recipe), 14 cd breathing light, scorch (not for flare-ups under 10 s) |
 | `chimney_smoke` (E4) | **Ambient** (own pool, readability-limited, §6.4). A thin, continuous plume anchored on the stack top: ~32 faint wisps/s × `activity` (0 cold · 0.45 faint · 1 · 1.5 busy) with a slow draught/stoking modulation (periods 60–140 s). Stack-sized at birth (0.3–0.38 m, born within 12 cm above the stack, 0.12 s fade-in) → ~0.9 m; leave at 1.3–1.6 m/s, rise on buoyancy, bend over with `world.wind` (mean + gust fronts in the shader) and dilute within ~6–10 m of rise in calm air, sooner and flatter in wind (life × 0.45–1; opacity × up to 1.45 in wind so the longer, more diluted plume still reads). One coherent curl-noise field for all ambient wisps whose amplitude grows slowly with age (narrow at the stack, meanders and tears further out); velocity-stretched wisp cells with soft rims; alpha ∝ (1 − age)^1.6. Shading is smooth only (soft dome normal, density self-shadow, Henyey-Greenstein forward scatter on thin edges, bluer as it ages): atlas normal detail on wisps a few dozen pixels wide read as grain and boiled. Light bluish-grey (snow albedo [0.27, 0.3, 0.38], displayed a little darker than the snow; elsewhere [0.33, 0.34, 0.38]) |
-| `smoke_column` | Generic persistent column (`color: black/grey/white`) |
+| `smoke_column` | Persistent column (`color: black/grey/white`): a smooth `plume` (unspun wisps in the shared curl field, as a fire's); `{ambient: true}` keeps the chimney-layer column |
 | `smoke_puff` | Rifle / impact smoke: 5 small torn wisps along `dir` |
 | `muzzle_flash` (E5) | **2–3 frame** (45 ms) HDR star aligned to the barrel: a forward petal 0.65–0.95 m (×weapon factor: pistol 0.65, MG 1.1) + 3 side petals at 120°, explicit yellow→orange HDR ramp (10→4), min on-screen size 7×28 px so it reads at 40–50 m view width. 45 ms flash sprite, **1-frame light pool** (45 cd, 20 ms), smoke puff, and a 260 m/s tracer (not for pistols) |
 | `tracer` | Additive streak with a fixed 6 m length and a bright head, 260 m/s, width ≥ 2.5 px |
@@ -131,10 +131,43 @@ left burning — `burning_wreck` (vehicles, buildings, guns), `fuel_pool_fire` (
   burn level (the same `blazeLevel` as the CPU, checked by a unit test) and the box shrinks as the fire dies down.
 - **Breathing**: a fire-level puffing curve (~1.5/√D Hz, three incommensurate sines, `blazePuff`) lifts and lowers the
   flames; the same curve drives the fire light. An uneven fuel bed (a slow, large-scale field) makes some parts burn taller.
-- **Tip puffs** (`MODE.FIRE`): born red-orange in the upper flames, they cool into soot within ~1 s — the flame tips
-  turning into smoke, the column's base glowing from below.
-- **Soot column**: lumpy billows of varied soot (oil and rubber black-brown, timber brown-grey), rising, rolling and
-  widening with the wind; it thins less than the flames as the fire dies.
+- **Smoke: one plume that flows** (`plume()`, art/smooth-fire-smoke; the user: "Make the smoke smoother in the fire
+  after explosions, not just textures circling around (similar to how it was done for chimneys)", then "Can we make
+  the smoke flow in a smoother trajectory rather than multiple patches circling around"). Many soft wisps (~10–20/s)
+  born in the flames' sooty top, **never spinning** (rot 0) and with **no curl offset** (noise 0): an offset field at
+  a patch's scale made groups of wisps loop round their paths — the "patches circling". Each wisp flies one smooth
+  path instead: launched up at ~5 m/s, slowing as it climbs (buoyancy 0.9 against drag 0.55: ~1.6 m/s high up),
+  taken downwind by the wind and the gust fronts. The way a wisp leaves turns slowly with the time it is born
+  (incommensurate sways of 7–33 s per axis, ≈ 1.1·√(D/2.5) m/s), so wisps born together fly neighbouring paths: the
+  plume is ONE column that bends downwind with height and meanders as a whole, and its bends and puffs (the fire's
+  breathing pulses the rate ±25 %) travel up it with the smoke. `tools/perf/flameshot.mjs --eval` can launch tracer
+  copies of plume wisps (`commandos-shots/flames/smoke-flow-check.jpg`: they move 8–12 px per 0.1 s along the plume,
+  heading turns ≤ 16°; master's puffs hook through 76–106°). **Tone and texture** (the user: "The smoke feel
+  monochromatic add more nuanced texture"): each wisp's body is a soft bump (no opaque core, no stamped discs) carved
+  by a billow cell's cauliflower relief (medium billows: each wisp its own cell at its own fixed turn) and by fine
+  detail noise scrolling along its flow axis (fine wisps); all of it moves with the smoke and none of it turns. The
+  billow normal (×2.6, half and half with the wisp's dome) lights tops and shadows undersides: the sun side lighter
+  and warmer, the side away from it near-black (a dense body's self-shadow darkens only its shadow side), thin edges
+  lighter and translucent (sky light through them, Henyey-Greenstein forward scatter); the first metres over the
+  flames glow with their own light — flickering with it, gone a few metres up — warm orange-brown. Fresh smoke is dark and browner (oil near-black brown, timber
+  brown-grey with a yellow tinge, a wreck's dark grey with 14 % lighter grey / steam wisps, timber 8 %), greying,
+  lightening and cooling as it climbs (its albedo eases 60 % of the way to a cool 0.2 grey); each wisp has its own
+  value (±18 %) and a slight hue; the fire's breathing makes denser, darker knots drawn out along the flow (rate ±30 %,
+  opacity ±35 %, value −20 % and stretch ×1.8 at the peak) between thinner, lighter stretches, and a fifth of the
+  wisps are thin lighter ones that leave the column's edge, so it frays instead of reading as a clean tube. A wisp is
+  never quite opaque (opacity ≤ 1 on the CPU, ≤ 0.9 per pixel: past 1 it blended negatively — near-black, bluish
+  holes where knots piled up). The wisps
+  are drawn out along their rise near the fire (the stretch fades with age), widening (≥ 0.8 m, 0.7·W → ≤ 8 m),
+  thinning ((1 − age)^1.4). As the fire dies (and for a lighter `smokeK`,
+  e.g. a chained drum's spill) the plume grows **fainter, not sparser** (opacity × 0.4–1 with the burn level, rate ×
+  0.8–1): a sparse plume broke into separate dark dots. **Fires close together share one plume**: a fire whose smoke
+  would rise within 0.5·D + 1.5 m (+ a quarter of its own D) of a plume that outlasts it feeds that plume (0.3 of its
+  own rate while it burns) instead of drawing its own, so a rack and the drums burning round it put up one column, not a
+  bundle of thin ones. Full strength, in the main pool (not the readability-limited ambient layer). The same plume
+  carries a bomb's column after its first 2.5 s (`_blast_plume`) and `smoke_column`. Burning debris puffs smoke only in
+  its blast's first 2.5 s, then only glows and licks: one dark puff a second per piece, scattered over the dozens of
+  torn drums of M8's store, read as dots stamped on the ground (the same draws from the shared trail stream, so every
+  other trail is unchanged).
 - **Embers** drifting up (timber ×3 oil), a deep-orange **light** (42·D^0.9 cd, ≤ 230; never within 2 m of the burning
   top: closer it burns a white spot into it) above the flames that breathes with them (±28 % on the puffing, ±12 % fast) and wanders a little (its lit pool
   moves), **heat shimmer** above the flames (a fire haze source: its own wrapped, scrolling noise in the composite).
@@ -161,7 +194,10 @@ erodes the edges, and the erosion threshold rises with age, so puffs dissipate i
 cotton balls. Puffs are stretched along their screen-space velocity. Lighting combines sun + hemisphere/IBL
 ambient + the 6 FX lights (fire lights its own smoke) + self-shadowing + distance fog. Every puff is a soft
 particle: its alpha fades over 0.5 × size in front of the engine depth, so there is no hard clipping on
-walls, trucks or the ground.
+walls, trucks or the ground. **Lingering smoke** (art/smooth-fire-smoke): a blast's puffs older than 2.5 s stop
+spinning (their angle freezes) and stop swirling: between 2.5 and 6 s their curl offset eases onto the one they had
+at 2.5 s (where and when they were then), so what is left of an explosion drifts on along smooth paths instead of
+puffs looping round as the field slides past; the blast itself (younger puffs) is unchanged.
 
 ## 4. Performance per preset
 
@@ -317,10 +353,13 @@ timed over batches:
 | before (master 9bae3a038, sprite tongues) | 0.111–0.112 ms | 0.130–0.133 ms | 0.028–0.049 ms | 0.023–0.025 ms | 848 |
 | after (volumetric), the same fires | 0.192 ms | 0.154 ms | 0.037 ms | 0.034 ms | 808 |
 | after, with the racks' own 45 s oil fires | 0.260 ms | 0.208–0.212 ms | 0.053–0.069 ms | 0.041–0.047 ms | 1123 |
+| smooth flowing, textured smoke (art/smooth-fire-smoke; master 994c1f780 the same session: 0.258 / 0.205–0.206 ms, 1123) | 0.317–0.318 ms | 0.252 ms | 0.033–0.037 ms | 0.045–0.048 ms | 1636 |
 
 The volumes cost +0.08 ms at the default zoom for the whole depot burning (≈ +0.7 ms on a mid laptop at ×9, inside the
 4 ms VFX cap); the racks' new fires (the store burning on, sized to its footprint) add 0.07 ms more and the sort of
-~300 more particles. The march: two texture lookups per sample (none where the envelope rules flames out), steps
+~300 more particles. The smooth smoke adds 0.06 ms at zoom 1, 0.05 ms at zoom 2 (≈ +0.5 ms on a mid laptop): ~510
+more, smaller wisps, whose cauliflower carving discards much of each quad; a bomb's column after 2.5 s draws wisps of ≤ 7.5·scale m at 1.5× the old column's rate (10 m wisps at 2× cost
+0.14 ms here on their own); the drums round each rack feed the rack's plume instead of drawing their own. The march: two texture lookups per sample (none where the envelope rules flames out), steps
 capped per tier, a second tongue only behind a translucent one. No new shader program: the volume is a branch of the particle shader and the fire shimmer a branch of the
 composite, both compiled by the load's warm-up (`vfx.warm`); the noise volume is baked with the other VFX textures.
 

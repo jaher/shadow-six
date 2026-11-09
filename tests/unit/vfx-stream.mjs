@@ -2,7 +2,7 @@
  * Headless VFX stream recorder (art/realistic-flames): runs library recipes on a mock that schedules events and
  * emitters exactly like vfx/index.js (fixed 1/60 s steps, events before emitters, density 1, no budget pressure) and
  * hashes every particle, light sample, heat-source sample, decal, debris piece, blast and shake they produce. The
- * sustained fires a blast leaves (`fires`: fuel_pool_fire, fuel_tank_fire, burning_wreck, _residual_fire) are tagged through their
+ * sustained fires a blast leaves (`fires`: fuel_pool_fire, fuel_tank_fire, burning_wreck, _residual_fire, _blast_plume) are tagged through their
  * RECIPES entry and hashed apart, so `blast` = the explosion's own output only (tests/unit/flames.test.mjs,
  * tools/perf/vfx-stream-hash.mjs).
  */
@@ -52,8 +52,9 @@ export function makeMock(RECIPES, seed = 12345) {
       if (due.length) { this.events = this.events.filter((e) => e.t > t + 1e-9); for (const e of due) e.fn(); }
       for (const e of this.emitters) {
         const age = t - e.t0; if (age > e.dur || e.stopped) { e.dead = true; continue; }
-        // explosion_large's residual ground fire (its only 18 s emitter: tongues and hot puffs) hashes apart: `flame`
-        const p = tag; tag = e.tag === 'blast' && e.dur === 18 ? 'flame' : e.tag;
+        // a blast's lingering emitters — explosion_large's residual ground fire (18 s) and its aftermath column (26 s; 20 s
+        // inside a fuel-tank or tanker blast) — hash apart: `flame` (their first 2.5 s are the blast's own)
+        const p = tag; tag = e.tag === 'blast' && !e.noScale && (e.dur === 18 || e.dur === 20 || e.dur === 26) ? 'flame' : e.tag;
         try {
           e.acc += dt * (typeof e.rate === 'function' ? e.rate(age) : e.rate) * (e.noScale ? 1 : this.quality.density * this.pressure);
           while (e.acc >= 1) { e.acc -= 1; e.fn(age, e); }
@@ -66,7 +67,7 @@ export function makeMock(RECIPES, seed = 12345) {
       for (const q of this.haze) { const a = t - q.t0; if (a > q.dur || q.stopped) continue; const p = tag; tag = q.tag; rec('H', [t, q.fn ? q.fn(a) : 1]); tag = p; }
     },
     /** Run a recipe for `sec` s; the recipes named in `fires` are tagged 'fire'. */
-    run(kind, opts = {}, sec = 3, fires = ['fuel_pool_fire', 'fuel_tank_fire', 'burning_wreck', '_residual_fire']) {
+    run(kind, opts = {}, sec = 3, fires = ['fuel_pool_fire', 'fuel_tank_fire', 'burning_wreck', '_residual_fire', '_blast_plume']) {
       const saved = {};
       for (const f of fires) { saved[f] = RECIPES[f]; RECIPES[f] = (...a) => { const p = tag; tag = 'fire'; try { return saved[f](...a); } finally { tag = p; } }; }
       try {

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { MODE, HOT } from './pool.js';
 import { tornShellGeometry } from './debris.js';
-import { blaze, forkRng } from './blaze.js';
+import { blaze, forkRng, plume } from './blaze.js';
 
 export const SOOT = [0.05, 0.044, 0.039], GREY = [0.32, 0.31, 0.3], DUST = [0.36, 0.3, 0.22], DIRT = [0.2, 0.15, 0.1];
 /** A drum's torn shell / lid flying off a fuel blast (debris.addHero): painted steel glowing as it cools. */
@@ -107,9 +107,9 @@ export function smokePuffs(vfx, pos, rng, n, o = {}) {
  *  with the wind. Seen from the 55-degree game camera it reads as a column displaced upward on
  *  screen, not a ground carpet. Returns the emitter (stop() via handle). */
 export function smokeColumn(vfx, pos, rng, o = {}) {
-  const base = pos.clone();
+  const base = pos.clone(), dry = o.dryAfter != null ? dryOf(vfx) : null; // (dryAfter: from then on it draws but emits nothing)
   return vfx.addEmitter({ ambient: !!o.ambient, dur: o.dur ?? 22, rate: (a) => ((o.rate ?? 8) * Math.exp(-a / (o.decay ?? 12)) + (o.minRate ?? 0)) * (o.fade ? o.fade(a) : 1),
-    fn: () => smokePuffs(vfx, base, rng, 1, { spread: o.spread ?? 0.8, ySpread: 0.4, lat: 0.25, vmin: 0.2, vmax: 1.2, vy: o.vy ?? 4, s0: o.s0 ?? 1.6, s1: o.s1 ?? 9,
+    fn: (a) => smokePuffs(dry && a >= o.dryAfter ? dry : vfx, base, rng, 1, { spread: o.spread ?? 0.8, ySpread: 0.4, lat: 0.25, vmin: 0.2, vmax: 1.2, vy: o.vy ?? 4, s0: o.s0 ?? 1.6, s1: o.s1 ?? 9,
       lmin: o.lmin ?? 9, lmax: o.lmax ?? 15, buoy: o.buoy ?? 2.6, drag: o.drag ?? 0.45, col: o.col, op: o.op ?? 0.8, temp: o.temp, cool: o.cool,
       wisp: o.wisp ?? 0.35, erode: o.erode ?? 0.1, noise: o.noise ?? 1.4, stretch: 0.02, ambient: o.ambient }) });
 }
@@ -250,7 +250,10 @@ export const RECIPES = {
       vfx.addShake(0.2);
     });
     // aftermath column (handed over from the fireball puffs; narrow and vertical)
-    smokeColumn(vfx, up(3 * s), rng, { dur: o.dur ?? 26, rate: 9 * s, decay: 10, minRate: 1.5 * s, spread: 1.2 * s, s0: 2.6 * s, s1: 11 * s, lmin: 11, lmax: 18, buoy: 2.8, vy: 4.5 });
+    // (after the blast — RESIDUAL_CUT — the column keeps drawing the blast's rng, dry, and a smooth plume of unspun wisps
+    // carries on from the same spot on its own: the user asked for chimney-like smoke after explosions)
+    smokeColumn(vfx, up(3 * s), rng, { dur: o.dur ?? 26, rate: 9 * s, decay: 10, minRate: 1.5 * s, spread: 1.2 * s, s0: 2.6 * s, s1: 11 * s, lmin: 11, lmax: 18, buoy: 2.8, vy: 4.5, dryAfter: RESIDUAL_CUT });
+    vfx.at(RESIDUAL_CUT, () => RECIPES._blast_plume(vfx, up(3 * s), { scale: s, dur: (o.dur ?? 26) - RESIDUAL_CUT }, forkRng(pos, vfx.time, 5)));
     // thrown debris: on snow mostly packed snow and ice lumps with some frozen soil, elsewhere earth and charred bits
     chunks(vfx, pos, rng, Math.round(45 * s), { vmin: 8, vmax: 26, trail: 0.35, burn: 0.3, colors: o.surface === 'snow'
       ? [[0.78, 0.8, 0.84], [0.64, 0.66, 0.7], [0.3, 0.26, 0.22]] : [[0.1, 0.09, 0.08], [0.25, 0.22, 0.18], [0.18, 0.2, 0.14]] });
@@ -314,7 +317,11 @@ export const RECIPES = {
     const [sx, sz] = o.size ?? [2.2, 5.5], dur = o.dur ?? 1e6, top = pos.clone().setY(pos.y + (o.h ?? 1.6));
     const yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()); const lx = Math.cos(a) * q * sx * 0.42, lz = Math.sin(a) * q * sz * 0.38; return [lx * cy + lz * sy, -lx * sy + lz * cy]; };
-    return blaze(vfx, rng, { at: top, sampler, box: { rx: sx * 0.42, rz: sz * 0.38, yaw }, D: Math.sqrt(sx * sz), dur, burn: o.burn ?? (dur < 1e5 ? dur : 0), hold: 0.65, fuel: o.fuel ?? 'oil', ramp: 1.5 });
+    // (a wreck's oil smoke is dark grey — burning paint, rubber, upholstery — with lighter grey and steam in it; a
+    // building's timber smoke has some steam in it too)
+    const fuel = o.fuel ?? 'oil', oil = fuel === 'oil';
+    return blaze(vfx, rng, { at: top, sampler, box: { rx: sx * 0.42, rz: sz * 0.38, yaw }, D: Math.sqrt(sx * sz), dur, burn: o.burn ?? (dur < 1e5 ? dur : 0), hold: 0.65, fuel, ramp: 1.5,
+      smokeCol: oil ? [0.046, 0.043, 0.041] : undefined, steam: oil ? 0.14 : 0.08 });
   },
 
   /** Campfire / small fire (wood): a small volumetric fire (short licks over a glowing bed), embers, a thin grey-white wood-smoke
@@ -322,7 +329,7 @@ export const RECIPES = {
   fire_small(vfx, pos, o, rng) {
     const s = o.scale ?? 1, dur = o.dur ?? 1e6;
     const f = blaze(vfx, rng, { at: pos, D: 0.55 * s, L: 0.85 * s, W: 0.42 * s, dur, burn: dur < 1e5 ? dur : 0, fuel: 'wood', ramp: 0.6, smoke: false,
-      intensity: 14 * s, radius: 6, hazeR: 0.8, haze: 0.7, lean: 0.8, tips: 0.35 });
+      intensity: 14 * s, radius: 6, hazeR: 0.8, haze: 0.7, lean: 0.8 });
     const e2 = RECIPES.chimney_smoke(vfx, pos.clone().setY(pos.y + 0.9 * s), { dur, rate: 8, col: [0.55, 0.55, 0.57], op: 0.24, s1: 2.6, vary: false, ambient: false }, rng);
     // (a short flare-up — M15's smouldering ruin spawns one every few seconds — leaves no scorch: the decals are a ring of
     // 128 and would push out the blasts' and the bodies')
@@ -344,7 +351,11 @@ export const RECIPES = {
   /** Generic persistent smoke column. opts {color:'black'|'grey'|'white'|[r,g,b], rate, dur, scale} */
   smoke_column(vfx, pos, o, rng) {
     const s = o.scale ?? 1, col = Array.isArray(o.color) ? o.color : ({ black: SOOT, grey: GREY, white: WOOD }[o.color || 'black']);
-    return handle(smokeColumn(vfx, pos, rng, { dur: o.dur ?? 1e6, rate: (o.rate ?? 4) * s, decay: 1e9, spread: 0.6 * s, s0: 1.6 * s, s1: 9 * s, col, op: o.op ?? 0.85, buoy: 2.4, vy: 3.2, ambient: !!o.ambient }));
+    if (o.ambient) return handle(smokeColumn(vfx, pos, rng, { dur: o.dur ?? 1e6, rate: (o.rate ?? 4) * s, decay: 1e9, spread: 0.6 * s, s0: 1.6 * s, s1: 9 * s, col, op: o.op ?? 0.85, buoy: 2.4, vy: 3.2, ambient: true }));
+    // the smouldering columns a fire leaves (wrecks after their burn, buildings, bunkers, M15's ruin): one smooth plume of
+    // unspun wisps, as the chimneys' (blaze.js plume) — 2.2× the wisps of the old billows, each fainter and smaller at birth
+    return handle(plume(vfx, rng, { at: pos, spread: 0.45 * s, dur: o.dur ?? 1e6, rate: (o.rate ?? 4) * s * 2.2, w0: 1.0 * s, w1: 8 * s, life: 12,
+      col, op: (o.op ?? 0.85) * 0.75, vy: 4.5, buoy: 1.0, meander: 1.0 * Math.sqrt(s), stretch: 0.2 }));
   },
 
   /** E4 chimney / wood smoke — AMBIENT by default (own pool; the FxPass composite caps its perceived change and keeps
@@ -629,6 +640,16 @@ export const RECIPES = {
       ramp: 0.5, burn: 18 - t0, hold: 0.1 });
   },
 
+  /** explosion_large's aftermath column after RESIDUAL_CUT: the same black smoke rising from the blast, as one smooth
+   *  plume of unspun wisps (blaze.js plume), thinning on the column's own curve (9·s·e^(−t/10) + 1.5·s per s). */
+  _blast_plume(vfx, pos, o, rng) {
+    const s = o.scale ?? 1, t0 = RESIDUAL_CUT;
+    // (smaller wisps at 1.5× the old column's rate: as continuous, and less than half its fill — a 10 m wisp costs
+    // 2.5× a 6 m one; the sway spreads the column instead)
+    return plume(vfx, rng, { at: pos, spread: 0.8 * s, dur: o.dur ?? 23.5, rate: (a) => (9 * s * Math.exp(-(a + t0) / 10) + 1.5 * s) * 1.5, w0: 1.3 * s, w1: 7.5 * s,
+      life: 14, col: SOOT, op: 0.8, vy: 6.0, buoy: 1.2, meander: 1.5 * Math.sqrt(s), stretch: 0.2 });
+  },
+
   /** Debris smoke trails in flight; smouldering fire+smoke once resting. */
   _trail(vfx, it, dt, resting) {
     it.acc = (it.acc || 0) + dt * (resting ? 4 : 30) * vfx.quality.density;
@@ -639,7 +660,15 @@ export const RECIPES = {
       if (resting) {
         if (rng() < 0.7) vfx.emit({ x: p.x + rr(rng, -0.15, 0.15), y: p.y, z: p.z + rr(rng, -0.15, 0.15), vy: rr(rng, 0.2, 0.5), life: rr(rng, 0.4, 0.8), s0: 0.18, s1: 0.32,
           drag: 2, buoy: 1.5, r: 0, g: 0, b: 0, op: 0.9, temp: rr(rng, 1600, 1950), cool: 1e3, mode: MODE.FLAME, wind: 0.8, seed: rng(), aux: 2.2, fin: 0.1 });
-        else vfx.emit({ x: p.x, y: p.y + 0.4, z: p.z, vy: 1, life: rr(rng, 4, 7), s0: 0.4, s1: 2.6, drag: 0.6, buoy: 1.4, ...mixCol(SOOT, rng), op: 0.5, noise: 1, mode: MODE.SMOKE, wind: 1, seed: rng(), shape: 1, erode: 0.15 });
+        else {
+          // (the same draws as ever: the trail stream is shared by every blast's debris)
+          const life = rr(rng, 4, 7), c = mixCol(SOOT, rng), seed = rng();
+          // a smouldering piece's smoke puffs belong to the blast (its first RESIDUAL_CUT s); after that the piece only
+          // glows and licks — one dark puff a second per piece is too sparse to read as smoke: scattered over a fire's
+          // surroundings (M8's store: dozens of torn drums) they were dark dots stamped on the ground, and the fires'
+          // own plumes carry the smoke
+          if (it.age < RESIDUAL_CUT) vfx.emit({ x: p.x, y: p.y + 0.4, z: p.z, vy: 1, life, s0: 0.4, s1: 2.6, drag: 0.6, buoy: 1.4, ...c, op: 0.5, noise: 1, mode: MODE.SMOKE, wind: 1, seed, shape: 1, erode: 0.15 });
+        }
       } else {
         const hot = burning && it.age < 1.5;
         vfx.emit({ x: p.x, y: p.y, z: p.z, vx: it.v.x * 0.05, vy: it.v.y * 0.05, vz: it.v.z * 0.05, life: rr(rng, 1.5, 3), s0: 0.3, s1: rr(rng, 1.4, 2.4), drag: 1.2, buoy: 0.8,

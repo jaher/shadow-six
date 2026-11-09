@@ -323,6 +323,7 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
     clear() {
       this.events = []; this.emitters = []; lights.clear(); debris.clear(); decals.clear(); haze.length = 0;
       smoke.clear(); hot.clear(); amb.clear(); this.time = 0; this.acc = 0; for (const ex of this.explosives) ex.armed = true;
+      this._plumeHosts = []; // (blaze.js: the plumes nearby fires feed)
     },
     dispose() {
       this.detach?.(); this.clear(); smoke.dispose(); hot.dispose(); amb.dispose(); debris.dispose(); decals.dispose(); lights.dispose();

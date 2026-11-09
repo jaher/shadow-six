@@ -12,21 +12,23 @@ import { blazeLevel, blazePuff } from '../../src/render/vfx/blaze.js';
 import { FX } from '../../src/render/fx.js';
 import { makeMock, STREAM_CASES, caseKey } from './vfx-stream.mjs';
 
-/** Stream hashes measured on master 9bae3a038 (before the change) with tests/unit/vfx-stream.mjs: `blast` = everything a
- *  blast draws except its residual ground fire, over 26 s; `flame` = that residual ground fire (explosion_large's 18 s
- *  tongues), over its first RESIDUAL_CUT = 2.5 s (after which the ground keeps burning as a sustained fire). */
+/** Stream hashes with tests/unit/vfx-stream.mjs: `blast` = everything a blast draws except its two lingering emitters,
+ *  over 26 s; `flame` = those lingering emitters (explosion_large's residual ground fire and its aftermath column) over
+ *  their first RESIDUAL_CUT = 2.5 s, after which the ground keeps burning as a sustained fire and the column carries on
+ *  as a smooth plume (the user: "Make the smoke smoother in the fire after explosions, not just textures circling
+ *  around"). Measured on master 994c1f780; its blast part equals master 9bae3a038's, before any of the fire work. */
 const BEFORE = {
-  explosion_large: ['e32126b9', 'cc980279'], 'explosion_large {"scale":1.3}': ['daaf05bf', '09233072'], explosion_small: ['8e2615df', '811c9dc5'],
+  explosion_large: ['359df742', '405b8586'], 'explosion_large {"scale":1.3}': ['c283a6c9', '2cf2d009'], explosion_small: ['8e2615df', '811c9dc5'],
   grenade: ['90ed1b8f', '811c9dc5'], barrel_explosion: ['f1146b00', '811c9dc5'], 'barrel_explosion {"chainFrom":{"x":13,"y":0,"z":23}}': ['1cd1623a', '811c9dc5'],
-  'tanker_explosion {"yaw":0.4,"dur":1000000}': ['69c299a5', 'da67d615'],
-  'fuel_tank_blast {"yaw":0.3,"dur":90,"scale":1.1,"size":[5,7],"h":2.7,"poolR":3.5,"smokeK":1.2}': ['cd0da390', '4171baa0'],
+  'tanker_explosion {"yaw":0.4,"dur":1000000}': ['71b9e43b', 'c67d9398'],
+  'fuel_tank_blast {"yaw":0.3,"dur":90,"scale":1.1,"size":[5,7],"h":2.7,"poolR":3.5,"smokeK":1.2}': ['1a9c7591', 'ef081ac9'],
 };
 
-test('flames: every explosion is byte-identical to before (particles, lights, haze, decals, debris, shake: 26 s; its ground fire: 2.5 s)', () => {
+test('flames: every explosion is byte-identical to before (particles, lights, haze, decals, debris, shake: 26 s; its lingering ground fire and column: 2.5 s)', () => {
   for (const [k, o] of STREAM_CASES) {
     const key = caseKey(k, o), [blast, flame] = BEFORE[key];
     assert.equal(makeMock(RECIPES).run(k, o, 26).blast, blast, `${key}: blast stream changed`);
-    assert.equal(makeMock(RECIPES).run(k, o, 2.5).flame, flame, `${key}: residual tongues changed in the blast's first 2.5 s`);
+    assert.equal(makeMock(RECIPES).run(k, o, 2.5).flame, flame, `${key}: residual tongues / column changed in the blast's first 2.5 s`);
   }
 });
 
@@ -52,8 +54,23 @@ test('flames: a burning wreck is a raymarched VOLUME over its top, sized to the 
   }
   const hTruck = boxH(vols[0]) / 1.6;
   assert.ok(hTruck > 2 && hTruck < 4.5, `truck flames ${hTruck.toFixed(2)} m`);
-  assert.ok(r.emitted.some((p) => p.mode === MODE.FIRE && p.temp >= 1000), 'hot tip puffs that cool into soot');
-  assert.ok(r.emitted.some((p) => p.mode === MODE.FIRE && p.temp < 1000 && p.r < 0.06), 'dark soot column');
+  const smoke = r.emitted.filter((p) => !p.hot && p.mode === MODE.SMOKE);
+  assert.ok(smoke.length > 60 && smoke.every((p) => p.aux === 2 && p.rot === 0 && !p.ambient), 'one plume of unspun wisps (the chimney technique, full strength)');
+  // not one flat colour (the user: "The smoke feel monochromatic add more nuanced texture"): dark grey, each wisp its own
+  // value and a slight hue, with some lighter grey / steam in a wreck's smoke
+  const dark = smoke.filter((p) => p.r < 0.15), val = dark.map((p) => p.r + p.g + p.b);
+  assert.ok(dark.length > 0.75 * smoke.length && dark.length < smoke.length, `dark, some lighter (steam) wisps in it (${smoke.length - dark.length} of ${smoke.length})`);
+  const hue = dark.map((p) => p.r / p.b);
+  assert.ok(Math.max(...val) / Math.min(...val) > 1.3 && Math.max(...hue) / Math.min(...hue) > 1.06, 'each wisp its own value and tint');
+  // they flow (the user: "Can we make the smoke flow in a smoother trajectory rather than multiple patches circling
+  // around"): no curl offset in the shader (noise 0), and the way each leaves turns smoothly from one wisp to the next
+  assert.ok(smoke.every((p) => p.noise === 0), 'no per-wisp swirl');
+  // (a fifth of them are thin wisps that leave the column's edge on purpose: the median pair is two column wisps)
+  const turn = smoke.slice(1).map((p, i) => Math.hypot(p.vx - smoke[i].vx, p.vz - smoke[i].vz)).sort((a, b) => a - b);
+  assert.ok(turn[turn.length >> 1] < 0.16, `consecutive wisps leave on neighbouring paths (median turn ${turn[turn.length >> 1].toFixed(2)} m/s)`);
+  const sway = smoke.map((p) => Math.hypot(p.vx - 1.6 * 0.25, p.vz - 0.6 * 0.25));
+  assert.ok(Math.max(...sway) > 0.2, 'and the column meanders as a whole');
+  assert.ok(!r.emitted.some((p) => !p.hot && p.mode === MODE.FIRE), 'no spinning hot puffs');
   assert.ok(r.emitted.some((p) => p.hot), 'embers');
   assert.equal(truck.lights.length, 1, 'one fire light'); assert.equal(truck.haze.length, 1, 'one heat source');
   const house = volOf(makeMock(RECIPES).run('burning_wreck', { size: [7.2, 7.2], h: 1.4, dur: 60, fuel: 'wood' }, 2, []));
@@ -89,11 +106,10 @@ test('flames: with a known burn time the fire dies down — lower, redder, sooti
   assert.ok(lv(0) < 0.3 && lv(2) === 1 && lv(10) === 1, 'catches, then burns');
   assert.ok(lv(15) < 0.8 && lv(17.5) <= 0.125 && lv(20) <= 0.081 && lv(25) >= 0.079, 'dies down to a smoulder, smoulders on');
   const r = makeMock(RECIPES).run('burning_wreck', { size: [2.2, 5.5], h: 1.9, dur: 1e6, burn: 20 }, 20, []);
-  const fire = r.emitted.filter((p) => p.mode === MODE.FIRE && p.temp >= 1000);
-  const rate = (a, b) => fire.filter((p) => p.t > a && p.t <= b).length / (b - a);
-  assert.ok(rate(17, 20) < 0.7 * rate(3, 9), 'fewer hot tips as it dies down');
-  const col = (a, b) => r.emitted.filter((p) => p.mode === MODE.FIRE && p.temp < 1000 && p.t > a && p.t <= b).length / (b - a);
-  assert.ok(col(17, 20) > 0.6 * col(3, 9), 'the soot column thins less than the flames');
+  const col = (a, b) => r.emitted.filter((p) => p.mode === MODE.SMOKE && p.aux === 2 && p.t > a && p.t <= b).length / (b - a);
+  assert.ok(col(17, 20) < 0.85 * col(3, 9) && col(17, 20) > 0.5 * col(3, 9), 'the plume thins less than the flames');
+  const vy = (a, b) => { const q = r.emitted.filter((p) => p.mode === MODE.SMOKE && p.aux === 2 && p.t > a && p.t <= b); return q.reduce((s2, p) => s2 + p.vy, 0) / q.length; };
+  assert.ok(vy(17, 20) < vy(3, 9), 'and rises slower from a dying fire');
 });
 
 test('flames: every sustained fire has its volume, none of it ambient; a blast\'s tanker wreck can be stopped', () => {
@@ -117,6 +133,54 @@ test('flames: the ground under a bomb keeps burning — its own tongues for 2.5 
   assert.ok(v.length >= 3 && v[0].t >= 2.5 - 1e-6, 'from 2.5 s, re-emitted');
   assert.ok(v.every((p) => p.tag === 'fire'), 'its own recipe (_residual_fire)');
   assert.ok(glslLevel(10, v[0].vx, v[0].vy, v[0].vz) < 0.6 && glslLevel(14, v[0].vx, v[0].vy, v[0].vz) < 0.15, 'dying away');
+});
+
+test('flames: the smoke a fire or blast leaves is a smooth plume, never spinning sprites', () => {
+  // the smouldering columns (wrecks after their burn, buildings, bunkers, M15's ruin) and explosion_large's column after the blast
+  const col = makeMock(RECIPES).run('smoke_column', { color: 'black', rate: 1.8, scale: 1, op: 0.6 }, 6, []);
+  assert.ok(col.emitted.length > 18 && col.emitted.every((p) => p.mode === MODE.SMOKE && p.aux === 2 && p.rot === 0 && !p.ambient), 'smoke_column: unspun plume wisps');
+  const amb = makeMock(RECIPES).run('smoke_column', { ambient: true }, 3, []);
+  assert.ok(amb.emitted.every((p) => p.ambient), 'smoke_column {ambient}: still the capped ambient layer');
+  const bl = makeMock(RECIPES).run('explosion_large', {}, 12);
+  const plumeW = bl.emitted.filter((p) => p.tag === 'fire' && p.mode === MODE.SMOKE && p.aux === 2);
+  assert.ok(plumeW.length > 40 && plumeW.every((p) => p.t >= 2.5 - 1e-6 && p.rot === 0), 'the blast column carries on as a plume from 2.5 s');
+  assert.ok(!bl.emitted.some((p) => p.tag === 'flame' && p.t > 2.5 + 1e-6), 'the old column emits nothing after 2.5 s (it only draws)');
+});
+
+test('flames: a dying fire\'s plume grows fainter, not sparser (no dark dots); smouldering debris adds no dots after the blast', () => {
+  // (the orchestrator's review of M8's store: small dark round blobs between the rack fires — a dying spill's plume thinned
+  // into separate wisps, and the torn drums' smouldering puffs stamped on the ground)
+  const r = makeMock(RECIPES).run('burning_wreck', { size: [2.2, 5.5], h: 1.9, dur: 20 }, 20, []);
+  const w = (t0, t1) => r.emitted.filter((p) => p.mode === MODE.SMOKE && p.aux === 2 && p.t >= t0 && p.t < t1);
+  const early = w(2, 5), late = w(17, 20), mop = (a) => a.reduce((s, p) => s + p.op, 0) / a.length;
+  assert.ok(late.length >= 0.75 * early.length, `the smouldering fire's plume keeps its wisps (${late.length} vs ${early.length} in 3 s)`);
+  assert.ok(mop(late) < 0.6 * mop(early), 'and fades instead');
+  // a resting, still-burning piece: its smoke puffs within the blast's first 2.5 s as ever, none after — with the same
+  // draws from the trail stream (shared by every blast's debris), so every other trail is unchanged
+  const trail = (age) => {
+    let n = 0, st = 12345; const out = [];
+    const vfx = { quality: { density: 1 }, emit: (p) => out.push(p), _trailRng: () => { n++; st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; } };
+    RECIPES._trail(vfx, { p: new THREE.Vector3(1, 0.2, 2), burn: 10, age, acc: 0 }, 3, true);
+    return { n, smoke: out.filter((p) => p.mode === MODE.SMOKE).length, flame: out.filter((p) => p.mode === MODE.FLAME).length };
+  };
+  const a = trail(1), b = trail(3);
+  assert.ok(a.smoke > 0 && b.smoke === 0 && b.flame > 0, `smoke puffs only in the blast's window (${a.smoke} → ${b.smoke}), the piece still licks`);
+  assert.equal(b.n, a.n, 'the same trail-stream draws');
+});
+
+test('flames: fires close together share one plume — a rack and the drums burning round it put up one column', () => {
+  const wisps = (drumAt) => {
+    const m = makeMock(RECIPES), A = new THREE.Vector3(10, 0, 20);
+    RECIPES.fuel_pool_fire(m, A, { radius: 1.6, dur: 45, smokeK: 1.1 }, m.rand(3)); // (M8's rack: fx.js)
+    if (drumAt) RECIPES.fuel_pool_fire(m, new THREE.Vector3(10 + drumAt, 0, 20), { radius: 1.1, dur: 10, smokeK: 0.6 }, m.rand(4)); // a chained drum's spill
+    for (let s = 0; s < 6 * 60; s++) m.step();
+    const w = m.emitted.filter((p) => p.mode === MODE.SMOKE && p.aux === 2);
+    return { n: w.length, nearDrum: w.filter((p) => drumAt && Math.abs(p.x - (10 + drumAt)) < Math.abs(p.x - 10)).length };
+  };
+  const alone = wisps(0), near = wisps(3), far = wisps(12);
+  assert.ok(far.nearDrum > 0.2 * far.n, 'a drum burning 12 m off has its own plume');
+  assert.ok(near.nearDrum < 0.05 * near.n, `a drum 3 m off feeds the rack's plume (${near.nearDrum} of ${near.n} wisps by the drum)`);
+  assert.ok(near.n > alone.n * 1.15 && near.n < far.n, `which grows denser while it burns (${alone.n} → ${near.n}; apart: ${far.n})`);
 });
 
 test('flames: game wiring — wreck burn time, bounded legacy fires, spills as pool fires', () => {

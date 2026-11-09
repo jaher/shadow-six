@@ -49,8 +49,25 @@ void main(){
   // meander together and the plume reads as a sinuous ribbon that tears, instead of averaging into a uniform veil;
   // the meander grows slowly with age, so the plume leaves the stack as a narrow column and only then wanders
   bool ambW = mode==0 && d6.w>0.5;
-  if(d4.z>0.0) pos+=d4.z*(ambW ? curlNoise(pos*0.32+vec3(seed*0.6,-uTime*0.2,seed*0.4))*(1.0-exp(-age*0.35))
-                               : curlNoise(pos*0.16+vec3(seed*17.0,-uTime*0.12,seed*5.0))*(1.0-exp(-age*0.7)));
+  // a fire's plume (blaze.js plume(): aux 2) takes no curl offset at all (its wisps carry noise 0): an offset field at
+  // a patch's scale made patches orbit; the column's meander is in the wisps' own smooth paths (blaze.js)
+  bool plumeW = ambW && d6.w>1.5;
+  // lingering smoke (a blast's puffs and the like, past LINGER = 2.5 s of age) stops swirling: its curl offset eases
+  // (2.5–6 s) onto the one it had at LINGER — where and when it was then — so it drifts on along its own smooth path
+  // instead of looping round it as the field slides past (the user: "not just textures circling around", "rather than
+  // multiple patches circling around"); younger puffs — the blast itself — are untouched
+  float lingK = mode<=1 && !ambW ? smoothstep(2.5,6.0,age) : 0.0;
+  if(d4.z>0.0){
+    if(ambW) pos+=d4.z*curlNoise(pos*0.32+vec3(seed*0.6,-uTime*0.2,seed*0.4))*(1.0-exp(-age*0.35));
+    else {
+      vec3 cn=curlNoise(pos*0.16+vec3(seed*17.0,-uTime*0.12,seed*5.0));
+      if(lingK>0.0){
+        float eL=exp(-k*2.5), f1L=(1.0-eL)/k, f2L=(2.5-f1L)/k;
+        cn=mix(cn,curlNoise((d0.xyz+d1.xyz*f1L+acc*f2L)*0.16+vec3(seed*17.0,-(d0.w+2.5)*0.12,seed*5.0)),lingK);
+      }
+      pos+=d4.z*cn*(1.0-exp(-age*0.7));
+    }
+  }
   float grow = mode==1 ? 1.0-pow(1.0-x,4.0) : (mode==0 ? 1.0-pow(1.0-x,2.2) : sqrt(x));
   float size=mix(d2.x,d2.y,grow);
   float fin=clamp(age/max(min(d6.z,life*0.3),1e-3),0.0,1.0);
@@ -88,11 +105,12 @@ void main(){
     vec2 sv=vec2(dot(vel,R_),dot(vel,U_)); float sl=length(sv);
     vec2 ax= sl>1e-3 ? sv/sl : vec2(0.0,1.0);
     float len=size*(1.0+d5.z*sl);
+    if(plumeW) len=size*(1.0+d5.z*sl*(1.0-x)*(1.0-x)); // (a fire's plume: drawn out along its rise near the fire only)
     pos.y=max(pos.y,size*0.12);
     vec2 off=ax*c.y*len+vec2(ax.y,-ax.x)*c.x*size;
     wp=pos+R_*off.x+U_*off.y;
   }
-  float ang=seed*6.2831+d4.w*age;
+  float ang=seed*6.2831+d4.w*(mode<=1 && !ambW ? min(age,2.5) : age); // (lingering smoke stops spinning: LINGER)
   vRot=vec2(cos(ang),sin(ang));
   vUv=c; vA=vec4(d3.rgb, d3.a*fin*fout); vB=vec4(T,x,float(mode),seed);
   vC=vec4(d6.x, d6.y, age, d6.w);
@@ -263,18 +281,32 @@ void main(){
   vec2 ruv=vec2(vRot.x*vUv.x-vRot.y*vUv.y, vRot.y*vUv.x+vRot.x*vUv.y);
   ruv=clamp(ruv,-0.49,0.49);
   float cell=floor(fract(seed*7.13)*8.0)+(vC.x>0.5?8.0:0.0);
+  bool plumeW = mode==0 && vC.w>1.5; // a fire's plume (blaze.js plume())
+  if(plumeW) cell=floor(fract(seed*7.13)*8.0); // (its bodies are the billow cells: cauliflower relief, each wisp its own)
   vec2 cxy=vec2(mod(cell,4.0),floor(cell/4.0));
-  vec4 tx=texture2D(uPuff,(cxy+ruv+0.5)/4.0);
+  vec4 tx=texture2D(uPuff,(cxy+ruv+0.5)/4.0,plumeW ? 0.9 : 0.0);
   float dt=texture2D(uDetail, vUv*0.55+vec2(seed*3.1,seed*7.7)+vec2(0.0,-uTime*0.03)).r;
   float dt2=texture2D(uDetail, vUv*1.3+vec2(seed*5.3,seed*1.7)+vec2(uTime*0.02,0.0)).g;
   float ero = (mode==1 ? mix(0.05,0.5,x) : mix(0.05,0.45,x)) + vC.y*(0.2+0.5*x);
   float cov = tx.a*(vC.x>0.5 ? (vC.w>0.5 && mode==0 ? 1.3 : 1.7) : 1.0); // ambient wisps: softer edges (no hard rims that pop as they drift)
+  // a fire's plume: soft bodies with no opaque core — a smooth bump (no plateau, no rim) carved by the billow cell's
+  // relief (medium billows) and by fine wisps of detail noise scrolling along the wisp's flow axis (vUv.y runs along its
+  // velocity), so overlapping wisps blend into one textured body instead of reading as stamped discs; all of it moves
+  // with the smoke and none of it turns
+  float r2=min(dot(vUv,vUv)*4.0,1.0), bump=(1.0-r2)*sqrt(1.0-r2);
   // ambient wisps: softer, less grainy body (fine detail reads as dirt from the game camera), torn only as they age
   float dens=vC.w>0.5 && mode==0 ? smoothstep(ero,1.0,cov*(0.78+(0.22+0.3*x)*dt+0.1*dt2)) : smoothstep(ero,1.0,cov*(0.62+0.5*dt+0.25*dt2));
+  float fw=0.5;
+  if(plumeW){
+    fw=texture2D(uDetail, vUv*vec2(1.8,1.25)+vec2(seed*3.7,seed*5.1)+vec2(0.0,-uTime*0.09)).b;
+    dens=min(pow(bump,0.7)*smoothstep(0.1,0.8,tx.a*(0.7+0.6*dt)+0.15*(fw-0.5))*1.3,1.0);
+  }
   float alpha=dens*vA.a;
+  if(plumeW) alpha=min(alpha,0.9); // (a plume wisp never quite opaque: no near-black core where knots pile up)
   alpha*=softFade(uSoftK*vSize);
   if(alpha<0.002) discard;
   vec2 nxy=tx.rg*2.0-1.0; nxy=vec2(vRot.x*nxy.x+vRot.y*nxy.y, -vRot.y*nxy.x+vRot.x*nxy.y);
+  if(plumeW){ nxy*=2.6; float nl=length(nxy); if(nl>0.92) nxy*=0.92/nl; } // (a plume's billows in relief)
   vec3 N=normalize(nxy.x*vR+nxy.y*vU+sqrt(max(1.0-dot(nxy,nxy),0.0))*vF + (dt-0.5)*0.4*vU);
   float ndl=dot(N,uSunDir);
   float diff=pow(clamp(ndl*0.5+0.5,0.0,1.0),2.2);
@@ -283,6 +315,8 @@ void main(){
   vec3 fl=fxLights(N,0.65);
   float Tl=300.0+(T-300.0)*(0.42+0.58*tx.b)*(0.7+0.6*dt);
   vec3 alb=mix(vA.rgb, vec3(0.13,0.12,0.11), mode==0 ? x*0.3 : x*0.2);
+  // (a fire's plume: dark and a little warmer — browner — fresh off the fire, greying, lightening and cooling as it climbs)
+  if(plumeW) alb=mix(vA.rgb*mix(vec3(1.18,1.0,0.82),vec3(1.0),smoothstep(0.0,0.3,x)), vec3(0.2,0.205,0.225), smoothstep(0.04,0.75,x)*0.6);
   // burning gas is optically thick soot: suppress the sky/snow-lit grey where it glows so the flame
   // colour is not washed towards salmon; it reappears as the puff cools into smoke
   // (the flash light sitting inside the fireball would otherwise light that soot peach-white too)
@@ -302,8 +336,27 @@ void main(){
     float thin=1.0-smoothstep(0.25,0.9,dens);
     float sh=mix(1.0,0.6,smoothstep(0.2,0.85,dens)*vA.a);         // optically thick core: self-shadowed, darker
     float wrapD=clamp(ndA*0.6+0.4,0.0,1.0);                        // soft wrap: a plume is lit through its body
-    col=alb*(uSunColor*(wrapD*sh*0.9+hg*thin*0.8)+mix(uGroundColor,uSkyColor,Na.y*0.5+0.5)*mix(0.6,1.1,Na.y*0.5+0.5)*sh+fxLights(Na,0.65));
-    col*=mix(vec3(1.0),vec3(0.94,0.98,1.06),x);
+    if(plumeW){
+      // a fire's plume is big enough on screen (20–170 px a wisp) for its billows' relief to read (the user: "The smoke
+      // feel monochromatic add more nuanced texture"): lit tops and shadowed undersides (the billow normal half and half
+      // with the wisp's dome), the sun side lighter and warmer, the core darker (self-shadow by density), thin edges
+      // lighter and translucent (sky light through them, forward scatter); near the fire the underside takes the
+      // flames' light — the fire's own light, flickering with it and fading over a few metres — warm orange-brown.
+      // (it takes the fire light already summed above: its many overlapping wisps run one light loop per pixel)
+      vec3 Np=normalize(mix(Nd,N,0.55)); float ndP=dot(Np,uSunDir), lit=clamp(ndP*0.7+0.3,0.0,1.0);
+      // (the self-shadow of a dense body darkens its side away from the sun — near-black — not the side the sun is on)
+      float core=smoothstep(0.35,0.95,dens)*vA.a*(1.0-0.75*lit), under=clamp(0.35-0.8*Np.y,0.0,1.0)*(1.0-x)*(1.0-x);
+      col=alb*(uSunColor*(lit*mix(1.0,0.4,core)*1.25+hg*thin*1.1)
+              +mix(uGroundColor,uSkyColor,Np.y*0.5+0.5)*mix(0.5,1.15,Np.y*0.5+0.5)*mix(1.0,0.55,core)+fl*(1.0+2.4*under))
+         +alb*uSkyColor*thin*0.4
+         // (the first metres over the flames glow with their light, whatever the soot's albedo — warm orange, flickering
+         // with the fire's own light, gone a few metres up)
+         +fl*(0.035*under+0.05*(1.0-smoothstep(0.0,0.2,x)));
+      col*=mix(vec3(1.0),vec3(0.93,0.97,1.07),smoothstep(0.2,0.9,x));
+    } else {
+      col=alb*(uSunColor*(wrapD*sh*0.9+hg*thin*0.8)+mix(uGroundColor,uSkyColor,Na.y*0.5+0.5)*mix(0.6,1.1,Na.y*0.5+0.5)*sh+fxLights(Na,0.65));
+      col*=mix(vec3(1.0),vec3(0.94,0.98,1.06),x);
+    }
   }
   col=mix(col,uFogColor,fogK);
   // cooling fire only glows in the dense interior of a puff (red pockets inside soot); thin fringes over

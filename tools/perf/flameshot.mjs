@@ -39,6 +39,13 @@ const SCENES = {
   shell: { m: 'm01', fn: 'const p={x:46,z:128}; W.events.emit("explosion",{x:p.x,z:p.z,radius:5,kind:"shell"}); return p;' },
   grenade: { m: 'm01', fn: 'const p={x:46,z:128}; W.events.emit("explosion",{x:p.x,z:p.z,radius:6.75,kind:"grenade"}); return p;' },
   barrel: { m: 'm01', fn: 'const d=W.interactables.find((b)=>b.interactKind==="barrel"&&!b.exploded); d.ignite(0); return {x:d.x,z:d.z};' },
+  // a chimney (the reference look for smooth smoke): the busiest lit stack of --cm (default M1; M6's reads best, over its
+  // dark roofs — on snow the ambient layer keeps it faint by design)
+  // (the camera aims at the ground point behind the stack top along the view — the stack mid-frame — 4 m downwind:
+  // room for its plume)
+  chimney: { m: arg('cm', 'm01'), fn: 'const C=G.world.fx._chimneys.filter((c)=>c.activity>0).sort((a,b)=>b.activity-a.activity); const c=C[0]; const cam=G.cameraController.camera, f=cam.position.clone(); cam.getWorldDirection(f); const h=c.pos.y-(W.groundY?W.groundY(c.pos.x,c.pos.z):0), k=h/Math.max(0.2,-f.y), w=G.world.fx.vfx.u.uWind.value, wl=Math.hypot(w.x,w.z)||1; return {x:c.pos.x+f.x*k+4*w.x/wl,z:c.pos.z+f.z*k+4*w.z/wl};' },
+  // a bomb's lingering smoke (its column after the blast) on M8's desert
+  bombsmoke: { m: 'm08', fn: 'const c=W.commandos[0], p={x:c.x+12,z:c.z+4}; W.events.emit("explosion",{x:p.x,z:p.z,radius:9,kind:"bomb"}); return p;' },
   // the same blasts on M8's desert (no falling snow: frames reproducible across loads, for the identity check)
   bombd: { m: 'm08', fn: 'const c=W.commandos[0], p={x:c.x+9,z:c.z+5}; W.events.emit("explosion",{x:p.x,z:p.z,radius:9,kind:"bomb"}); return p;' },
   shelld: { m: 'm08', fn: 'const c=W.commandos[0], p={x:c.x+9,z:c.z+5}; W.events.emit("explosion",{x:p.x,z:p.z,radius:5,kind:"shell"}); return p;' },
@@ -71,9 +78,16 @@ const run = (dt) => page.evaluate(({ dt, every }) => {
   for (let i = 0; i < n; i += every) { const k = Math.min(every, n - i); g.advance(k / 60); G.render(k / 60, 1); }
 }, { dt, every: EVERY });
 const YAWS = arg('yaws', '').split(',').filter(Boolean).map(Number); // e.g. --yaws=15,60: each still at every yaw (-yNN)
+// --look=h: frame the smoke h m above the fire instead of the fire (the ground point behind it along the view):
+// close-ups of a plume; --lookOff=dx,dz shifts that (m)
+const LOOK = Number(arg('look', 0)), LOFF = arg('lookOff', '0,0').split(',').map(Number);
 const shoot = async (name, z, type = 'png', yaw = null) => {
-  await page.evaluate(({ z, yaw }) => { const G = window.__game.game, p = window.__flameAt, C = G.cameraController;
-    if (yaw != null) C.setYaw(yaw); C.setZoom(z, true); C.centerOn(p.x, p.z); G.render(0, 1); }, { z, yaw });
+  await page.evaluate(({ z, yaw, look, loff }) => { const G = window.__game.game, p = window.__flameAt, C = G.cameraController;
+    if (yaw != null) C.setYaw(yaw); C.setZoom(z, true);
+    let cx = p.x, cz = p.z;
+    if (look) { const cam = C.camera, f = cam.position.clone(); cam.getWorldDirection(f); const k = look / Math.max(0.2, -f.y);
+      cx += f.x * k + loff[0]; cz += f.z * k + loff[1]; }
+    C.centerOn(cx, cz); G.render(0, 1); }, { z, yaw, look: LOOK, loff: LOFF });
   await page.screenshot({ path: join(out, name), ...(type === 'jpeg' ? { type: 'jpeg', quality: 92 } : {}) });
 };
 const stats = [];
