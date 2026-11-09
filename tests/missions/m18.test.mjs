@@ -394,10 +394,15 @@ test('m18 fix: a grenade on P46 by the SW beach pulls only the men within 45 m (
   s.run(200, () => Math.hypot(p46.x - 62.8, p46.z - 138.8) < 2);
   const x = p46.x, z = p46.z;
   const far = new Set(w.enemies.filter((e) => e.alive && Math.hypot(e.x - x, e.z - z) > 45));
+  // (§4.6 BODY 2026-11-09: a guard who finds one of the blast's dead while the siren sounds cries "Alarm!" on sight, and
+  // the mates in its 36 m come to search round the body — the blast itself still pulls nobody from afar: the men told by
+  // such a cry are left out)
+  const told = new Set();
+  w.events.on('noise', (n) => { if (n.body) for (const e of far) if (Math.hypot(e.x - n.x, e.z - n.z) <= n.radius) told.add(e); });
   applyExplosion(w, x, z, 'grenade', s.cmd('sapper'));
   s.run(20);
-  const came = [...far].filter((e) => e.alive && Math.hypot(e.x - x, e.z - z) < 40).map((e) => e.tag);
-  assert.deepEqual(came, [], 'nobody from afar converges');
+  const came = [...far].filter((e) => e.alive && !told.has(e) && Math.hypot(e.x - x, e.z - z) < 40).map((e) => e.tag);
+  assert.deepEqual(came, [], 'nobody from afar converges on the blast');
 });
 
 test('m18 fix: the bridge deck is not measured on the visual (as M16): walkable at deckTop over the three markers, ramps at the ends', async () => {

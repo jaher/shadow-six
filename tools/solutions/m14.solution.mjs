@@ -281,10 +281,13 @@ export const STAGES = [
     D.ability('diver', 'harpoon', e34);
     await D.until(() => !e34.alive, 3, 'e34 harpooned');
     D.checkpoint('D2 e34 speared from the shallows');
-    // 2) the body by the water draws the men who see it: speared as they come, if nobody watches; whoever finds it
-    // cries out, but out on the beach, outside the fortified line: the guards come, look, search and go back
-    await baitKills(D, [], { maxSec: 120, quiet: 25 });
-    await calm(D, [107, 62], 45, 240);
+    // 2) the body by the water draws the first man who sees it: he runs down, kneels and cries out — out on the beach,
+    // outside the fortified line: the guards come, look, search round it and go back. Only e36 must not be the one who
+    // finds it: his beat overlooks Patrol 37's halt, and a man who has found a body before cries the alarm at once at
+    // the next (§4.6 BODY) — so if he comes to it first he is speared on his way, before he kneels. Nobody else is:
+    // each would be one more body to be found
+    await firstFinder(D, e34, { spear: ['e36'], maxSec: 240 });
+    await calm(D, [107, 62], 45, 400);
     D.checkpoint('D3 the beach calm again');
     // 3) under water to the north end of the beach: Patrol 37 walks up to it and is speared one by one, the rear man
     // first, each behind the backs of the others
@@ -294,6 +297,9 @@ export const STAGES = [
     // 4) e36, walking his beat inside the wire, sees them and comes down to look: speared too
     await baitKills(D, ['e36'], { maxSec: 300 });
     D.checkpoint('D5 e36 speared by the bodies');
+    // (whoever answered his cries or found the bodies after him searches round them, on edge: the north-east beach
+    // calm again before the boat goes up the east edge and the Sapper lands there)
+    await calm(D, [100, 35], 45, 400);
     // 5) back aboard; up the east edge of the sea, out of e35's reach, to the north part of the beach
     await marineAboard(D);
     await rowOpen(D, [[131.5, 93], [133, 70], [133, 44], [124, 32]], { label: 'east edge', maxWait: 240 });
@@ -301,6 +307,8 @@ export const STAGES = [
     // 5) the Sniper, kneeling in the boat 35 m out, takes the walker on the turret block's roof
     await rowOpen(D, [[...SNIPE_NE]], { label: 'sniper spot off the north-east beach' });
     const r = D.get('e_g3r');
+    // (on his roof: a cry over a body down on the beach may have brought him down to look; back up on his beat first)
+    await D.until(() => !r.alive || (r.brain?.state === 'IDLE' && (r.y ?? 0) > 2), 400, 'e_g3r back on the turret roof');
     await snipe(D, r, { maxSec: 120 });
     await D.until(() => !r.alive, 3, 'e_g3r down');
     D.checkpoint('D7 the Sniper drops the guard on the turret roof');
@@ -373,14 +381,12 @@ export const STAGES = [
     // to its north-west corner; he lies there, round from the ladder (from his post e46 has the ladder in sight: it waits)
     await ladderApproach(D, 'sapper');
     D.checkpoint('E5 the Sapper lies at the corner of the turret block, round from its ladder');
-    // 6) a step short of the ladder, if nobody will come near enough to see him lying there a while (then the climb is
-    // short), and up it now, while all is calm, between two sweeps of e46's eyes (from his post by gun 4 he sees its
-    // foot only when he looks straight ahead, once every 5 s), charge three by the turret; or, if no such moment comes,
-    // later, right after the strike on the barrel posts
-    if (clearFor(D, [...G3_WEST], 90, { mode: 'crawl', step: 0.5 })) {
-      await moveOpen(D, 'sapper', [...G3_WEST], { label: 'sapper down the turret\'s west wall', maxWait: 300, hold: 6, fast: 1.1 });
-    }
-    if (await chargeThree(D, { maxSec: 240 }).then(() => true, (e) => { D.log?.(`DBG early climb put off: ${e.message.slice(0, 160)}`); return false; })) {
+    // 6) a step short of the ladder (then the climb is short) and up it now, while all is calm, between two sweeps of
+    // e46's eyes (from his post by gun 4 he sees its foot only when he looks straight ahead, once every 5 s): charge
+    // three by the turret. He lies there only for a spell nobody's eyes will cross it, walkers' turns included (e32,
+    // turning at the north end of his beat, swings his eyes over the ladder's foot every ~45 s), and crawls back to the
+    // corner if the climb has not come by then; if no such moment comes, later, right after the strike on the barrel posts
+    if (await earlyClimb(D, { maxSec: 420 })) {
       D.checkpoint('E6 between two sweeps of e46\'s eyes, the Sapper climbs the ladder and sets charge three by the turret');
     }
   }],
@@ -462,14 +468,9 @@ export const STAGES = [
       const ok = await moveOpen(D, 'greenberet', [[55.6, 49], [55.6, 47], ...[...UP_BEACH].reverse(), [...GB_HOLD]], { label: 'GB back behind the block', maxWait: 90, fast: 0.95, pad: 1.6 }).then(() => true, () => false);
       if (ok) break;
     }
-    // 5) the Sapper off the roof: the decoy on again by radio (e38 stares at it, his back to the turret), then down the
-    // ladder to the block's corner and along its north face into the gap in the wire, each once nobody would see it
-    // (the north barracks' squad walks its round past the ladder now, and e39 looks down at it from his beat: if they
-    // keep it in sight too long, he stays up there, or lies at the corner, until gun 4 goes up and draws them all away)
-    if (!D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
-    await D.until(() => staringF(D.get('e38')), 400, 'e38 at the decoy');
-    const down = await ladderDown(D, 'sapper', { maxSec: 240 }).then(() => true, (e) => { D.log?.(`DBG descent put off: ${e.message.slice(0, 200)}`); return false; });
-    if (down) D.checkpoint('F6 the Sapper down the ladder and back in the gap in the wire');
+    // 5) the Sapper stays on the turret's roof (nobody below sees him there): the north barracks' squad walks its round
+    // past the ladder now, e39 looks down at it from his beat and the men who searched the yard are still on edge — he
+    // comes down when gun 4 goes up and draws them all away (G2)
     // 6) the decoy off: e38 and Patrol 43 back to their beats; both down to the shore and aboard while Patrol 43 walks
     // away west
     if (D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
@@ -604,6 +605,11 @@ function* rungsClear0(D, t0, t1, why, pad, except) {
 /** the turret block's north-west corner, at its foot: a man lying there is out of every cone (with e38 at the decoy) */
 const G3_CORNER = [83.5, 55.5];
 const G3_WEST = [[83.3, 57.5], [83.3, 59.2]];
+/**
+ * where he lies waiting for the climb: a metre north of the corner, out of e32's near band (the corner itself is 18 m
+ * from where e32 turns at the north end of his beat, at its very edge: swept every ~45 s, he saw it there)
+ */
+const G3_WAIT = [83.3, 54.5];
 /** what is left of the crawl down the west wall from (x, z): nothing once he lies a step short of the ladder */
 const westRest = ([x, z]) => (Math.hypot(x - G3_WEST[1][0], z - G3_WEST[1][1]) < 0.8 ? [] : G3_WEST);
 /** from the gap in the wire round the east end of the wire in front of the block, then west along its north face: a
@@ -634,11 +640,11 @@ const retreatCrawl = () => [...[...G3_NORTH_FACE].reverse(), ...[...G3_WIRE_TURN
 async function ladderApproach0(D, role) {
   await moveOpen(D, role, [[...G3_WIRE_END]], { label: `${role} to the end of the wire`, maxWait: 600, hold: 3, fast: 0.95 });
   if (proneAnywhere(D)) {
-    await moveOpen(D, role, [...G3_WIRE_TURN, ...G3_FACE_WALK, ...G3_FACE_CRAWL, [...G3_CORNER]], { label: `${role} round the end of the wire and along the turret's north face`, maxWait: 900, hold: 4, fast: 1.1 });
+    await moveOpen(D, role, [...G3_WIRE_TURN, ...G3_FACE_WALK, ...G3_FACE_CRAWL, [...G3_WAIT]], { label: `${role} round the end of the wire and along the turret's north face`, maxWait: 900, hold: 4, fast: 1.1 });
     return;
   }
   await moveOpen(D, role, [...G3_WIRE_TURN, ...G3_FACE_WALK], { mode: 'walk', label: `${role} round the end of the wire and along the turret's north face`, maxWait: 900, hold: 0.8, pad: 0, slow: 2.1, fast: 2.3, slack: 0.3 });
-  await moveOpen(D, role, [...G3_FACE_CRAWL, [...G3_CORNER]], { label: `${role} to the turret's corner`, maxWait: 120, hold: 4, fast: 0.95 });
+  await moveOpen(D, role, [...G3_FACE_CRAWL, [...G3_WAIT]], { label: `${role} to the turret's corner`, maxWait: 120, hold: 4, fast: 0.95 });
 }
 
 /**
@@ -675,16 +681,19 @@ async function ladderUp(D, role, roofPt, o = {}) {
   w.sneakTurns = true;
   try { return await ladderUp0(D, role, roofPt, o); } finally { w.sneakTurns = t0; }
 }
-async function ladderUp0(D, role, roofPt, { maxSec = 900, bodies = [] } = {}) {
+async function ladderUp0(D, role, roofPt, { maxSec = 900, bodies = [], abort = null } = {}) {
   const u = D.c(role), why = [], low = G3_WEST[G3_WEST.length - 1];
   const stats = {};
-  let lastDbg = D.t;
+  let lastDbg = D.t, aborted = false;
   await D.until(throttle(D, 0.1, () => {
     if (why.length) { const k = why[0].split('@')[0]; stats[k] = (stats[k] || 0) + 1; }
     if (D.t - lastDbg > 60) { lastDbg = D.t; D.log?.(`DBG ladder: waiting ${JSON.stringify(stats)}`); }
     why.length = 0;
+    // (`abort`: where he lies is about to come into sight — he gives the climb up and goes back)
+    if (abort?.()) { aborted = true; return true; }
     return !climbSeen(D, why, 0, [], bodies.filter((b) => !b.bodyNoticed));
   }), maxSec, `${role}: the ladder unwatched`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
+  if (aborted) throw new Error(`${role}: the climb given up (where he lies is about to be seen)`);
   D.log?.(`DBG ladder up at t=${D.t.toFixed(1)}`);
   for (const q of westRest([u.x, u.z])) await D.go(role, ...q, { tol: 0.4, max: 30 });
   const tUp = D.t;
@@ -816,9 +825,9 @@ async function ladderDown0(D, role, { maxSec = 1500 } = {}) {
 /** Charge three is set (the Sapper has none left). */
 const charged = (D) => (D.c('sapper').inventory.get('remoteBomb') ?? 0) === 0;
 /** The Sapper up the ladder and charge three by the turret. */
-async function chargeThree(D, { maxSec = 60, bodies = [] } = {}) {
+async function chargeThree(D, { maxSec = 60, bodies = [], abort = null } = {}) {
   const sap = D.c('sapper');
-  await ladderUp(D, 'sapper', PLANT_G3, { maxSec, bodies });
+  await ladderUp(D, 'sapper', PLANT_G3, { maxSec, bodies, abort });
   await D.face('sapper', PLANT_G3[0] + 2, PLANT_G3[1]);
   D.ability('sapper', 'remoteBomb');
   await D.until(() => (sap.inventory.get('remoteBomb') ?? 0) === 0, 10, 'charge three set');
@@ -834,6 +843,69 @@ async function knife(D, victim, { maxSec = 240, role = 'greenberet' } = {}) {
   await D.until(() => !victim.alive, 8, `${victim.tag} knifed`);
   await D.idle(role, 5);
   await D.stance(role, 'crawl');
+}
+
+/** `fn()` with the walkers' turns as they set off in every prediction (w.sneakTurns, as ladderApproach / climbSeen). */
+function withTurns(D, fn) {
+  const w = D.world, t0 = w.sneakTurns;
+  w.sneakTurns = true;
+  try { return fn(); } finally { w.sneakTurns = t0; }
+}
+/** `fn()` with each walker's leg along the way the game's nav makes him take (w.sneakPaths). */
+function withPaths(D, fn) {
+  const w = D.world, p0 = w.sneakPaths;
+  w.sneakPaths = true;
+  try { return fn(); } finally { w.sneakPaths = p0; }
+}
+/** withTurns for an async `fn` (the predictions it makes while it waits). */
+async function withTurnsA(D, fn) {
+  const w = D.world, t0 = w.sneakTurns;
+  w.sneakTurns = true;
+  try { return await fn(); } finally { w.sneakTurns = t0; }
+}
+
+/**
+ * The spell (s, in 5 s steps up to 30) the corner and the strip down the turret's west wall stay out of every cone, the
+ * walkers' turns included and a band's edge 1.2 m wide. (No further: the walkers' beats foreseen a minute ahead drift —
+ * e32's swing over the ladder's foot came ~10 s off the forecast of a 60 s spell in the game.)
+ */
+function westSpell(D) {
+  let best = 0;
+  for (let h = 5; h <= 30; h += 5) {
+    if (!withTurns(D, () => [G3_CORNER, ...G3_WEST].every((p) => routeClear(D, [p], { mode: 'crawl', from: p, delay: h / 2, slack: h / 2, pad: 1.2 })))) break;
+    best = h;
+  }
+  return best;
+}
+
+/**
+ * The early climb (E6): from the block's corner down to a step short of the ladder for a spell nobody's eyes cross the
+ * strip (westSpell), up the ladder if its window (climbSeen) comes in that spell, else back to the corner before the
+ * spell ends; again at the next spell, for up to `maxSec` s. True once charge three is on the turret.
+ */
+async function earlyClimb(D, { maxSec = 420 } = {}) {
+  const u = D.c('sapper'), t0 = D.t;
+  const back = pathLen(G3_WEST[1], [G3_WEST[0], G3_WAIT]) / 0.8 + 1.5; // (s to crawl back to where he waits)
+  while (D.t - t0 < maxSec) {
+    if (charged(D)) return true;
+    const spell = westSpell(D);
+    if (spell < 20) { await D.wait(1); continue; }
+    const tIn = D.t;
+    const rest = westRest([u.x, u.z]);
+    const lying = !rest.length || await withTurnsA(D, () => moveOpen(D, 'sapper', rest, { label: 'sapper down the turret\'s west wall', maxWait: 2, hold: 6, fast: 1.1 }))
+      .then(() => true, () => false);
+    if (!lying) { await D.wait(1); continue; }
+    const left = spell - (D.t - tIn) - back - 1;
+    // (and given up at once should the way back come into anyone's sight in the time it takes: the walkers' beats
+    // foreseen half a minute ahead drift a little)
+    const abort = throttle(D, 0.25, () => !withTurns(D, () => [G3_WEST[1], G3_WEST[0], G3_WAIT].every((p) => routeClear(D, [p], { mode: 'crawl', from: p, delay: (back + 3) / 2, slack: (back + 3) / 2, pad: 1.2 }))));
+    if (left > 2 && await chargeThree(D, { maxSec: left, abort }).then(() => true, (e) => { D.log?.(`DBG early climb: not in this spell (${e.message.slice(0, 120)})`); return false; })) return true;
+    // (the spell nearly out: back to where he waits, north of the corner)
+    await D.stance('sapper', 'crawl');
+    for (const q of [G3_WEST[0], G3_WAIT]) await D.go('sapper', ...q, { tol: 0.4, max: 20 });
+  }
+  D.log?.(`DBG early climb put off after ${maxSec} s`);
+  return charged(D);
 }
 
 /** A gun's demolition target is destroyed. */
@@ -998,7 +1070,9 @@ async function barrelRun(D, brl, { maxSec = 600 } = {}) {
   const tUp = () => { const a = Math.hypot(BRL_TO[0][0] - gb.x, BRL_TO[0][1] - gb.z) + Math.hypot(BRL_TO[1][0] - BRL_TO[0][0], BRL_TO[1][1] - BRL_TO[0][1]);
     const b = Math.hypot(BRL_UP[0][0] - BRL_TO[1][0], BRL_UP[0][1] - BRL_TO[1][1]) + Math.hypot(BRL_UP[1][0] - BRL_UP[0][0], BRL_UP[1][1] - BRL_UP[0][1]);
     return 0.7 + a / 2.1 + 1.2 + BRL_TURN + b / BRL_SP; };
-  await D.until(throttle(D, 0.2, () => { why.length = 0; return barrelClear(D, brl, 0, why) && dropClear(D, why, tUp()) && dropClear(D, why, tUp() + 1.5); }), maxSec, 'the barrel fetch unwatched')
+  // (each walker along the way the game's nav makes him take — sneakPaths: e42's last steps to the east end of his beat
+  // bend towards its point, and from that bent line, not the straight one, he has the stack in sight)
+  await D.until(throttle(D, 0.2, () => { why.length = 0; return withPaths(D, () => barrelClear(D, brl, 0, why) && dropClear(D, why, tUp()) && dropClear(D, why, tUp() + 1.5)); }), maxSec, 'the barrel fetch unwatched')
     .catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   D.log?.(`DBG barrel fetch at t=${D.t.toFixed(1)}`);
   await D.stance('greenberet', 'stand');
@@ -1006,7 +1080,7 @@ async function barrelRun(D, brl, { maxSec = 600 } = {}) {
   D.ability('greenberet', 'hand', brl);
   await D.until(() => gb.carrying === brl, 10, 'barrel picked up');
   for (const p of BRL_UP) await D.go('greenberet', ...p, { tol: 0.35 });
-  await D.until(() => { why.length = 0; return dropClear(D, why); }, 20, 'the barrel drop unwatched')
+  await D.until(() => { why.length = 0; return withPaths(D, () => dropClear(D, why)); }, 20, 'the barrel drop unwatched')
     .catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   D.log?.(`DBG barrel drop at t=${D.t.toFixed(1)}`);
   for (const p of BRL_OUT) await D.go('greenberet', ...p, { tol: 0.35 });
@@ -1074,6 +1148,29 @@ async function harpoon(D, victim, { maxSec = 60, give = null, hide = 0 } = {}) {
   if (gaveUp) throw new Error(`${victim.tag} got away`);
   D.ability('diver', 'harpoon', victim);
   await D.until(() => !victim.alive, 3, `${victim.tag} harpooned`);
+}
+
+/**
+ * Wait for `body` to be found (§4.6 BODY: the first man to see it runs down, kneels, cries out). A man of `spear` who
+ * comes to it first is speared on his way, before he kneels (the Marine level with him under water); anyone else is
+ * left to find it. Returns once the body is found (or every one of `spear` who came is dead and it lies found).
+ */
+async function firstFinder(D, body, { spear = [], maxSec = 240 } = {}) {
+  const t0 = D.t;
+  const dv = D.c('diver');
+  const pre = (e) => e.brain?.state === 'BODY' && e.brain.goal?.body === body && ['startle', 'go', 'kneel'].includes(e.brain.phase);
+  for (;;) {
+    if (body.bodyNoticed) return;
+    if (D.t - t0 > maxSec) throw new Error(`${body.tag}: never found in ${maxSec} s`);
+    const comer = D.world.enemies.find((e) => e.alive && spear.includes(e.tag) && pre(e));
+    if (!comer) { await D.wait(0.1); continue; }
+    D.log?.(`DBG first finder: ${comer.tag} comes to ${body.tag}: speared on his way`);
+    const meet = waterNear(D, body.x, body.z);
+    if (meet && Math.hypot(dv.x - meet[0], dv.z - meet[1]) > 1.5) D.order('diver', { type: 'move', x: meet[0], z: meet[1] });
+    // (`hide`: where he falls, nobody inside the fortified line finds him first — as for the bait kills)
+    await harpoon(D, comer, { maxSec: 40, hide: 30, give: () => !pre(comer) });
+    if (comer.alive) throw new Error(`${comer.tag} found ${body.tag} before he could be speared`);
+  }
 }
 
 /**

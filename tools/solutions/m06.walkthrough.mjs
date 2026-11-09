@@ -76,7 +76,7 @@ export const WALKTHROUGH = {
     { cp: 'H3', who: 'sapper', look: ['e29'], cones: ['e27', 'e30', 'e29'], say: 'The Sapper follows, the same way.' },
     { cp: 'H4', who: 'greenberet', look: ['e29'], cones: ['e27', 'e30', 'e29'], say: 'The Green Beret comes last, the decoy still holding e27 and e30. He lies down beside the truck\'s way in, along it: lying across it, his feet would stop the truck short.' },
     { cp: 'H5', who: 'sapper', look: ['leopold'], shot: true, cones: [],
-      say: 'With e29 walking away from the north-east corner and e28 looking away, the detonator: the Leopold goes up. The blast wakes the whole base (the mission\'s own alarm) and the truck comes in from the east.',
+      say: 'The decoy goes off; e27 and e30 walk back out of sight of the gun. With nobody watching e21 and e36 far off, the detonator: the Leopold goes up, the base wakes and the truck comes in. Whoever finds e21 calls the base to the gun, not here.',
       beats: [{ on: 'objective:o1', look: ['leopold'], shot: true, hold: 4 }] },
     { cp: 'H6', who: 'sniper', look: ['e34'], cones: ['e34'],
       say: 'The Gatling gunner swings his gun onto the truck: the Sniper shoots him first.',
@@ -84,7 +84,7 @@ export const WALKTHROUGH = {
     { cp: 'H7', who: 'sniper', look: ['e28'], cones: ['e28'],
       say: 'And e28 by the chapel wall before his next glance at the corner: he is the last man who could see the truck\'s stop.' },
     { cp: 'H8', who: ['sniper', 'sapper', 'greenberet'], look: ['evac_truck'], cones: [],
-      say: 'The truck stops by the Gatling; when nobody is looking the three walk over together, climb aboard, and it drives off.' },
+      say: 'The truck stops by the Gatling; when nobody near is looking the three crawl over together (lying down, only a man close by would see them), climb aboard, and it drives off.' },
   ],
   outro: 'Mission complete: the Leopold destroyed and the team away in the truck. e1 knifed and e11 shot on the way in; e21, by the gun, died in the blast; the Gatling gunner and e28 were shot after it: nobody ever saw a commando.',
 };

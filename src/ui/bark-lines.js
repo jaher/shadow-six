@@ -32,6 +32,7 @@ export const GERMAN_LINES = {
   ger_halt: [['Halt!', 'Stop!'], ['Stehen bleiben!', 'Stand still!'], ['Wer da?', 'Who\'s there?'], ['Hände hoch!', 'Hands up!'], ['Keine Bewegung!', 'Don\'t move!']],
   ger_suspicious: [['Was war das?', 'What was that?'], ['Da war doch was…', 'There was something…'], ['Hallo? Ist da jemand?', 'Hello? Anyone there?']],
   ger_giveup: [['Nichts. Nur der Wind.', 'Nothing. Just the wind.'], ['Zurück auf Posten.', 'Back to post.']],
+  ger_startle: [['Was war das?', 'What was that?'], ['Was zum…?!', 'What the…?!'], ['Kamerad?!', 'Comrade?!']],
   ger_mandown: [['Mann am Boden!', 'Man down!'], ['Hier liegt einer!', 'Someone\'s lying here!']],
   ger_alarm: [['Alarm! Alarm!', 'Alarm! Alarm!'], ['Eindringlinge!', 'Intruders!']],
   ger_combat: [['Feuer!', 'Fire!'], ['Da drüben!', 'Over there!']],
@@ -42,7 +43,7 @@ export const GERMAN_LINES = {
   courier: [['Ich hole Verstärkung!', 'I\'ll get reinforcements!']],
 };
 
-const ALIASES = { halt: 'ger_halt', suspicious: 'ger_suspicious', giveup: 'ger_giveup', mandown: 'ger_mandown', alarm: 'ger_alarm', combat: 'ger_combat', arrest: 'ger_arrest', distracted: 'ger_distracted' };
+const ALIASES = { halt: 'ger_halt', suspicious: 'ger_suspicious', giveup: 'ger_giveup', mandown: 'ger_mandown', startle: 'ger_startle', alarm: 'ger_alarm', combat: 'ger_combat', arrest: 'ger_arrest', distracted: 'ger_distracted' };
 
 /** Laconic mode mutes these (§9.4). */
 export const ACK_KEYS = new Set(['select', 'ack_move', 'ack_act']);

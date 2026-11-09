@@ -722,7 +722,9 @@ Common restrictions (spec §3.4 and §4.7, both modes):
   - A DOWNED commando is a **low target**: the prone LOS rules (`B.LOW`) and the deck-edge rule apply.
   - A guard who sees him takes it as a **body found** (BODY state §4.6: alarm through the zone, the patrol rule of
     §4.7). The guard also marks him as an attack target: a guard in ATTACK or ALARM with a line of fire **shoots him**.
-    Any hit kills (the downed rule above), and the mission fails.
+    Any hit kills (the downed rule above), and the mission fails. (Unchanged by the alarmed BODY reaction of 2026-11-09
+    — startle, run, kneel, look round, then the alarm, design-spec §4.6: a downed commando is still the alarm at once,
+    once per downing, plus a target. Its alarm shout carries no body-cry flag, so mates answer it as any alarm.)
   - Guards never carry or capture downed commandos.
   - A carried or dragged downed buddy is `'carried'` (hidden from perception, as today). The guards see the
     transporter carrying a body (§C.9).

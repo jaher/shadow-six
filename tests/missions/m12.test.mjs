@@ -331,7 +331,11 @@ test('m12 fix #4: [8] and [18] leave their posts to look at a body (Prima); stil
   const s = makeSim(M(), {});
   const e18 = s.world.byId('e18');
   e18.brain._startBody({ x: 66, z: 60.5, y: LEVEL.B, kind: 'body' });
-  assert.equal(e18.brain.phase, 'go', 'e18 walks over instead of kneeling at his post');
+  // (§4.6 BODY 2026-11-09: he is startled first — stops, cries out — then goes; it used to be 'go' at once)
+  assert.equal(e18.brain.phase, 'startle', 'startled on sight');
+  e18.brain.pt = CONFIG.ai.body.startle;
+  e18.brain._body();
+  assert.equal(e18.brain.phase, 'go', 'e18 goes over instead of kneeling at his post');
 });
 
 test('m12 fix #7: the Informer carries nothing (guests have only the hand)', () => {

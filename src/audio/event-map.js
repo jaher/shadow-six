@@ -329,7 +329,9 @@ export function installHandlers(a, events) {
   on('enemy:state', (e) => {
     const k = STATE_BARK[e.to];
     if (k) a.say(e.enemy, k);
-    else if ((e.to === 'RETURN' || e.to === 'return') && /SEARCH|INVESTIGATE|TRACKS|search|investigate/.test(e.from || '')) a.say(e.enemy, 'ger_giveup');
+    // ("Nichts. Nur der Wind." — not from a man still alarmed: who found a body, heard a mate's man-down cry or alarm)
+    else if ((e.to === 'RETURN' || e.to === 'return') && /SEARCH|INVESTIGATE|TRACKS|search|investigate/.test(e.from || '')
+      && !e.enemy?.sawBody && !((e.enemy?.alertLevel ?? 0) >= 2)) a.say(e.enemy, 'ger_giveup');
   });
   on('enemy:distracted', (e) => a.say(e.enemy, 'ger_distracted'));
   on('enemy:unmasked-spy', (e) => a.say(e.enemy, 'spy_unmask', { force: true }));

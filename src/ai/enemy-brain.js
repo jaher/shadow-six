@@ -109,6 +109,11 @@ export class EnemyBrain {
     this.goal = null; // {x, z, ...} of INVESTIGATE / DECOY / BODY / TRACKS / SEARCH / ALARM_RUN
     this._trail = null; // {ownerId, t}: the trail last followed in TRACKS (its prints do not restart TRACKS)
     this.searchPts = null;
+    /** SEARCH length (s) and weapon up while looking: a body's alarmed search (CONFIG.ai.body.search), else §4.6's 20 s */
+    doubleFields(this, CONFIG.ai.search.time, 'searchT');
+    this.searchArmed = true; this.searchArmed = false; // (a field that changes: core/shapes.js)
+    /** Bodies this man has found himself (§4.6 BODY: his next one is a second body — "Alarm!" at once) */
+    this.bodiesFound = 1; this.bodiesFound = 0;
     this.noiseTurnT = 0; // holdsPost: sweep re-centred on a noise (§4.4) for 8 s
     /** SHADOW SIX smooth turn on the spot {h: bearing (rad), w: angular speed (rad/s), head: sweep held} | null (_turnTo). */
     this.turn = null;
@@ -193,6 +198,8 @@ export class EnemyBrain {
       e.idleAnim = 'idle';
     }
     if ((from === 'CHALLENGE' || from === 'HOLD') && state !== 'CHALLENGE' && state !== 'HOLD') this._refreshHeld(this.target);
+    // leaving BODY (done, or broken off: a commando seen, hurt, killed) frees the body he claimed for the next finder
+    if (from === 'BODY' && this.goal?.body?._claimedBy === e) this.goal.body._claimedBy = null;
     if (state === 'IDLE' || state === 'REINFORCE' || state === 'RETURN') { this.target = null; e.target = null; }
     this._updateAlert();
     this.world?.events.emit('enemy:state', { enemy: e, from, to: state });
@@ -311,6 +318,9 @@ export class EnemyBrain {
     if (!this._preNoise || now - this._preNoise.t > NOISE_WITNESS_DELAY) this._preNoise = { t: now, cone: coneAt(e, now) };
     // §4.3: the run to a wounded comrade's shooter is not redirected by lesser noises (e.g. the comrade's own shots)
     if (this.state === 'INVESTIGATE' && this.phase === 'go' && this.goal?.priority === 'wounded' && lvl <= 2) return;
+    // a mate's cry about a body (_startBody's startled cry, the man-down cry, the alarm he raises over it): he turns to
+    // it and is on edge too (_bodyNerves); an investigator comes to look and then searches round the body (_investigate)
+    const cry = !!n.body && n.source !== e && n.source?.faction === e.faction;
     if (e.flags.holdsPost || this.arch.script === 'crew' || this.arch.script === 'gunner' || e.soldierType === 'mg' || !e.flags.investigates) {
       // §4.4 holdsPost: turn to face it; the sweep re-centres on it for 8 s
       // an MG gunner turns only as far as his gun traverses (replay m01: e13 faced behind his nest for 8 s,
@@ -325,15 +335,50 @@ export class EnemyBrain {
       this.noiseTurnT = CONFIG.ai.noiseTurnHold;
       if (lvl >= 2) { this.alertT = CONFIG.ai.noiseTurnHold; this.alertBoost = lvl >= 3 ? 2 : 1; }
       if (lvl >= 3) this.combatReady = true;
+      if (cry) this._bodyNerves(lvl);
       this._updateAlert();
       return;
     }
     if (n.kind === 'decoy') return this._startDecoy(n);
     if (lvl >= 3) { this.alertT = CONFIG.ai.investigate.look + 10; this.alertBoost = 2; }
+    if (cry) return this._hearBodyCry(n, lvl);
     // investigating already, a mate's noise close by (his shot within 8 m: he sees who fired) gives him nowhere new to
     // go: he keeps on (re-aiming at it turned him round on the spot: a file stalled where its own shots kept turning it)
     if (this.state === 'INVESTIGATE' && n.source?.faction === e.faction && hypot2(n.x - e.x, n.z - e.z) <= CONFIG.ai.investigate.mateShot) return;
     this._startInvestigate(n.x, n.z, lvl >= 3 ? CONFIG.ai.investigate.runSpeed : CONFIG.ai.investigate.speed);
+  }
+
+  /**
+   * An investigator hears a mate's cry about a body (§4.6 BODY). The startled cry: he turns to it and looks that way where
+   * he stands (then goes on with his round). "Man down" or the alarm: on edge (_bodyNerves), he comes at a run (his path
+   * turns him), and his look round there done, searches round the body (the cry carries where it lies: `about`). Already
+   * coming to that body, a further cry about it only hurries him on.
+   */
+  _hearBodyCry(n, lvl) {
+    const e = this.enemy, g = this.goal, B = CONFIG.ai.body, at = n.about ?? { x: n.x, z: n.z };
+    this._bodyNerves(lvl);
+    if (lvl < 2) {
+      if (this.state === 'INVESTIGATE' && (g?.bodyAt || g?.stay)) return; // (coming already, or looking that way)
+      return this._startInvestigate(n.x, n.z, CONFIG.ai.investigate.speed, { turnFirst: true, stay: true });
+    }
+    if (this.state === 'INVESTIGATE' && g?.bodyAt && hypot2(g.bodyAt.x - at.x, g.bodyAt.z - at.z) <= 2) {
+      if (g.speed < B.run) { g.speed = B.run; if (this.phase === 'go' && !g.later) this._go(g.x, g.z, g.speed); }
+      return;
+    }
+    this._startInvestigate(n.x, n.z, B.run, { bodyAt: at });
+  }
+
+  /**
+   * On edge after a mate's cry about a body (§4.6 BODY, CONFIG.ai.body): alert level 2 (1 for the startled cry alone) for
+   * alertHold s, and — once he hears "man down" or the alarm — nervousness 20·T, so a commando he sees is challenged at
+   * once while it decays (~47.5 s, §4.5).
+   */
+  _bodyNerves(lvl) {
+    const e = this.enemy, B = CONFIG.ai.body;
+    this.alertT = Math.max(this.alertT, B.alertHold);
+    this.alertBoost = Math.max(this.alertBoost, lvl >= 2 ? 2 : 1);
+    if (lvl >= 2) e.nervousness = Math.max(e.nervousness, B.nervous * e.nervThreshold);
+    this._updateAlert();
   }
 
   /** Running-step suspicion now (decayed since the last step heard). */
@@ -550,7 +595,8 @@ export class EnemyBrain {
     }
     e.nervousness = Math.min(N, held);
     if (before !== e.nervousness) this._updateAlert();
-    if (pick && e.nervousness >= T && !AWARE.has(this.state) && this.state !== 'BODY') this._enterChallenge(pick);
+    // (a man busy with a body too — CARISMA: watching 400 over the search 300)
+    if (pick && e.nervousness >= T && !AWARE.has(this.state)) this._enterChallenge(pick);
   }
 
   /** Commando seen killing / boarding recently (director stamps unit._deedT). */
@@ -657,7 +703,14 @@ export class EnemyBrain {
       if (this.arch.script === 'courier') return this._startAlarmRun(u.x, u.z);
       if (this.arch.script === 'engineer') return this._scriptAlarm(u.x, u.z);
       if (u._claimedBy && u._claimedBy !== e && u._claimedBy.alive) { e.sawBody = true; continue; }
-      if (CALM.has(this.state) && this.state !== 'BODY') return this._startBody(u);
+      // busy with one body, he sees another elsewhere: no more looking about, "Alarm!" now (BEL: several bodies are an
+      // alarm; men who fell together, within body.scene m of his, are one find)
+      if (this.state === 'BODY') {
+        const b0 = this.goal?.body;
+        if (b0 && u !== b0 && !this.goal.shouted && this.arch.alarms && hypot2(u.x - b0.x, u.z - b0.z) > CONFIG.ai.body.scene) this._raiseBodyAlarm(u);
+        continue;
+      }
+      if (CALM.has(this.state)) return this._startBody(u);
     }
     if (CALM.has(this.state) && this.state !== 'INVESTIGATE') {
       const hurt = this._woundedComrade(res.cone);
@@ -780,19 +833,23 @@ export class EnemyBrain {
     }
   }
 
-  _shout(kind, line, about = null) {
+  /**
+   * A shouted line (bark) and its noise. `about`: what it is about (zone `ignoreFrom`); `body`: a cry about a body found
+   * (§4.6 BODY) — mates who hear it are on edge and search round it (_reactNoise).
+   */
+  _shout(kind, line, about = null, body = false) {
     const e = this.enemy, w = this.world;
     const N = CONFIG.stealth.noise[kind];
     this.shoutT = w.time;
     w.events.emit('bark', { unit: e, line });
-    if (N) w.emitNoise(e.x, e.z, N.radius, kind, e, undefined, about ? { about } : null);
+    if (N) w.emitNoise(e.x, e.z, N.radius, kind, e, undefined, about ? (body ? { about, body: true } : { about }) : null);
   }
 
-  /** "Alarm!" (ger_alarm): alarmShout noise (level 3, 36 m) + the shouter's zone event (§4.9). */
-  _alarmShout(cause, x, z) {
+  /** "Alarm!" (ger_alarm): alarmShout noise (level 3, 36 m) + the shouter's zone event (§4.9). `body`: see _shout. */
+  _alarmShout(cause, x, z, body = false) {
     if (!this.arch.alarms) return;
     const at = { x: x ?? this.enemy.x, z: z ?? this.enemy.z };
-    this._shout('alarmShout', 'ger_alarm', at); // the noise carries what it is about (zone `ignoreFrom`, M18 islands)
+    this._shout('alarmShout', 'ger_alarm', at, body); // the noise carries what it is about (zone `ignoreFrom`, M18 islands)
     this._raiseZone(cause, at.x, at.z);
   }
 
@@ -1217,44 +1274,127 @@ export class EnemyBrain {
   }
   // ------------------------------------------------------------ BODY (§4.6, §4.7)
 
+  /**
+   * A mate's body seen (§4.6 BODY, CONFIG.ai.body; user 2026-11-09 "act a bit more alarmed … eventually raise the alarm
+   * like in the original"). Phases: 'startle' — he stops dead, cries out (ger_startle + the level-1 'startle' noise: mates
+   * in earshot turn to it), turns to the body, weapon up; 'go' — he runs to it (a post stays where he stands); 'kneel' —
+   * he kneels over it, then cries "man down"; 'look' — on his feet, weapon raised, he turns about; then "Alarm!" (his
+   * zone's event, §4.9) and an alarmed SEARCH round the body. A patrol member (§4.7), a second body or a body seen while
+   * the alarm is up shout "Alarm!" at once instead of the startled cry. He stays on edge: alert level 2 for alertHold s,
+   * sawBody for good, and from his alarm on nervousness 20·T (a commando he sees is challenged at once).
+   */
   _startBody(body) {
     const e = this.enemy, w = this.world;
     e.sawBody = true;
     body._claimedBy = e;
-    this.goal = { body, x: body.x, z: body.z };
+    const h0 = angleTo(e.x, e.z, body.x, body.z);
+    this.goal = { body, x: body.x, z: body.z, shouted: false, h0, lk: -1 };
     e.lastSeen = { target: body, x: body.x, z: body.z, t: w.time };
-    this._set('BODY', 'go');
+    if (e.isMoving) e.stop();
+    this._set('BODY', 'startle');
     this._look(0);
-    // a patrol member finding a body raises the alarm immediately (§4.7)
-    if (isPatrolMember(e)) { this.goal.shouted = true; this._alarmShout('body', body.x, body.z); }
-    if (e.flags.holdsPost || !e.flags.investigates) { this.phase = 'kneel'; this._turnTo(angleTo(e.x, e.z, body.x, body.z)); }
-    else this._go(body.x, body.z, CONFIG.ai.investigate.speed);
+    this._turnTo(this._clampTraverse(h0)); // (he turns to it on the spot: SHADOW SIX smooth turn)
+    e.idleAnim = 'aim'; // weapon up
+    this._bodyEdge();
+    // escalation (§4.7 patrol member; a second body; the alarm already up): "Alarm!" now
+    // (a second body: he has found one himself before — BEL's per-man "has seen a body" memory, not a body found by
+    // someone across the map he never knew of)
+    const esc = isPatrolMember(e) || w.alarm?.lamp || this.bodiesFound > 0;
+    if (esc && this.arch.alarms) {
+      this._raiseBodyAlarm(body);
+      if (!this._bodyPost()) this.pt = CONFIG.ai.body.startle; // (no frozen moment: the alarm cried, he is off to it at once)
+    } else this._shout('startle', 'ger_startle', { x: body.x, z: body.z }, true);
+  }
+
+  /**
+   * On edge after a body (finder): alert level 2 for alertHold s; `nervous` (once he has raised the alarm): his
+   * nervousness jumps to body.nervous·T as well. While he deals with the body he is not yet jumpy — sawBody's bonus
+   * only (§4.5): the player's window to silence him.
+   */
+  _bodyEdge(nervous = false) {
+    const e = this.enemy, B = CONFIG.ai.body;
+    this.alertT = Math.max(this.alertT, B.alertHold);
+    this.alertBoost = 2;
+    if (nervous) e.nervousness = Math.max(e.nervousness, B.nervous * e.nervThreshold);
+    this._updateAlert();
+  }
+
+  /** "Alarm!" over a body (once per finding): the alarm shout (a body cry) and his zone's event (§4.9); nervous from now. */
+  _raiseBodyAlarm(b) {
+    const g = this.goal;
+    if (g) g.shouted = true;
+    this._alarmShout('body', b.x, b.z, true);
+    this._bodyEdge(true);
+  }
+
+  /** A post (or a man riding) takes a body in where he stands: no run, no kneel. */
+  _bodyPost() {
+    const e = this.enemy;
+    return e.flags.holdsPost || !e.flags.investigates || e.state === 'inVehicle';
   }
 
   _body() {
     const e = this.enemy, w = this.world, g = this.goal, B = CONFIG.ai.body;
     const b = g.body;
-    if (this.phase === 'go') {
-      if (this._dist(b) <= B.arrive + 0.1 || (!e.isMoving && this.pt > 0.2)) { e.stop(); this.phase = 'kneel'; this.pt = 0; this._turnTo(angleTo(e.x, e.z, b.x, b.z)); e.playAction('use', B.kneel); }
-      return;
-    }
-    if (this.phase === 'kneel' && this.pt >= B.kneel) {
-      b.bodyNoticed = true;
-      b.discovered = true;
-      // (the cry carries where the body lies, as the alarm shout does: a zone that `ignoreFrom`s the place — M18's islands,
-      // whose cries reach no one — is not tripped by a bank guard's "man down!" about a body lying there)
-      this._shout('mandown', 'ger_mandown', { x: b.x, z: b.z });
-      w.events.emit('enemy:body-found', { enemy: e, body: b });
-      this.onBodyFound(b);
-      this.phase = 'shout';
+    const post = this._bodyPost();
+    if (this.phase === 'startle') {
+      if (this.pt < B.startle) return;
+      if (post) return this._bodyFound();
+      this.phase = 'go';
       this.pt = 0;
+      this._go(b.x, b.z, B.run);
       return;
     }
-    if (this.phase === 'shout' && this.pt >= B.alarmDelay) {
-      if (!g.shouted) this._alarmShout('body', b.x, b.z);
-      b._claimedBy = null;
-      this._startSearch();
+    if (this.phase === 'go') {
+      if (this._dist(b) <= B.arrive + 0.1 || (!e.isMoving && this.pt > 0.2)) {
+        e.stop();
+        this.phase = 'kneel';
+        this.pt = 0;
+        g.h0 = angleTo(e.x, e.z, b.x, b.z);
+        this._turnTo(g.h0);
+        e.playAction('use', B.kneel);
+      }
+      return;
     }
+    if (this.phase === 'kneel') {
+      if (this.pt >= B.kneel) this._bodyFound();
+      return;
+    }
+    // 'look': on his feet, weapon raised, turning about — over each shoulder, then behind him (lookTurns). A post scans
+    // from his post instead: his head (the cone) sweeps wide round the body's bearing, as in his SEARCH
+    if (post) {
+      e.sweepActive = false;
+      e.headOffset = CONFIG.ai.investigate.lookSweep * DEG * Math.sin((2 * Math.PI * this.pt) / B.look);
+    } else {
+      const T = B.lookTurns, k = Math.min(T.length - 1, Math.floor((this.pt * T.length) / B.look));
+      if (g.lk < k) {
+        g.lk = k;
+        this._turnTo(this._clampTraverse(g.h0 + T[k] * DEG));
+      }
+    }
+    if (e.idleAnim !== 'aim') e.idleAnim = 'aim';
+    if (this.pt < B.look) return;
+    if (!g.shouted && this.arch.alarms) this._raiseBodyAlarm(b);
+    this._bodyEdge(true); // (renewed: alert and nervous from now on, through the search)
+    if (b._claimedBy === e) b._claimedBy = null;
+    this._startSearch({ x: b.x, z: b.z }, { alarmed: true });
+  }
+
+  /** Kneeling done (or a post that has taken it in): the body is found — "man down", then the look round. */
+  _bodyFound() {
+    const e = this.enemy, w = this.world, g = this.goal, b = g.body;
+    b.bodyNoticed = true;
+    b.discovered = true;
+    this.bodiesFound++;
+    // (the cry carries where the body lies, as the alarm shout does: a zone that `ignoreFrom`s the place — M18's islands,
+    // whose cries reach no one — is not tripped by a bank guard's "man down!" about a body lying there)
+    this._shout('mandown', 'ger_mandown', { x: b.x, z: b.z }, true);
+    w.events.emit('enemy:body-found', { enemy: e, body: b });
+    this.onBodyFound(b);
+    this.phase = 'look';
+    this.pt = 0;
+    g.lk = -1;
+    e.idleAnim = 'aim';
   }
 
   // ------------------------------------------------------------ INVESTIGATE / DECOY / TRACKS
@@ -1281,6 +1421,7 @@ export class EnemyBrain {
     if (g?.later) { this._goInvestigate(g.x, g.z, g.speed); return; } // (still waiting his turn to set off: _goInvestigate)
     if (this.phase === 'turn') { // turning round to the sound on the spot (running steps): then he walks over
       if (this.turn) return;
+      if (g?.stay) { this.phase = 'look'; this.pt = 0; return; } // (a mate's startled cry: he looks that way from here)
       this.phase = 'go';
       this.pt = 0;
       this._goInvestigate(g.x, g.z, g.speed);
@@ -1292,6 +1433,7 @@ export class EnemyBrain {
         e.stop();
         this.phase = 'look';
         this.pt = 0;
+        if (g?.bodyAt) e.idleAnim = 'aim'; // (a mate's body cry: he looks round with his weapon up)
         this.world.events.emit('bark', { unit: e, line: 'ger_suspicious' });
       }
       return;
@@ -1302,6 +1444,8 @@ export class EnemyBrain {
     if (this.pt >= I.look) {
       // runningNoise: many steps heard → search around the last one instead of going home
       if (g?.steps && g.search) return this._startSearch({ x: g.x, z: g.z });
+      // a mate's cry about a body → search round the body, weapon up (§4.6 BODY: no "just the wind" and home)
+      if (g?.bodyAt) return this._startSearch(g.bodyAt, { alarmed: true });
       this._set('RETURN');
     }
   }
@@ -1437,14 +1581,20 @@ export class EnemyBrain {
   }
   // ------------------------------------------------------------ SEARCH / RETURN / DISTRACTED
 
-  /** SEARCH (§4.6): 3 seeded random points within 8 m of lastSeen, 2 s look at each, 20 s total. */
-  _startSearch(centre = null) {
-    const e = this.enemy, w = this.world, S = CONFIG.ai.search;
+  /**
+   * SEARCH (§4.6): 3 seeded random points within 8 m of lastSeen, 2 s look at each, 20 s total. `alarmed` (round a body,
+   * §4.6 BODY): CONFIG.ai.body.search's longer search over more points, weapon up while he looks.
+   */
+  _startSearch(centre = null, { alarmed = false } = {}) {
+    const e = this.enemy, w = this.world, S = alarmed ? { ...CONFIG.ai.search, ...CONFIG.ai.body.search } : CONFIG.ai.search;
     const t = this.target;
     this._set('SEARCH', 'go');
     this.target = null;
     e.target = null;
     if (t) this._refreshHeld(t);
+    this.searchT = S.time;
+    this.searchArmed = alarmed;
+    if (alarmed) e.idleAnim = 'aim';
     const c = centre || e.lastSeen || { x: e.x, z: e.z };
     this.searchPts = [];
     if (e.flags.holdsPost || e.soldierType === 'mg' || e.state === 'inVehicle') { this.searchPts = []; this.phase = 'look'; return; }
@@ -1468,7 +1618,8 @@ export class EnemyBrain {
 
   _search() {
     const e = this.enemy, S = CONFIG.ai.search;
-    if (this.t >= S.time) return this._set('RETURN');
+    if (this.t >= this.searchT) return this._set('RETURN');
+    if (this.searchArmed && e.idleAnim !== 'aim') e.idleAnim = 'aim'; // (an alarmed search: weapon up while he looks)
     if (this.phase === 'go') {
       if (e.isMoving && this.pt < 15 && !this._nearFire()) return;
       e.stop();
@@ -1662,13 +1813,15 @@ export class EnemyBrain {
     return true;
   }
   /**
-   * INVESTIGATE (x, z) at `speed`. turnFirst (running steps): he stops, turns round to it on the spot, then walks over
-   * (phase 'turn' → 'go').
+   * INVESTIGATE (x, z) at `speed`. turnFirst (running steps, a mate's body cry): he stops, turns round to it on the spot,
+   * then walks over (phase 'turn' → 'go'). bodyAt {x, z}: a mate's cry about a body lying there — his look round done,
+   * he searches round it (an alarmed search: _startSearch) instead of going back. stay: he only turns to it and looks
+   * that way where he stands (phase 'turn' → 'look'; a mate's startled cry).
    */
-  _startInvestigate(x, z, speed = CONFIG.ai.investigate.speed, { turnFirst = false } = {}) {
+  _startInvestigate(x, z, speed = CONFIG.ai.investigate.speed, { turnFirst = false, bodyAt = null, stay = false } = {}) {
     const e = this.enemy;
     this._set('INVESTIGATE', turnFirst ? 'turn' : 'go');
-    this.goal = { x, z, speed };
+    this.goal = bodyAt ? { x, z, speed, bodyAt: { x: bodyAt.x, z: bodyAt.z } } : stay ? { x, z, speed, stay: true } : { x, z, speed };
     this._look(0);
     if (turnFirst) {
       e.stop();
@@ -2133,7 +2286,7 @@ export class EnemyBrain {
       state: this.state, idleState: this.idleState, phase: this.phase, t: this.t, pt: this.pt,
       routeIndex: this.routeIndex, routeDir: this.routeDir, waitT: this.waitT, atWait: this.atWait,
       targetId: ref(this.target), anchor: this.anchor, aimT: this.aimT, fireT: this.fireT, lostT: this.lostT,
-      goal: g, searchPts: this.searchPts, noiseTurnT: this.noiseTurnT, alertT: this.alertT, alertBoost: this.alertBoost,
+      goal: g, searchPts: this.searchPts, searchT: this.searchT, searchArmed: this.searchArmed, bodiesFound: this.bodiesFound, noiseTurnT: this.noiseTurnT, alertT: this.alertT, alertBoost: this.alertBoost,
       glanceT: this.glanceT, routeVel: this.routeVel, routeType: this._routeType ?? null, loopStart: this._loopStart ?? null,
       committedRun: !!this._committedRun, route: this.idleState === 'REINFORCE' ? this.enemy.route : null, distractedBy: ref(this.distractedBy),
       wanderT: this.wanderT, stuckRef: this._stuckRef ? { ...this._stuckRef } : null, // §4.6 panic unstick (§10.5 replay)
@@ -2152,7 +2305,8 @@ export class EnemyBrain {
     const w = this.world;
     const byId = (id) => (id != null ? w?.byId(id) ?? null : null);
     for (const k of ['state', 'idleState', 'phase', 't', 'pt', 'routeIndex', 'routeDir', 'waitT', 'atWait', 'anchor', 'aimT',
-      'fireT', 'lostT', 'searchPts', 'noiseTurnT', 'alertT', 'alertBoost', 'glanceT', 'routeVel', 'wanderT']) if (d[k] !== undefined) this[k] = d[k];
+      'fireT', 'lostT', 'searchPts', 'searchT', 'bodiesFound', 'noiseTurnT', 'alertT', 'alertBoost', 'glanceT', 'routeVel', 'wanderT']) if (d[k] !== undefined) this[k] = d[k];
+    this.searchArmed = !!d.searchArmed;
     if (!BRAIN_STATES.includes(this.state) && !BCD_BRAIN_STATES.includes(this.state)) this.state = 'IDLE'; // placeholder-brain saves (lowercase states)
     if (!this.idleState) this.idleState = 'IDLE';
     this._routeType = d.routeType ?? undefined;

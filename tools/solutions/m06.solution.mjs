@@ -200,6 +200,9 @@ const PASSAGE = [[108.3, 35.3], [109.3, 34.3], [112, 34.3], [114.5, 34.3], [116.
  * The man at the ruin's corner sets off along the wall as e29 comes up to it.
  */
 const E29_TURN = [104, 20];
+/** The blast waits for e36 to be at least this far (m) from the Gatling: nearer (the north edge's east end, 37 m) he would
+ *  see its gunner's body as he turns to the blast — from 2026-11-09 a man who finds a body runs to it, in view of the truck. */
+const E36_CLEAR = 39;
 
 /**
  * One man along the south edge: while the armoured car stands at its west turn-round, more than 50 m off (its far
@@ -405,22 +408,34 @@ export const STAGES = [
     D.checkpoint('H3 the Sapper follows him into the corner');
     await toCorner(D, 'greenberet', NE_CORNER);
     D.checkpoint('H4 the Green Beret comes last, the decoy still holding e27 and e30');
+    // the decoy off again before the blast (§4.6 BODY, 2026-11-09: a guard who finds a mate's body while the alarm is up
+    // cries "Alarm!" where he stands, and every man in earshot runs to him, on edge). Staring at the decoy from its east
+    // stand, e30 would find e21's body the moment the gun goes up and e27 beside him would see e21 fall: the alarm up at
+    // once, and the base running to the decoy, in sight of the Gatling and the truck's stop. Back on their beats neither
+    // sees the gun: nobody sees e21 fall, and the first man to find his body, before the mission's alarm, runs down to
+    // it and cries out there — he calls the base to the gun, away from the truck
+    D.ability('greenberet', 'decoyToggle');
+    await D.until(() => [e27, e30].every((e) => e.brain.state !== 'DECOY'), 30, 'e27 and e30 give the decoy up');
     // the charge: the base wakes (the forced alarm: the blast brings everyone out) and the truck comes in from the east,
     // fired while the camp patrol p3 is at the far west end of its beat (woken there, it runs off south-west, nowhere
     // near the truck's stop; from its east end it comes this way), with e29 facing away from the corner (woken, his
     // eyes reach 22 m and more), and in a gap of e28's sweep (the Sniper rises to his knee to aim, which a man lying
     // there does not get away with, and e28 by the chapel wall, who overlooks the corner and the truck's stop, glances
-    // at it every 2.7 s)
+    // at it every 2.7 s). And nobody sees e21 fall (a witness raises the alarm with the blast), and e36 is off the
+    // east end of his beat along the north edge: from there (37 m) he would find the Gatling gunner's body and run in
     const p3 = ['e23', 'e24', 'e25'].map((t) => D.get(t)), e34 = D.get('e34'), e28 = D.get('e28'), e29 = D.get('e29'), why = [];
+    const e21 = D.get('e21'), sa = D.c('sapper'), e36 = D.get('e36');
     const kneel = () => dummyAt(D.world, 'walk', sn.x, sn.z);
     const clearOf = (e, T) => { const d = kneel(); for (let t = 0; t <= T; t += 0.05) if (staticSees(e, d, D.world, t)) return false; return true; };
     await D.until(() => {
       why.length = 0;
       if (!p3.every((e) => !e.alive || e.x < 60)) return false;
       if (e29.brain.routeIndex === 0) return false; // (on his way up to the loop's north end, or there: facing the corner)
+      if (Math.hypot(e36.x - e34.x, e36.z - e34.z) < E36_CLEAR) return false;
       if (!clearOf(e28, 2.1)) return dbg(D, ['e28 glance'], 'the blast');
+      if (!unwitnessed(D, e21, sa, { ahead: 0.6, strict: true, why })) return dbg(D, why, 'the blast (e21 seen)');
       return routeClear(D, [[sn.x, sn.z]], { mode: 'walk', from: [sn.x, sn.z], hold: 3.0, slack: 0.5, except: [e34, e28], why }) || dbg(D, why, 'the blast');
-    }, 300, 'the camp patrol at its west end, e29 facing away, nobody looking at the Sniper');
+    }, 600, 'the camp patrol at its west end, e29 facing away, e36 off east, nobody looking at the Sniper or e21');
     D.ability('sapper', 'detonate');
     await D.until(() => D.world.objectives.find((o) => o.id === 'o1').done, 5, 'the Leopold goes up');
     D.checkpoint('H5 the Sapper fires the charge: the Leopold is destroyed');
@@ -435,25 +450,30 @@ export const STAGES = [
     D.checkpoint('H7 the Sniper shoots e28 by the chapel wall, the last man who overlooks the corner and the truck\'s stop');
     const truck = () => D.world.byId('evac_truck');
     await D.until(() => { const v = truck(); return v && (v.speed || 0) < 0.1 && Math.hypot(v.x - 112, v.z - 6) < 2; }, 40, 'the truck stops');
-    // all three at once (the base is up and its men are on their way), when nobody will see them walk to the door
+    // all three at once (the base is up and its men are on their way), crawling, when nobody near will see them
     await toTruck(D, ['greenberet', 'sapper', 'sniper'], truck(), ctx);
     await D.until(() => D.world.objectives.find((o) => o.id === 'o2').done, 40, 'everyone aboard');
-    D.checkpoint('H8 the truck stops by the Gatling: all three climb aboard and it drives off');
+    D.checkpoint('H8 the truck stops by the Gatling: all three crawl over to it, climb aboard, and it drives off');
   }],
 ];
 
-/** The men walk to the truck's door together and climb in, once nobody will see any of them on the way or at it. */
+/**
+ * The men crawl to the truck's door together and climb in (a man lying down boards a lorry from his crawl: drive.js
+ * enterVehicle), once nobody near will see any of them on the way or at it. Lying down they are seen only from the near
+ * band (§4.2): on their feet, the woken base's searchers — round the Gatling gunner's body by the stop, alarmed, quick to
+ * challenge — saw them walk over from 36 m (2026-11-09).
+ */
 async function toTruck(D, roles, v, ctx) {
   const why = [];
   await D.until(() => {
     why.length = 0;
     return roles.every((role) => {
-      const u = D.c(role), bp = (ctx.boardPoint ?? boardPoint)(v, u), L = Math.hypot(bp.x - u.x, bp.z - u.z);
-      return routeClear(D, [[bp.x, bp.z]], { mode: 'walk', from: [u.x, u.z], speed: 1.8, delay: 0.8, hold: 1.5 + L / 2.25, slack: 1.0, why });
+      const u = D.c(role), bp = (ctx.boardPoint ?? boardPoint)(v, u);
+      return routeClear(D, [[bp.x, bp.z]], { mode: 'crawl', from: [u.x, u.z], speed: 0.85, delay: 0.3, hold: 3.0, slack: 1.0, why });
     }) || dbg(D, why, 'to the truck');
   }, 60, 'the way to the truck unwatched');
-  for (const role of roles) { await D.stance(role, 'stand'); D.ability(role, 'enterVehicle', v); }
-  await D.until(() => roles.every((r) => D.c(r).vehicle === v), 30, 'all aboard');
+  for (const role of roles) D.ability(role, 'enterVehicle', v);
+  await D.until(() => roles.every((r) => D.c(r).vehicle === v), 40, 'all aboard');
 }
 
 /**

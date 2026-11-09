@@ -115,6 +115,9 @@ export const LINES = Object.freeze({
     ger_suspicious: L(R('Was war das?', 'was_war_das', 'What was that?'), ['Da war doch was…', 'There was something…'], ['Hallo? Ist da jemand?', 'Hello? Anyone there?'],
       ['Spuren… frische Spuren.', 'Tracks… fresh tracks.'], ['Was piept da?', "What's beeping?"]),
     ger_giveup: L(['Nichts. Nur der Wind.', 'Nothing. Just the wind.'], ["Ich seh' schon Gespenster.", "I'm seeing ghosts."], ['Zurück auf Posten.', 'Back to post.']),
+    // a guard who has just seen a mate's body (enemy-brain _startBody): startled, before he runs over — the recorded
+    // "Was war das?" take with a pack, the others as subtitles / placeholder voice without one
+    ger_startle: L(R('Was war das?', 'was_war_das', 'What was that?'), ['Was zum…?!', 'What the…?!'], ['Kamerad?!', 'Comrade?!'], ['Mein Gott…', 'My God…']),
     ger_mandown: L(R('Achtung!', 'achtung', 'Look out!'), ['Mann am Boden!', 'Man down!'], ['Hier liegt einer!', "Someone's lying here!"], ['Sanitäter!', 'Medic!']),
     ger_alarm: L(R('Alarm!', 'alarm', 'Alarm!'), R('Da ist jemand!', 'da_ist_jemand', "Someone's there!"), ['Alarm! Alarm!', 'Alarm! Alarm!'], ['Eindringlinge!', 'Intruders!'], ['Sie sind hier!', "They're here!"]),
     ger_combat: L(R('Feuer!', 'feuer', 'Fire!'), R('Achtung!', 'achtung', 'Look out!'), ['Da drüben!', 'Over there!'], ['Schießt doch!', 'Shoot!']),
@@ -158,6 +161,7 @@ export const RULES = Object.freeze({
   alarm: { cd: 20, global: 20, prio: 3, sub: true }, special: { cd: 2, prio: 2, sub: true },
   ger_halt: { cd: 4, global: 0.6, prio: 3, sub: true }, ger_suspicious: { cd: 6, global: 1.5, prio: 2, sub: true },
   ger_giveup: { cd: 8, global: 2, prio: 1, sub: true }, ger_mandown: { cd: 6, global: 1, prio: 4, sub: true },
+  ger_startle: { cd: 6, global: 1, prio: 4, sub: true },
   ger_alarm: { cd: 5, global: 1.2, prio: 4, sub: true }, ger_combat: { cd: 4, global: 1, prio: 3, sub: true },
   ger_arrest: { cd: 5, global: 1, prio: 3, sub: true }, ger_distracted: { cd: 6, prio: 1, sub: true },
   spy_unmask: { cd: 5, prio: 5, sub: true }, ger_hurt: { cd: 1.5, prio: 4, sub: false }, ger_death: { cd: 0, prio: 6, sub: false },

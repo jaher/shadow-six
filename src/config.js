@@ -202,6 +202,10 @@ export const CONFIG = {
       decoy: { level: 1, radius: 13.5, pulse: 1.5 },
       halt: { level: 2, radius: 18 },
       mandown: { level: 2, radius: 18 },
+      // SHADOW SIX: the startled cry of a guard who has just seen a mate's body (enemy-brain _startBody, ai.body.startle).
+      // Level 1: comrades in earshot turn to it (posts) or turn and come to look (investigators); below zoneHeardLevel, so
+      // it trips no zone (the alarm comes later, from the man-down cry and the alarm shout)
+      startle: { level: 1, radius: 13.5 },
       alarmShout: { level: 3, radius: 36 },
       bark: { level: 2, radius: 18 },
       spyUnmask: { level: 1, radius: 9 },
@@ -267,7 +271,29 @@ export const CONFIG = {
     // squad follower speed controller (playtest: the M1 south patrol pair stuttered and walked through each other):
     // leader pace + braking catch-up to the slot, accel-limited; never closer than minGap to a mate ahead
     squadFollow: { catchUp: 1.5, accel: 1.5, decel: 2.5, gain: 1.5, arrive: 0.06, stop: 0.12, minWalk: 0.4, lookahead: 0.7, minGap: 0.9, gapGain: 3, gapHyst: 0.35, startT: 0.25 },
-    body: { arrive: 1.5, kneel: 1.0, alarmDelay: 1.0 }, // §4.6 BODY
+    // §4.6 BODY, the alarmed reaction to a mate's body (user 2026-11-09: "When enemies see dead bodies of their mates they
+    // should act a bit more alarmed. Eventually they should raise the alarm like in the original"). BEL [EXE]: the finder
+    // turns aggressive, goes to the body, cries "man down", then shouts ALRM (his zone's event: §4.9). Ours, in order:
+    body: {
+      startle: 0.8, // s: on sight he stops dead, cries out (ger_startle + the level-1 'startle' noise), turns to it, weapon up
+      run: 3.8, // m/s: then he RUNS to it (= chaseSpeed), not the 1.8 m/s investigate walk. Posts stay where they stand
+      arrive: 1.5, // m: and stops this short of it
+      kneel: 1.0, // s: kneels over it ('use'), then the man-down cry (ger_mandown + 'mandown' noise, level 2: a zone's onHeard)
+      look: 3.0, // s: on his feet, weapon raised, he turns about (lookTurns) — then "Alarm!" (alarmShout + his zone's event)
+      lookTurns: [105, -105, 180], // ° off the body's bearing, one per look/3 s (over each shoulder, then behind him); a
+      // post scans from his post instead: his head sweeps ±investigate.lookSweep round the body's bearing
+      // the window from the sighting to the alarm is startle + run + kneel + look (≈ 5 s + d / 3.8 s: a fast player can
+      // still silence him; a post: startle + look). A patrol member (§4.7), a second body (he has found one himself
+      // before, or sees another while on the first, further than `scene` m from it), or a body seen while the alarm is
+      // up (alarm.lamp) skip it: "Alarm!" at once
+      scene: 6, // m: bodies lying within this of each other are one find (a patrol cut down together), not a second body
+      alertHold: 60, // s: alert level 2 (alertBoost; the cone's alertTint) for him and every comrade who hears his cries
+      nervous: 20, // ×T: once he raises the alarm his nervousness (and that of every mate who hears the man-down cry or the
+      // alarm) jumps to 20·T = 1000: a commando he sees is challenged at once ("Halt!"), for ~47.5 s as it decays 1 a
+      // tick (§4.5). Before that he is busy with the body (sawBody's bonus only): the window to silence him
+      search: { time: 45, points: 4, radius: 10 }, // after the alarm: he and the comrades who came search round the body,
+      // weapon up (§4.6 SEARCH is 20 s / 3 points / 8 m), then go back — still alert, sawBody for good (§4.9 decay)
+    },
     noiseTurnHold: 8, // §4.4 holdsPost: sweep re-centred on a level-1 noise for 8 s
     arrest: { arrive: 1.5, escortSpeed: 1.8, rescueTime: 1.5 }, // §4.10
     raftShots: 3, raftUnattended: 3, // §4.3 raft seen unattended (no commando within 3 m whom the viewer sees) deflates after 3 hits

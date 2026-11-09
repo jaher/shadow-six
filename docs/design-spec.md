@@ -857,7 +857,8 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 | `explosion` | 3 | **map-wide** | bomb, barrel, grenade, vehicle blast, shell: "probably every soldier in the entire mission" [manual] |
 | `decoy` | 1 | **13.5 m**, one pulse every 1.5 s | Green Beret decoy while on |
 | `halt` | 2 | 18 m | Enemy "Halt!" / "Wer da?" (`ALTO`, `QUIENVA`) |
-| `mandown` | 2 | 18 m | Enemy finding a body |
+| `mandown` | 2 | 18 m | Enemy finding a body (kneeling over it, §4.6 BODY) |
+| `startle` | 1 | 13.5 m | Enemy who has just seen a mate's body, before he goes to it (SHADOW SIX, §4.6 BODY): mates turn to it; below the zone level, so no zone event |
 | `alarmShout` | 3 | 36 m, **plus the zone event** | Enemy "Alarm!" (`ALRM`) |
 | `bark` | 2 | 18 m | Dog |
 | `spyUnmask` | 1 | 9 m | Spy unmasked |
@@ -987,14 +988,14 @@ Drive the cone with `alertLevel`: 0 calm, 1 suspicious or N > 0, 2 combat or ala
 | State | Entered when | Behaviour | Exit / timers |
 |---|---|---|---|
 | **IDLE** | Default | Post: sweep. Walker: route at VEL × 0.9 m/s, waits with `look` and sweep (A 50°, P 2.5 s) | Stimuli below |
-| **INVESTIGATE** | Level 1–2 noise (`investigates` types), a wounded comrade, a door seen being used | Walk at 1.8 m/s (run at 3.8 m/s for level 3) to within 1.5 m of the source. **Look around for 4.0 s** (θ sweeps ±90° over the 4 s). Mutter `ger_suspicious` on arrival | Nothing found → RETURN. Commando seen → normal N rules |
+| **INVESTIGATE** | Level 1–2 noise (`investigates` types), a wounded comrade, a door seen being used | Walk at 1.8 m/s (run at 3.8 m/s for level 3) to within 1.5 m of the source. **Look around for 4.0 s** (θ sweeps ±90° over the 4 s). Mutter `ger_suspicious` on arrival. A mate's cry about a body (`startle`, `mandown`, his `alarmShout`): he turns to it first, comes at a run for `mandown` / the alarm, and looks round with his weapon up | Nothing found → RETURN; after a mate's body cry → the alarmed SEARCH round the body instead. Commando seen → normal N rules |
 | **DECOY** | Decoy pulse heard (`investigates`), or the decoy is the nearest active noise | Walk to within 2.0 m of the decoy and stare at it (head fixed; no sweep). Stays while it beeps | Decoy off → wait **5.0 s** → RETURN [rec]. Optional per spawn: `alarmOnDecoyGiveUp` (default false; Prima says guards "usually sound an alarm", Kildread and Ruetli do not) → RAISE_ALARM |
 | **TRACKS** | A `followsTracks` enemy sees an AI-visible footprint in its near band | Walk along the trail toward the **newest** print at 1.8 m/s, re-acquiring each print within 4 m. At the trail's end or after 40 m: look around 4.0 s | → RETURN. Commando seen → N rules |
-| **BODY** | Sees a body not yet `discovered` (full cone) | Sets `sawBody` (permanent). Walks (1.8 m/s) to within 1.5 m, kneels 1.0 s, shouts `ger_mandown` (`mandown` noise), then after 1.0 s shouts `ger_alarm` (`alarmShout`, which fires the zone's alarm event). Marks the body `discovered` | → SEARCH (20 s). Bodies with `ignoresBodies` viewers skip this. Hidden bodies (under a barrel) are never seen |
+| **BODY** | Sees a body not yet `discovered` (full cone) | BEL [EXE]: he turns aggressive, goes to the body, gives the man-down cry, then shouts ALRM. SHADOW SIX plays it alarmed (`CONFIG.ai.body`; user 2026-11-09 "act a bit more alarmed… eventually raise the alarm like in the original"): **startle 0.8 s**: he stops dead, cries out (`ger_startle`, the level-1 `startle` noise), turns to it, weapon up. Sets `sawBody` (permanent) and alertLevel 2 for 60 s (N = 20·T once he raises the alarm: until then only sawBody's bonus, the player's window). **Runs** (3.8 m/s) to within 1.5 m (a post or a gunner stays where he stands), **kneels 1.0 s**, shouts `ger_mandown` (`mandown` noise) and marks the body `discovered`. **Looks round 3.0 s**: on his feet, weapon raised, turning over each shoulder and then behind him (a post scans from his post: his head sweeps ±90° round the body's bearing). Then shouts `ger_alarm` (`alarmShout`, which fires his zone's alarm event). A **patrol member** (§4.7), a **second body** (another one already found, or one seen while he deals with the first) or a body seen **while the alarm is up** (the HUD lamp) shouts `ger_alarm` at once instead | → the **alarmed SEARCH** round the body (45 s, 4 points within 10 m, weapon up). Killed before his alarm: no event (the player's window: about 5 s + 0.26 s per metre to the body; a post's 3.8 s). A commando he sees meanwhile is challenged at once (N) and fought (`sawBody`); leaving BODY frees the body for the next finder. The first finder claims the body: others who see it meanwhile only set `sawBody`. Bodies with `ignoresBodies` viewers skip this. Hidden bodies (under a barrel) and carried ones are never seen |
 | **CHALLENGE / HOLD** | N ≥ T (§4.5) | Aims at the target and shouts; others join | See the §4.5 resolution table |
 | **ARREST** | Patrol plus jail (§4.10) | The leader walks to within 1.5 m; the target plays `surrender` | → the escort marches to the jail |
 | **COMBAT** | See §4.5, §4.3, or alarm-zone sighting | Faces the target, aims 0.5 s, fires at the weapon cadence while in range and LOS. Out of range: runs toward the last seen position (3.8 m/s). Walkers **abandon their route** [manual] | Target lost for **3.0 s** → SEARCH |
-| **SEARCH** | Lost target, or after BODY | Visits 3 random points within 8 m of `lastSeen` (seeded RNG), looking 2 s at each; follows tracks if any. Total **20 s** | → RETURN. alertLevel stays 1 until N decays |
+| **SEARCH** | Lost target, or after BODY | Visits 3 random points within 8 m of `lastSeen` (seeded RNG), looking 2 s at each; follows tracks if any. Total **20 s**. **Alarmed** (after BODY, or a mate's body cry): 4 points within 10 m of the body, weapon up while he looks, **45 s** | → RETURN. alertLevel stays 1 until N decays (2 for 60 s after a body). No `ger_giveup` ("just the wind") from a man still alarmed |
 | **RETURN** | After INVESTIGATE, DECOY, TRACKS or SEARCH | Paths back to the post or the nearest route waypoint at 1.8 m/s. A route waypoint the planner cannot end on exactly (a mesh's body clearance over it) counts as reached where his walk back ended, ≤ 1 m short — as on his beat (`EnemyBrain._route` / `_return`, `WP_NEAR`) | → IDLE |
 | **DISTRACTED** | The Spy distracts him (or his squad leader) | Faces the Spy (a frozen squad faces its leader). No sweep. Keeps perceiving, but his cone points at the Spy | Ends per §3.4 → RETURN |
 | **ALARM_RUN** | `courier` (M4) seeing something suspicious | Mounts the bike, drives the `EXIT` route to the barracks at 9 m/s, fires the zone event on arrival | Killed en route → no event |
@@ -1003,6 +1004,7 @@ Drive the cone with `alertLevel`: 0 calm, 1 suspicious or N > 0, 2 combat or ala
 
 **Other brain rules.**
 - **Partner glance** (sentries with `partner`): every 25 s the sentry turns to its partner for 2.5 s. A missing, dead or carried-off partner → INVESTIGATE the partner's post; a visible body there → BODY.
+- **Mates of a body finder** (SHADOW SIX, `CONFIG.ai.body`): his startled cry turns the posts in earshot to it and brings the investigators to look (turning first). His man-down cry and his alarm put every mate who hears them on edge — alertLevel 2 for 60 s and N = 20·T, so a commando they see is challenged at once while it decays (~47.5 s) — and bring the investigators at a run; their look round done, they search round the body (alarmed SEARCH) instead of going back. The area stays on alert: no instant all-clear.
 - **Panic unstick** [data: BEL pathfinder]: a unit stuck (moved less than 0.2 m) for **5 s** wanders randomly for 2 s, then re-paths.
 
 ### 4.7 Bodies
@@ -1014,7 +1016,7 @@ Drive the cone with `alertLevel`: 0 calm, 1 suspicious or N > 0, 2 combat or ala
   - **Cannot be taken into buildings.**
   - Bodies on a roof are unseen from below (M12 roof rule).
   - **Deck-edge rule** [rec]: a body, or a prone (low) unit, lying on a raised surface higher than a viewer's eye (a wall walk, a deck: target y > viewer y + eye height 1.65 m) is hidden from that viewer by the surface edge. A man standing there stays visible, and a guard who watches a man die up there still sees him fall. Viewers on the same surface still see the body. (M2: e5's body on `walk_sw` can't be seen from inside the camp.)
-- **Body found:** BODY state (§4.6), which raises the alarm through the zone. A **patrol member** finding a body, or seeing one of its own die, raises the alarm immediately [manual, guide].
+- **Body found:** BODY state (§4.6): startled, he runs to it, kneels, cries "man down", looks round, then raises the alarm through his zone. A **patrol member** finding a body, or seeing one of its own die, raises the alarm immediately [manual, guide]; so does anyone finding a **second body** or a body **while the alarm is up** ("several bodies" is an alarm cause [eggie]). Where his zone has no event (or `ignoreFrom`s the body's place, M18), or outside every zone (M1's `zones: []`), the shout and the search round the body are the ceiling: no siren, no reinforcements.
 
 ### 4.8 Footprints
 - **Terrain.** Walking or running on terrain `SNOW` or `SAND` stamps prints. `MUD` stamps prints that are visual only [rec].
@@ -1070,7 +1072,8 @@ barracks: {pool: 5|10, squads:[{event:'RINT', size:2..4, exitRoute:[...], loop:[
 - **Tank depots** (M9, M10, M13) release their tanks on the event.
 
 **Decay.**
-- The siren ends after 25 s. Individual alertness decays with N (about 47.5 s).
+- The siren ends after 25 s. Individual alertness decays with N (about 47.5 s). After a body is found (§4.6 BODY) its
+  finder and the mates who heard him stay at alertLevel 2 for 60 s and search round it for 45 s, nervous (N = 20·T).
 - **Permanent:** `sawBody` flags, released squads, switched routes, bodies and tainted vehicles.
 - There is **no global "all clear"** [EXE, gap-1].
 
