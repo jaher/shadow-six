@@ -153,7 +153,9 @@ function cellOrder(geo, pos, mw, index, nIdx, nTri, groups, cell, cellZ) {
     for (let t = a; t < b; t++) triGroup[t] = gi;
   });
   // cell of each triangle (world XZ of its centroid)
-  const keyOf = new Map(); // `${gi}:${cx}:${cz}` → chunk number
+  // (gi, cx, cz) → chunk number: one number for the three (a string per triangle was most of chunking a big mesh — the
+  // M16 terrain, ~90 ms in one task); a cell past ±32768 keeps its `${gi}:${cx}:${cz}` (a Map never mixes the two up)
+  const keyOf = new Map();
   const chunks = [];
   const triChunk = new Int32Array(nTri);
   const P = pos.array, st = pos.isInterleavedBufferAttribute ? pos.data.stride : pos.itemSize, off = pos.isInterleavedBufferAttribute ? pos.offset : 0;
@@ -168,7 +170,8 @@ function cellOrder(geo, pos, mw, index, nIdx, nTri, groups, cell, cellZ) {
     }
     x /= 3; y /= 3; z /= 3;
     const wx = mw[0] * x + mw[4] * y + mw[8] * z + mw[12], wz = mw[2] * x + mw[6] * y + mw[10] * z + mw[14];
-    const cx = Math.floor(wx / cell), cz = Math.floor(wz / cellZ), key = `${gi}:${cx}:${cz}`;
+    const cx = Math.floor(wx / cell), cz = Math.floor(wz / cellZ);
+    const key = cx >= -32768 && cx < 32768 && cz >= -32768 && cz < 32768 ? (gi * 65536 + (cx + 32768)) * 65536 + (cz + 32768) : `${gi}:${cx}:${cz}`;
     let ci = keyOf.get(key);
     if (ci === undefined) { ci = chunks.length; keyOf.set(key, ci); chunks.push({ gi, cx, cz, n: 0, start: 0, box: new THREE.Box3() }); }
     chunks[ci].n++;

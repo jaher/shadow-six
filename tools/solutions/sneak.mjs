@@ -16,7 +16,7 @@
  */
 import { takeHeap, giveHeap, takeSet, giveSet } from './state-heap.mjs';
 import { mirrorOf, ghostOn, ghost, protoOf } from './ghost.mjs';
-import { canSee as canSee0, coneAt, pointInCone, ellipseFar } from '../../src/ai/perception.js';
+import { canSee as canSee0, coneAt, pointInCone, ellipseFar, newCone } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { T } from '../../src/world/grid.js';
 import { viewerFor } from '../../src/ai/vehicle-ai.js';
@@ -341,7 +341,7 @@ export function predict(e, t, depth = 0) {
   // the rest of his beat from here, laid out once per guard and sim time (routeOf) and walked for `left` s
   const R = routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, !!p0);
   const ops = R.ops;
-  for (let k = 0; k < ops.length; k++) {
+  for (let k = 0, n = R.n; k < n; k++) {
     const o = ops[k];
     if (o.wait === undefined) {
       if (left * sp <= o.L) return { x: o.x + o.dxL * left * sp, z: o.z + o.dzL * left * sp, heading: o.h, halt: false, turnFrom: o.h0, turnT: left };
@@ -367,12 +367,24 @@ function haltAt(wp, into, x, z, h) {
  * walking it afresh, at a fraction of the cost (a look along a crawl asks every guard where he is hundreds of times).
  */
 const ROUTES = new WeakMap();
+/** Step `n` of record R, refilled (a stretch of way or a halt: one shape for both; predict reads a halt's own fields). */
+function opAt(R, n) {
+  let o = R.ops[n];
+  if (o === undefined) o = R.ops[n] = { wait: undefined, wp: null, x: 0, z: 0, L: 0, h: 0, h0: 0, dxL: 0, dzL: 0, dec: 0 };
+  return o;
+}
 function routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, fromP0) {
   const now = e.world?.time ?? 0, gv = e.world?.grid?.version ?? 0;
-  const R0 = ROUTES.get(e);
-  if (R0 && R0.now === now && R0.gv === gv && R0.x0 === x && R0.z0 === z && R0.h0 === h && R0.i0 === i && R0.w0 === waitLeft
-    && R0.paths === paths && R0.sp === sp && R0.p0 === fromP0 && R0.dir0 === (b.routeDir ?? 1) && R0.r === r) return R0;
-  const R = { now, gv, x0: x, z0: z, h0: h, i0: i, w0: waitLeft, paths, sp, p0: fromP0, dir0: b.routeDir ?? 1, r, ops: [], x: 0, z: 0, h: 0 };
+  let R = ROUTES.get(e);
+  if (R && R.now === now && R.gv === gv && R.x0 === x && R.z0 === z && R.h0 === h && R.i0 === i && R.w0 === waitLeft
+    && R.paths === paths && R.sp === sp && R.p0 === fromP0 && R.dir0 === (b.routeDir ?? 1) && R.r === r) return R;
+  // (laid out afresh into his own record, its steps refilled: nothing keeps a record past the predict that walks it — a
+  // beat laid out anew for every walker at every tick was the largest share of a look-ahead's garbage. Marked stale
+  // until it is whole: an error half-way leaves no record answering for the old key)
+  if (!R) ROUTES.set(e, (R = { now: NaN, gv: 0, x0: 0, z0: 0, h0: 0, i0: 0, w0: 0, paths: false, sp: 0, p0: false, dir0: 1, r: null, ops: [], n: 0, x: 0, z: 0, h: 0 }));
+  else R.now = NaN;
+  const x0 = x, z0 = z, hh0 = h, i0 = i, dir0 = b.routeDir ?? 1;
+  let n = 0;
   let dir = b.routeDir ?? 1;
   const loop = (b._routeType || e.spawn?.route?.type || e.routeMode || 'PINGPONG').toUpperCase() === 'LOOP' || e.routeMode === 'loop';
   const loopStart = b._loopStart ?? 0;
@@ -387,7 +399,6 @@ function routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, fromP0) {
     if (wp?.look != null) h = (wp.look * Math.PI) / 180;
     prevWait = i; i = nextIdx(i);
   }
-  const ops = R.ops;
   let prev = null;
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
@@ -399,7 +410,8 @@ function routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, fromP0) {
         if (L <= 1e-6) continue;
         const hp = h; h = Math.atan2(dz, dx);
         if (tLeg > 0) h0 = hp; // (at a corner of the way he turns from the last stretch's heading)
-        ops.push({ x, z, L, h, h0, dxL: dx / L, dzL: dz / L, dec: L / sp });
+        const o = opAt(R, n++);
+        o.wait = undefined; o.wp = null; o.x = x; o.z = z; o.L = L; o.h = h; o.h0 = h0; o.dxL = dx / L; o.dzL = dz / L; o.dec = L / sp;
         tLeg += L / sp; x = px; z = pz;
       }
       const hs = sideOf(HALTS, e)?.[i];
@@ -410,16 +422,18 @@ function routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, fromP0) {
         // (setting off on a leg he turns to it at his body's rate: `turnFrom`, `turnT` s into the leg — walkerSees)
         const h0 = h;
         h = Math.atan2(dz, dx);
-        ops.push({ x, z, L, h, h0, dxL: dx / L, dzL: dz / L, dec: L / sp });
+        const o = opAt(R, n++);
+        o.wait = undefined; o.wp = null; o.x = x; o.z = z; o.L = L; o.h = h; o.h0 = h0; o.dxL = dx / L; o.dzL = dz / L; o.dec = L / sp;
         x = wp.x; z = wp.z;
       }
     }
     prev = i;
-    if (wp.wait > 0) { ops.push({ wait: wp.wait, wp, x, z, h }); if (wp.look != null) h = (wp.look * Math.PI) / 180; }
+    if (wp.wait > 0) { const o = opAt(R, n++); o.wait = wp.wait; o.wp = wp; o.x = x; o.z = z; o.h = h; if (wp.look != null) h = (wp.look * Math.PI) / 180; }
     i = nextIdx(i);
   }
-  R.x = x; R.z = z; R.h = h;
-  ROUTES.set(e, R);
+  R.x = x; R.z = z; R.h = h; R.n = n;
+  R.gv = gv; R.x0 = x0; R.z0 = z0; R.h0 = hh0; R.i0 = i0; R.w0 = waitLeft; R.paths = paths; R.sp = sp; R.p0 = fromP0; R.dir0 = dir0; R.r = r;
+  R.now = now;
   return R;
 }
 
@@ -467,7 +481,7 @@ function turnHeadings(q, w = null) {
  * Could walking enemy `e`, predicted at `q` (x, z, heading[, alt]) at sim time `tAbs`, see `dummy`? Conservative: his
  * head is tried at the predicted heading and at both ends of his sweep (and at the heading he came with, at a halt).
  */
-export function walkerSees(e, q, dummy, w, tAbs) {
+export function walkerSees(e, q, dummy, w, tAbs, mc = null) {
   const v = e.vision, a = v ? v.far ?? v.range : NaN, ratio = v?.ellipseRatio === undefined ? CONFIG.stealth.ellipseRatio : v.ellipseRatio;
   if (e.vehEye || !(a > 0) || (v.elliptical && !(ratio > 0))) return seesAny(walkerViews(e, q, w, tAbs), dummy, w);
   // (the same heads in the same order as walkerViews, each built — a viewer copy and its cone — only when the point lies
@@ -480,26 +494,31 @@ export function walkerSees(e, q, dummy, w, tAbs) {
   if (d2 > R * R) return false;
   const { hds, offs } = headsOf(e, q, w, tAbs);
   const half = v.fov / 2, bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
-  const far2 = offs.map((off) => { const f = v.elliptical ? ellipseFar(a, (off || 0) + 0, v.ellipseRatio) : a; return f * f; });
+  // (each head offset's reach squared, worked out the first time a head with that offset needs it: most looks have no
+  // heading near the point and never need one — the same numbers as working them all out first)
+  let far2 = null;
   let maxOff = 0;
   for (const off of offs) maxOff = Math.max(maxOff, Math.abs((off || 0) + 0));
   const lim = half + maxOff + 1e-6;
-  let m = null; // (his mirror, refreshed at the first head that needs a ghost: ghost.mjs)
+  // (his mirror, refreshed at the first head that needs a ghost: ghost.mjs; `mc` {m}: one the caller refreshed for
+  // this look-ahead — routeClearGen, while the world stands still — shared by its looks with him)
+  let m = null;
   for (const hd of hds) {
     // (a body heading whose every head offset leaves the point outside the aperture: none of its heads can see it)
     if (d2 > 1e-12) { let an = bear - hd; an -= TAU * Math.round(an / TAU); if (Math.abs(an) > lim) continue; } // (NaN: tried, as pointInCone would)
     for (let k = 0; k < offs.length; k++) {
-      if (d2 > far2[k]) continue;
+      let f2 = (far2 ??= new Array(offs.length))[k];
+      if (f2 === undefined) { const f = v.elliptical ? ellipseFar(a, (offs[k] || 0) + 0, v.ellipseRatio) : a; f2 = far2[k] = f * f; }
+      if (d2 > f2) continue;
       const off = offs[k];
       if (d2 > 1e-12) {
         let an = bear - (hd + ((off || 0) + 0));
         an -= TAU * Math.round(an / TAU);
         if (Math.abs(an) > half) continue;
       }
-      const g = ghostOn(m ??= mirrorOf(e));
+      const g = ghostOn(m ??= (mc ? (mc.m ??= mirrorOf(e)) : mirrorOf(e)));
       g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; g.headCarry = 0;
-      const cone = coneAt(g, tAbs);
-      if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
+      if (seesWith(g, dummy, w, tAbs, true)) return true;
     }
   }
   return false;
@@ -551,7 +570,13 @@ function headsOf(e, q, w, tAbs) {
   // in it while neither tried cone reaches him)
   const n = w.sneakSweepSteps ?? 2, offs = [0];
   if (amp) for (let k = 1; k <= n; k++) offs.push((amp * k) / n, (-amp * k) / n);
-  return { hds: [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q, w) : []), ...cryHeadings(q, w, tAbs)], offs };
+  // (the headings in the same order as [heading, alt?, ...turns, ...cries], pushed: no temporary arrays — asked for
+  // every walker at every look of a look-ahead; cryHeadings is [] without cries)
+  const hds = [q.heading];
+  if (q.alt != null) hds.push(q.alt);
+  if (w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) for (const h of turnHeadings(q, w)) hds.push(h);
+  if (w.sneakCries) for (const h of cryHeadings(q, w, tAbs)) hds.push(h);
+  return { hds, offs };
 }
 
 /** Does any of walkerViews' heads see `d`? (a point outside a cone's geometry is never seen by it: canSee not asked)
@@ -609,10 +634,19 @@ export function postHeadings(e) {
 }
 
 /** canSee for a standing (not walking) viewer at time t, every heading a turned post may face. */
-export function staticSees(e, d, w, t) {
+export function staticSees(e, d, w, t, mc = null) {
+  const ch = cryHeadings(e, w, w.time + t), hs = postHeadings(e);
+  return staticAim(e, d, ch, hs) && staticLook(e, d, w, t, ch, hs, mc);
+}
+
+/**
+ * staticSees' first part, which the moment does not change but through the cries (`ch`: cryHeadings at that moment;
+ * `hs`: postHeadings): false when no heading he may face brings `d` within his reach and aperture, at any moment of his
+ * sweep — then he cannot see it (routeClearGen asks it once per point of a way, not at each moment it tries).
+ */
+function staticAim(e, d, ch, hs) {
   // (past the longest reach his cone has at any head offset — see walkerSees — no heading of his sees the point)
   const v = e.vision, a = v ? v.far ?? v.range : NaN, ratio = v?.ellipseRatio === undefined ? CONFIG.stealth.ellipseRatio : v.ellipseRatio;
-  const ch = cryHeadings(e, w, w.time + t), hs = postHeadings(e);
   if (a > 0 && (!v.elliptical || ratio > 0)) {
     const R = (v.elliptical ? Math.max(a, a * ratio) : a) * (1 + 1e-9), dx = d.x - e.x, dz = d.z - e.z, d2 = dx * dx + dz * dz;
     if (d2 > R * R) return false;
@@ -626,11 +660,31 @@ export function staticSees(e, d, w, t) {
       if (!ch.some((h) => within(h, half + 1e-6)) && !(hs ? hs.some((h) => within(h + base, lim)) : within(e.heading + base, lim))) return false;
     }
   }
-  const m = ch.length || hs ? mirrorOf(e) : null; // (his ghosts read him through a mirror: ghost.mjs)
-  if (ch.length && ch.some((h) => { const g = ghostOn(m); g.heading = h; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; })) return true;
-  if (!hs) return canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none';
-  return hs.some((h) => { const g = ghostOn(m); g.heading = h; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; });
+  return true;
 }
+
+/** staticSees' second part: his cone at the moment `t`, for each heading he may face (ch, hs as staticAim's). */
+function staticLook(e, d, w, t, ch, hs, mc = null) {
+  // (his ghosts read him through a mirror: ghost.mjs; `mc` {m}: one the caller refreshed for this look-ahead)
+  const m = ch.length || hs ? (mc ? (mc.m ??= mirrorOf(e)) : mirrorOf(e)) : null;
+  if (ch.length && ch.some((h) => { const g = ghostOn(m); g.heading = h; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0; return seesWith(g, d, w, w.time + t); })) return true;
+  if (!hs) return seesWith(e, d, w, w.time + t);
+  return hs.some((h) => { const g = ghostOn(m); g.heading = h; return seesWith(g, d, w, w.time + t); });
+}
+/**
+ * canSee(g, d, w, {cone: coneAt(g, tAbs)}) !== 'none' (`inCone`: only when the point lies in that cone, as walkerSees
+ * asks) with one cone and one options object refilled (coneAt's `out`: the same fields and values as its literal; canSee
+ * only reads them while it runs): walkerSees and staticLook ask it for every head of every look of a look-ahead.
+ */
+function seesWith(g, d, w, tAbs, inCone = false) {
+  const cone = coneAt(g, tAbs, _cone);
+  if (inCone && !pointInCone(cone, d.x, d.z)) return false;
+  _coneOpt.cone = cone;
+  return canSee(g, d, w, _coneOpt) !== 'none';
+}
+const _cone = newCone(), _coneOpt = { cone: null };
+/** cryHeadings with no cries (w.sneakCries unset or empty): no heading, whatever the moment. */
+const NO_CRIES = Object.freeze([]);
 
 /** A deck over water (a pier, a moored hull's deck, a bridge): dry footing for a man, whatever the terrain under it. */
 function onDeck(g, x, z) { const { i, j } = g.worldToCell(x, z); return g.inBounds(i, j) && !!g.bridge?.[g.idx(i, j)]; }
@@ -711,6 +765,32 @@ export function routeClear(D, pts, o = {}) {
   for (;;) { const r = it.next(); if (r.done) return r.value; }
 }
 
+/**
+ * The box every place predict gives walker `e` lies in, at any moment ahead — [x0, z0, x1, z1] — or null when that is
+ * not known simply. A man on his beat (no file leader, no paths, not walking back to it, no opt-ins that walk him
+ * elsewhere) goes from where he stands straight from point to point of his beat and halts on them: every place lies on
+ * those legs. (b._leader() is asked as predict asks it first: it may promote a new leader once.)
+ */
+const BEAT_STATES = ['IDLE', 'REINFORCE', 'RETURN'];
+function reachBox(e) {
+  const w = e.world, b = e.brain, r = e.route;
+  if (e.vehEye || !w || !b || w.sneakPaths || w.sneakReturnOn || w.sneakHeel || w.sneakTrail) return null;
+  const lead = b._leader?.();
+  if (lead && lead !== e) return null;
+  if (!(r && r.length > 1 && BEAT_STATES.includes(b.state) && !b.distractedBy) || b.state === 'RETURN') return null;
+  let x0 = e.x, x1 = e.x, z0 = e.z, z1 = e.z;
+  for (const p of r) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.z < z0) z0 = p.z; if (p.z > z1) z1 = p.z; }
+  return Number.isFinite(x0 + x1 + z0 + z1) ? [x0, z0, x1, z1] : null;
+}
+
+/** The point `pad` m nearer the viewer at (vx, vz) than (sx, sz) — null when pad is 0 or he stands within it. */
+function nearPad(vx, vz, sx, sz, pad) {
+  const d = hypot2(vx - sx, vz - sz);
+  return pad && d > pad ? [sx + ((vx - sx) * pad) / d, sz + ((vz - sz) * pad) / d] : null;
+}
+/** The eight headings (× 45°) a squad man wheeling round at a corner may face. */
+const WHEEL = Object.freeze([0, 1, 2, 3, 4, 5, 6, 7]);
+
 /** routeClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
 export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null, wheel = true } = {}) {
   const w = D.world;
@@ -726,34 +806,56 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
   // (`hold` s: he lies on at the end of the way that long, waiting for what comes next)
   for (let h = 0.5; h <= hold + 1e-6; h += 0.5) samples.push([x, z, t + h]);
   /** Where viewer `e` sees him (the `why` entry), or null. */
-  let looks = 0;
+  // (The same looks in the same order, with what does not change between them worked out once: while these looks run
+  // the world stands still — between two yields nothing else runs; after a yield, a sliced look-ahead's frames may have
+  // run, so all of it is worked out afresh. His mirror (ghost.mjs) is refreshed once for his looks, not at every one;
+  // a post's headings (postHeadings) and the target dummies of a point are made once; and without cries whether a point
+  // lies within a post's reach and aperture at all (staticAim) does not depend on the moment: a point outside it is not
+  // tried at each of the 9 moments a sweeping post is asked at.)
+  let looks = 0, epoch = 0;
+  const hull = mode === 'boat' ? HULL : 0;
   const seenBy = function* seenBy(e, moving) {
     const far = (e.vision.far ?? 36) + 1;
     // (a post sweeping his head may swing his cone across a point within half a second: finer steps for him)
     const ostep = Math.min(!moving && e.sweepActive ? 0.15 : 0.5, Math.max(0.1, slack));
+    const mc = { m: null };
+    let ep = -1, noCries = true, hs = null, box = null;
+    const fresh = () => { ep = epoch; mc.m = null; noCries = !w.sneakCries?.length; hs = moving ? null : postHeadings(e); box = moving ? reachBox(e) : null; };
     for (const [sx, sz, st] of samples) {
       // (`slackRate`: the farther ahead, the less sure the timing: slack + slackRate s per s ahead)
       const sl = slack + slackRate * st;
+      if (ep !== epoch) fresh();
+      // (a walker whose every place ahead lies in `box` (reachBox) farther than his reach from the point: out of it at
+      // every moment, as each look would find — not asked where he will be at each)
+      if (box && hypot2(Math.max(0, box[0] - sx, sx - box[2]), Math.max(0, box[1] - sz, sz - box[3])) > far + hull + pad + 1e-6) continue;
+      // (a post: the point out of his reach is out of it at every moment; the point and the one `pad` m nearer him
+      // — a man at the very edge of a band may be a step nearer than planned — as dummies, once)
+      let d1 = null, d2 = null, aim1 = true, aim2 = true, sep = -1;
+      if (!moving) {
+        if (hypot2(e.x - sx, e.z - sz) > far + hull + pad) continue;
+        const p2 = nearPad(e.x, e.z, sx, sz, pad);
+        d1 = dummyFor(w, mode, sx, sz, e.x, e.z);
+        d2 = p2 && padded(dummyFor(w, mode, p2[0], p2[1], e.x, e.z), w.grid.elevAt?.(sx, sz) ?? 0);
+      }
       for (let o = -sl; o <= sl + 1e-6; o += ostep) {
-        if ((++looks & 15) === 0) yield;
-        const tt = Math.max(0, st + o), hull = mode === 'boat' ? HULL : 0;
+        if ((++looks & 15) === 0) { yield; epoch++; }
+        if (ep !== epoch) fresh();
+        const tt = Math.max(0, st + o);
         let seen;
-        // (`pad`: a man at the very edge of a band may be a step nearer than planned: the point `pad` m nearer too)
-        const near = (vx, vz) => { const d = hypot2(vx - sx, vz - sz); return pad && d > pad ? [sx + ((vx - sx) * pad) / d, sz + ((vz - sz) * pad) / d] : null; };
         if (moving) {
           const q = predict(e, tt), dd = hypot2(q.x - sx, q.z - sz);
           if (dd > far + hull + pad) continue;
-          const p2 = near(q.x, q.z);
-          seen = dd < keepWalker || walkerSees(e, q, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)
-            || (p2 && walkerSees(e, q, padded(dummyFor(w, mode, p2[0], p2[1], q.x, q.z), w.grid.elevAt?.(sx, sz) ?? 0), w, w.time + tt))
+          const p2 = nearPad(q.x, q.z, sx, sz, pad), dq = dummyFor(w, mode, sx, sz, q.x, q.z);
+          seen = dd < keepWalker || walkerSees(e, q, dq, w, w.time + tt, mc)
+            || (p2 && walkerSees(e, q, padded(dummyFor(w, mode, p2[0], p2[1], q.x, q.z), w.grid.elevAt?.(sx, sz) ?? 0), w, w.time + tt, mc))
             // a squad man wheeling round at a corner of its round may face any way
-            || (wheel && wheeling(e, tt) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)));
-        } else {
-          if (hypot2(e.x - sx, e.z - sz) > far + hull + pad) continue;
-          const p2 = near(e.x, e.z);
-          seen = staticSees(e, dummyFor(w, mode, sx, sz, e.x, e.z), w, tt)
-            || (!!p2 && staticSees(e, padded(dummyFor(w, mode, p2[0], p2[1], e.x, e.z), w.grid.elevAt?.(sx, sz) ?? 0), w, tt));
-        }
+            || (wheel && wheeling(e, tt) && WHEEL.some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dq, w, w.time + tt, mc)));
+        } else if (noCries) {
+          // (staticSees = staticAim && staticLook; with no cries staticAim is the same at every moment)
+          if (sep !== ep) { sep = ep; aim1 = staticAim(e, d1, NO_CRIES, hs); aim2 = !!d2 && staticAim(e, d2, NO_CRIES, hs); }
+          if (!aim1 && !aim2) break;
+          seen = (aim1 && staticLook(e, d1, w, tt, NO_CRIES, hs, mc)) || (aim2 && staticLook(e, d2, w, tt, NO_CRIES, hs, mc));
+        } else seen = staticSees(e, d1, w, tt, mc) || (!!d2 && staticSees(e, d2, w, tt, mc));
         if (seen) return `${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${tt.toFixed(1)}`;
       }
     }

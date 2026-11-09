@@ -6,7 +6,7 @@
  * @module world/grid
  */
 
-import { pointInPolygon, hypot2 } from '../core/math.js';
+import { hypot2 } from '../core/math.js';
 import { due } from '../engine/slice.js';
 
 /** nav stamp keys that are the walkers' clearances only (grid.visBlock): hulls test their own (hullBlocked) */
@@ -96,6 +96,41 @@ const TV = new Float64Array(2);
 
 export function sightSlope(rise, d0, d1) {
   return rise > 0 ? rise / Math.max(d0, 1e-6) : rise / Math.max(d1, 1e-6);
+}
+
+
+/** A polygon's points ([[x,z],...] or [{x,z},...]) as a flat [x0, z0, x1, z1, ...] list. */
+function polyFlat(points) {
+  const P = new Array(points.length * 2);
+  for (let k = 0; k < points.length; k++) {
+    const p = points[k];
+    if (Array.isArray(p)) { P[2 * k] = p[0]; P[2 * k + 1] = p[1]; } else { P[2 * k] = p.x; P[2 * k + 1] = p.z; }
+  }
+  return P;
+}
+
+/**
+ * One row j of fillPoly: the cells i0..i1 whose centre pointInPolygon finds inside, written in that order — found per
+ * row, not per cell: pointInPolygon (even-odd) flips at each edge the row's line z crosses ((zi > z) !== (zj > z)) where
+ * x < xc, xc = (xj - xi)(z - zi)/(zj - zi) + xi; the same numbers, worked out once per edge for the row and sorted, so
+ * a centre is inside when an odd number of them lie past it. (The M16 river: 100k cells x 15 edges in one task.)
+ */
+function fillPolyRow(g, P, xs, j, i0, i1, layer, value, owner) {
+  const c = g.cell, z = (j + 0.5) * c, n = P.length >> 1;
+  xs.length = 0;
+  for (let i = 0, jj = n - 1; i < n; jj = i++) {
+    const xi = P[2 * i], zi = P[2 * i + 1], xj = P[2 * jj], zj = P[2 * jj + 1];
+    if ((zi > z) !== (zj > z)) { const xc = ((xj - xi) * (z - zi)) / (zj - zi) + xi; if (xc === xc) xs.push(xc); } // (NaN: never past x)
+  }
+  if (!xs.length) return;
+  xs.sort((a, b) => a - b);
+  // (k: how many crossings lie at or before x — x < xc fails for them; the rest, xs.length - k, lie past it)
+  let k = 0;
+  for (let i = i0; i <= i1; i++) {
+    const x = (i + 0.5) * c;
+    while (k < xs.length && !(x < xs[k])) k++;
+    if ((xs.length - k) & 1) g._write(j * g.cols + i, layer, value, owner);
+  }
 }
 
 export class NavGrid {
@@ -455,11 +490,8 @@ export class NavGrid {
     const c = this.cell;
     const i0 = Math.max(0, Math.floor(minX / c)), i1 = Math.min(this.cols - 1, Math.floor(maxX / c));
     const j0 = Math.max(0, Math.floor(minZ / c)), j1 = Math.min(this.rows - 1, Math.floor(maxZ / c));
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) {
-        if (pointInPolygon((i + 0.5) * c, (j + 0.5) * c, points)) this._write(j * this.cols + i, layer, value, owner);
-      }
-    }
+    const P = polyFlat(points), xs = [];
+    for (let j = j0; j <= j1; j++) fillPolyRow(this, P, xs, j, i0, i1, layer, value, owner);
     this._bumpRows(j0, j1);
   }
 
@@ -525,10 +557,9 @@ export class NavGrid {
     const c = this.cell;
     const i0 = Math.max(0, Math.floor(minX / c)), i1 = Math.min(this.cols - 1, Math.floor(maxX / c));
     const j0 = Math.max(0, Math.floor(minZ / c)), j1 = Math.min(this.rows - 1, Math.floor(maxZ / c));
+    const P = polyFlat(points), xs = [];
     for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) {
-        if (pointInPolygon((i + 0.5) * c, (j + 0.5) * c, points)) this._write(j * this.cols + i, layer, value, owner);
-      }
+      fillPolyRow(this, P, xs, j, i0, i1, layer, value, owner);
       if (due()) yield;
     }
     this.version++;

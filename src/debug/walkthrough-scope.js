@@ -447,13 +447,36 @@ export async function warmScope(game, { cancelled = () => false } = {}) {
   const ctx = { view: cc, camera: cam, water: w.water?.system || null };
   const keep = { ...M.stats };
   const t0 = performance.now();
+  // (the highlight's programs for every kind of mesh a target can show — skinned body and helmet, plain gun and kit —
+  // one mesh of each kind among the guards': the foe above is often off screen at the card, his body culled, and his
+  // kit not every man's: M14's first shot, a trooper with an MP40 at t≈407, linked two programs mid-play)
+  const reps = highlightReps(w.enemies);
   let res = null;
   try {
-    res = await compileAhead(r, () => { M.frame(s, ctx); }, { all: true, cancelled });
+    res = await compileAhead(r, () => { M.frame(s, ctx); M.warmHighlight(reps); }, { all: true, cancelled });
   } finally {
     Object.assign(M.stats, keep, { drawn: false });
     M._img.ok = false; // (nothing was drawn: the first real frame renders afresh)
     M._ema = 0; M._emaReuse = 0; M._age = 0;
   }
   return res ? { ...res, ms: Math.round(performance.now() - t0) } : null;
+}
+
+/**
+ * One mesh of each kind the scope's highlight may draw over a target (warmScope): every mesh in the guards' models,
+ * shown or not (levels of detail, kit, hand props), keyed by what picks its program under one material — mesh type,
+ * instance colours, vertex attributes, morphs. @param {object[]} enemies @returns {THREE.Mesh[]}
+ */
+export function highlightReps(enemies = []) {
+  const out = [], seen = new Set();
+  for (const e of enemies) {
+    e?.object3d?.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const at = o.geometry.attributes || {};
+      const k = [o.type, !!o.instanceColor, Object.keys(at).sort().map((n) => `${n}${at[n].itemSize}`).join('.'),
+        Object.entries(o.geometry.morphAttributes || {}).map(([n, v]) => `${n}${v.length}`).join('.')].join('|');
+      if (!seen.has(k)) { seen.add(k); out.push(o); }
+    });
+  }
+  return out;
 }

@@ -565,6 +565,32 @@ export class ScopeMagnifier {
     }
   }
 
+  /**
+   * The highlight's programs for these meshes (the walkthrough's scope warm-up, inside its compile-ahead probe): each
+   * drawn alone with the highlight material into the lens target, as _highlight draws a target's subtree (no lights, the
+   * target's colour space) — whatever kind it is: a skinned body or helmet, a plain gun. Nothing else changes.
+   * @param {THREE.Mesh[]} meshes
+   */
+  warmHighlight(meshes) {
+    const r = this.R?.renderer;
+    if (!r || !this.hlMat || !this.rtA || !meshes?.length) return;
+    const prev = r.getRenderTarget(), saved = [];
+    try {
+      r.setRenderTarget(this.rtA);
+      for (const m of meshes) {
+        saved.push(m, m.material, m.visible, m.frustumCulled, m.matrixWorldAutoUpdate);
+        m.material = this.hlMat; m.visible = true; m.frustumCulled = false; m.matrixWorldAutoUpdate = false;
+        this._draw(r, m, this.camera);
+      }
+    } finally {
+      for (let i = 0; i < saved.length; i += 5) {
+        const m = saved[i];
+        m.material = saved[i + 1]; m.visible = saved[i + 2]; m.frustumCulled = saved[i + 3]; m.matrixWorldAutoUpdate = saved[i + 4];
+      }
+      r.setRenderTarget(prev);
+    }
+  }
+
   dispose() {
     this._unhook();
     this.rtA?.dispose();

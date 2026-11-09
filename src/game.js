@@ -706,7 +706,9 @@ export class Game {
       const refr = this.selection?.decoyWaves?.pass;
       if (refr) { few.push(refr, 'warm', false); refr.warm = true; }
       // a vision cone (one guard's: the cones come and go with video mode's steps) and the selection's path line
-      const cones = this.cones, forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
+      // (the cones are made by the first frame that draws one: at load none has run yet — made here, or the warm cone was
+      // never drawn and the first cone of play compiled its program: M14's walkthrough at t≈8, its first step shows none)
+      const cones = this._ensureCones(), forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
       if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); cones.deferForced = false; safe(() => cones.update(), 'warm cone'); cones.deferForced = true; }
       const path = safe(() => this.selection?._pathLine?.(0), 'warm path');
       if (path) path.visible = true; // (made once, hidden again below: shown on every call — a warm-up frame runs in parts)
@@ -1335,12 +1337,17 @@ export class Game {
     this.ladders.frame();
   }
 
-  _updateCones() {
-    const w = this.world;
+  /** The world's vision cones (made at the first frame that needs them — or the load's warm-up frame, whichever comes first). */
+  _ensureCones() {
     if (!this.cones) {
       const Cones = pick(ConeMod, 'VisionCones', 'default');
-      this.cones = safe(() => (Cones ? new Cones(w, this.renderer.decalScene || this.renderer.overlayScene) : null), 'vision-cones') || { update() {}, dispose() {} };
+      this.cones = safe(() => (Cones ? new Cones(this.world, this.renderer.decalScene || this.renderer.overlayScene) : null), 'vision-cones') || { update() {}, dispose() {} };
     }
+    return this.cones;
+  }
+
+  _updateCones() {
+    this._ensureCones();
     // (one view: its camera as CameraRig.update has just set it — not renderer.camera, the copy the last draw made of it,
     // a frame behind — cones off the screen wait; several views: every cone)
     const rig = this.cameraRig;
