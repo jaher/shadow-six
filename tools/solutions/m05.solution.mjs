@@ -21,7 +21,7 @@
  */
 import { CONFIG } from '../../src/config.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
-import { sneak, clearFor, routeClear, unwitnessed, bodySeen, viewersOf, walking, predict } from './sneak.mjs';
+import { sneak, clearFor, clearForGen, routeClear, routeClearGen, unwitnessed, bodySeenGen, viewersOf, walking, predict } from './sneak.mjs';
 import { mirrorOf } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M05DBG || globalThis.__M3DBG);
@@ -67,22 +67,28 @@ function carryWay(D, role, from, pts) {
 async function kill(D, role, tag, stash, { strict = false, when = () => true, maxWait = 300, carry = true, label = tag, via = [], approach = null } = {}) {
   const e = D.get(tag), u = D.c(role);
   if (carry && Array.isArray(stash[0])) {
-    const w = D.world, prev = w.sneakTurns;
-    w.sneakTurns = true; // (a walker turning at the end of his beat sweeps his eyes across)
-    try { stash = stash.find(([x, z]) => !bodySeen(D, x, z, 600, { step: 0.5, except: [e] }).length) ?? (() => { throw new Error(`${tag}: every stash is seen [${stash.map(([x, z]) => bodySeen(D, x, z, 600, { step: 0.5, except: [e] })).join(' | ')}]`); })(); }
-    finally { w.sneakTurns = prev; }
+    // (the first stash nobody will see a body lying in for ten minutes — 600 s of every guard's looks a stash, ~25 ms:
+    // sliced over frames in the live replay, the game clock standing still meanwhile (driver runSliced), at once
+    // headless; the walkers' turns at their halts on for the slices only: the same answer at the same tick)
+    const w = D.world, seen = [];
+    let prev = null, pick = null;
+    const around = { enter() { prev = w.sneakTurns; w.sneakTurns = true; }, leave() { w.sneakTurns = prev; } };
+    for (const [x, z] of stash) {
+      const by = await D.runSliced(bodySeenGen(D, x, z, 600, { step: 0.5, except: [e] }), around);
+      seen.push(by);
+      if (!by.length) { pick = [x, z]; break; }
+    }
+    if (!pick) throw new Error(`${tag}: every stash is seen [${seen.join(' | ')}]`);
+    stash = pick;
   }
   const SP = CONFIG.units.carry ?? 1.6, PICK = CONFIG.abilities.carry?.pick ?? 1.0;
   const why = [];
   let next = 0;
   let upright = null; // (him upright: a ghost made at each try, reading him as he is then — ghost.mjs)
   let nlog = 0, apNow = null;
-  await D.until(() => {
-    if (D.t < next) return false;
-    next = D.t + 0.25;
-    if (DBG && why.length && why[0] !== 'when' && D.t > nlog) { nlog = D.t + 1; dbg(D, `  ${tag} not yet: ${why.slice(0, 4).join(' ')}`); }
-    why.length = 0;
-    if (!when()) { why.push('when'); return false; }
+  // (the window's look-aheads — the walk up, the witnesses, the carry to the stash: up to ~12 ms at once — sliced
+  // over frames in the live replay, the game clock standing still meanwhile (driver runSliced), at once headless)
+  function* windowG() {
     // (`approach`: he first walks these points up to the victim — unseen all the way, the victim's own cone included —
     // and strikes at the end: the checks below then hold for that moment)
     let ta = 0;
@@ -94,13 +100,13 @@ async function kill(D, role, tag, stash, { strict = false, when = () => true, ma
       let [x, z] = [u.x, u.z];
       ta = 0.2 + rise;
       for (const [px, pz] of approach_) { ta += Math.hypot(px - x, pz - z) / 2.0; x = px; z = pz; }
-      for (const sp of [1.7, 2.4]) if (!routeClear(D, approach_, { mode: 'walk', from: [u.x, u.z], speed: sp, delay: 0.2 + rise, hold: 1.5, slack: 0.5, pad: 0.6, why })) return false;
+      for (const sp of [1.7, 2.4]) if (!(yield* routeClearGen(D, approach_, { mode: 'walk', from: [u.x, u.z], speed: sp, delay: 0.2 + rise, hold: 1.5, slack: 0.5, pad: 0.6, why }))) return false;
       const q = { x, z, heading: e.heading };
       const at = { x: e.x, z: e.z };
       const posts = viewersOf(D.world).filter((v) => !walking(v));
       const killer = Object.create(mirrorOf(u), { isLow: { value: false }, x: { value: q.x }, z: { value: q.z } });
       if (!unwitnessed(D, at, killer, { at: ta, ahead: 1.6, strict, why, except: [e] }) || !unwitnessed(D, at, killer, { at: ta, ahead: 1.6, strict: true, except: [e, ...posts], why })) { why.push('witness'); return false; }
-      if (carry && !routeClear(D, carryWay(D, role, [e.x, e.z], [...via, stash]), { mode: 'walk', from: [e.x, e.z], speed: SP * 0.9, delay: ta + 2.4 + PICK, hold: 1.5, slack: 0.8, why, except: [e], keepWalker: 2 })) return false;
+      if (carry && !(yield* routeClearGen(D, carryWay(D, role, [e.x, e.z], [...via, stash]), { mode: 'walk', from: [e.x, e.z], speed: SP * 0.9, delay: ta + 2.4 + PICK, hold: 1.5, slack: 0.8, why, except: [e], keepWalker: 2 }))) return false;
       return true;
     }
     upright = Object.create(mirrorOf(u), { isLow: { value: false } });
@@ -108,8 +114,16 @@ async function kill(D, role, tag, stash, { strict = false, when = () => true, ma
     if (back < (95 * Math.PI) / 180 || canSee(e, upright, D.world, { ignoreDisguise: true }) !== 'none') { why.push('victim faces him'); return false; }
     const posts = viewersOf(D.world).filter((v) => !walking(v));
     if (!unwitnessed(D, e, upright, { ahead: 1.6, strict, why }) || !unwitnessed(D, e, upright, { ahead: 1.6, strict: true, except: posts, why })) { why.push('witness'); return false; }
-    if (carry && !routeClear(D, carryWay(D, role, [e.x, e.z], [...via, stash]), { mode: 'walk', from: [e.x, e.z], speed: SP * 0.9, delay: 2.4 + PICK, hold: 1.5, slack: 0.8, why, except: [e], keepWalker: 2 })) return false;
+    if (carry && !(yield* routeClearGen(D, carryWay(D, role, [e.x, e.z], [...via, stash]), { mode: 'walk', from: [e.x, e.z], speed: SP * 0.9, delay: 2.4 + PICK, hold: 1.5, slack: 0.8, why, except: [e], keepWalker: 2 }))) return false;
     return true;
+  }
+  await D.untilAsync(() => {
+    if (D.t < next) return false;
+    next = D.t + 0.25;
+    if (DBG && why.length && why[0] !== 'when' && D.t > nlog) { nlog = D.t + 1; dbg(D, `  ${tag} not yet: ${why.slice(0, 4).join(' ')}`); }
+    why.length = 0;
+    if (!when()) { why.push('when'); return false; }
+    return D.runSliced(windowG());
   }, maxWait, `a window to kill ${label}`).catch((err) => { throw new Error(`${err.message} [${why.join(' ')}]`); });
   dbg(D, `kill ${tag} by ${role} at (${e.x.toFixed(1)},${e.z.toFixed(1)})`);
   if (approach) {
@@ -143,20 +157,26 @@ async function hop(D, role, pts, { hold = 6, pad = 0.6, slack = 0.6, maxWait = 3
   const u = D.c(role), end = pts[pts.length - 1];
   const why = [];
   let next = 0;
-  await D.until(() => {
-    if (D.t < next) return false;
-    next = D.t + 0.1;
-    why.length = 0;
-    if (ready && !ready()) { why.push('not ready'); return false; }
+  // (the look along the whole way at both crawl speeds and at its end for `hold` s: up to ~25 ms at once — M5's camp
+  // crossing — sliced over frames in the live replay, the game clock standing still meanwhile (driver runSliced), at
+  // once headless: the same checks at the same ticks)
+  function* clearG() {
     const run = mode === 'run', walk = run || mode === 'walk', md = walk ? 'walk' : 'crawl';
     const speeds = run ? [4.5] : walk ? [2.25] : [0.75, 1.0];
     if (run) for (const e of D.world.enemies) if (e.alive && !e.removed && pts.some(([px, pz]) => segDist(e.x, e.z, u.x, u.z, px, pz) < 14)) { why.push(`${e.tag} would hear`); return false; }
     const rise = walk && u.stance === 'crawl' ? 0.6 : !walk && u.stance !== 'crawl' ? 0.5 : 0;
-    for (const v of speeds) if (!routeClear(D, pts, { mode: md, from: [u.x, u.z], speed: v, delay: 0.2 + rise, slack, why, pad })) { if (DBG && ready) dbg(D, `${label}: ready, route not clear at ${v}: ${why.slice(0, 3).join(' ')}`); return false; }
+    for (const v of speeds) if (!(yield* routeClearGen(D, pts, { mode: md, from: [u.x, u.z], speed: v, delay: 0.2 + rise, slack, why, pad }))) { if (DBG && ready) dbg(D, `${label}: ready, route not clear at ${v}: ${why.slice(0, 3).join(' ')}`); return false; }
     let t = 0.2 + rise, [x, z] = [u.x, u.z];
     for (const [px, pz] of pts) { t += Math.hypot(px - x, pz - z) / speeds[0]; x = px; z = pz; }
-    for (let k = 0; k <= hold; k += 0.5) if (!routeClear(D, [end], { mode: standAtEnd || walk ? 'walk' : 'crawl', from: end, delay: t + k, slack: 0, why, pad })) { if (DBG && ready) dbg(D, `${label}: ready, end not clear at +${(t + k).toFixed(1)}: ${why.slice(0, 3).join(' ')}`); return false; }
+    for (let k = 0; k <= hold; k += 0.5) if (!(yield* routeClearGen(D, [end], { mode: standAtEnd || walk ? 'walk' : 'crawl', from: end, delay: t + k, slack: 0, why, pad }))) { if (DBG && ready) dbg(D, `${label}: ready, end not clear at +${(t + k).toFixed(1)}: ${why.slice(0, 3).join(' ')}`); return false; }
     return true;
+  }
+  await D.untilAsync(() => {
+    if (D.t < next) return false;
+    next = D.t + 0.1;
+    why.length = 0;
+    if (ready && !ready()) { why.push('not ready'); return false; }
+    return D.runSliced(clearG());
   }, maxWait, `${label} clear`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   dbg(D, `${label}: go`);
   await D.stance(role, mode === 'walk' || mode === 'run' ? 'stand' : 'crawl');
@@ -312,7 +332,8 @@ export const STAGES = [
     const why = [];
     const spots = [[51.3, 41.5], [sp.x, sp.z], [(sp.x + 51.3) / 2, (sp.z + 41.5) / 2]].flatMap(([x, z]) => [[x, z], [x - 0.8, z], [x, z + 0.8], [x - 0.6, z + 0.6]]);
     // (and every walker in reach — e3 in his lane, the camp patrol by the stone house, e5 by h3 — facing well away)
-    await cautious(D, () => D.until(() => { why.length = 0; return walkersAway(D, WALKERS(D), spots, 7) && clearFor(D, spots, 7, { mode: 'walk', why, step: 0.2 }); }, 300, 'nobody sees the Spy at the line'))
+    // (its clearFor look — 7 s of every guard's looks at 12 spots, up to ~13 ms — sliced over frames in the live replay)
+    await cautious(D, () => D.untilAsync(() => { why.length = 0; return walkersAway(D, WALKERS(D), spots, 7) && D.runSliced(clearForGen(D, spots, 7, { mode: 'walk', why, step: 0.2 })); }, 300, 'nobody sees the Spy at the line'))
       .catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3)}]`); });
     await D.stance('spy', 'stand');
     D.ability('spy', 'use', line);
