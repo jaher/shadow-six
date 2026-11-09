@@ -50,9 +50,10 @@ export default async function uiIcons(page0, t) {
         return { cls: c.className, n: c.children.length, txt: c.textContent, inside: r.left >= p.left - 2 && r.right <= p.right + 2 && r.bottom <= p.bottom + 2, h: r.height };
       }));
       for (const c of counts) t(c.inside && c.h >= 8, `${role}: count badge ${c.cls} (${c.txt || c.n}) readable on the pack`);
-      if (role === 'sniper') t(counts.some((c) => c.cls.includes('cartridges') && c.n === 5), 'sniper: 5 rendered cartridges');
-      if (role === 'sapper') t(counts.some((c) => c.cls.includes('icons') && c.n === 4), 'sapper: 4 grenade glyphs');
-      if (role === 'spy') t(arts.includes('item/pistol.p38'), 'spy carries the P38 render');
+      const units = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.hud-knapsack .item')].map((b) => [b.dataset.item, b.querySelectorAll('img.unit').length])));
+      if (role === 'sniper') t(units.sniperRifle === 5, `sniper: 5 rounds in the bandolier (${units.sniperRifle})`);
+      if (role === 'sapper') t(units.grenade === 3 && units.timeBomb === 2, `sapper: 4 Mills bombs and 3 charges hang on the pack (${JSON.stringify(units)})`);
+      if (role === 'spy') t(arts.includes('kit/pistol.p38'), 'spy carries the P38 render');
       const clip = await clipOf(page, '.hud-right-bottom', 10, { left: 10 });
       await shotJpg(page, t, `icons-knapsack-${role}`, clip);
     }

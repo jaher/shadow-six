@@ -201,8 +201,8 @@
 .hud-notebook.open .corner { display: block; }
 .hud-notebook .corner:hover { background: linear-gradient(45deg, #5fbf4a 50%, transparent 50%); }
 
-.hud-right-bottom { position: absolute; right: 0; bottom: 0; align-items: flex-end; gap: calc(2 * var(--r)); z-index: 2; pointer-events: none; }
-.ui-hud.pack-left .hud-right-bottom { right: auto; left: 0; flex-direction: row-reverse; }
+.hud-right-bottom { position: absolute; right: env(safe-area-inset-right, 0px); bottom: env(safe-area-inset-bottom, 0px); align-items: flex-end; gap: calc(2 * var(--r)); z-index: 2; pointer-events: none; }
+.ui-hud.pack-left .hud-right-bottom { right: auto; left: env(safe-area-inset-left, 0px); flex-direction: row-reverse; }
 .hud-hand { position: relative; width: calc(50 * var(--r)); height: calc(65 * var(--r)); padding: calc(4 * var(--r)); border: 0; background: none; cursor: pointer; pointer-events: auto; filter: drop-shadow(0 calc(2 * var(--r)) calc(3 * var(--r)) #000); }
 .hud-hand:has(> .ico) { padding: 0; filter: none; }
 .hud-hand svg { width: 100%; height: 100%; }
@@ -223,42 +223,71 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
   background: radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.10), transparent 60%), var(--canvas-tex), linear-gradient(rgb(64, 62, 38), var(--olive-sack) 55%, rgb(33, 32, 20));
   border: calc(2 * var(--r)) solid rgb(26, 25, 16); box-shadow: inset 0 calc(-8 * var(--r)) calc(12 * var(--r)) rgba(0, 0, 0, 0.45), 0 calc(2 * var(--r)) calc(6 * var(--r)) #000;
 }
-.hud-knapsack .pack::before { /* flap */
-  content: ''; position: absolute; left: 8%; right: 8%; top: 4%; height: 18%; border-radius: 0 0 40% 40%;
-  background: linear-gradient(rgb(72, 70, 44), rgb(50, 48, 30)); border-bottom: calc(1 * var(--r)) solid #1d1c12;
+/* the rendered rucksack (tools/blender/icons/models/kit.py): placed on its layer box by knapsack.js (it may spill out of
+   the 112 x 149 box), a soft shadow on whatever lies under the HUD */
+.hud-knapsack > .ico.packart { position: absolute; display: block; pointer-events: none; user-select: none; max-width: none;
+  filter: drop-shadow(calc(0.5 * var(--r)) calc(1.2 * var(--r)) calc(1.5 * var(--r)) rgba(0, 0, 0, 0.5)); }
+/* tucked into the corner (knapsack.js packTuck): one shift per side, from the worst case of every kit, so the pack sits in
+   the same place for every commando with all of any kit on screen; the knapsack box (and so the hand beside it) stays put */
+.hud-knapsack > .packart, .hud-knapsack > .pack, .hud-knapsack > .passengers { translate: calc(var(--kx, 0) * var(--r)) calc(var(--ky, 0) * var(--r)); }
+.hud-knapsack:has(> .ico.packart) .pack { background: none; border: 0; box-shadow: none; border-radius: 0; }
+/* the kit hanging from the pack: one pre-lit layer per item (its shadow on the pack baked in), placed and stacked by
+   knapsack.js. The button itself takes no pointer events: only its .hit, clipped to the object's silhouette, does, so
+   where items overlap the topmost one under the pointer is the one clicked (the tooltip, :hover and focus still belong
+   to the button). States move the object: hover lifts it off the pack with warm light on its upper-left edges, pressing
+   sets it back, the armed tool stays raised and lit, a disabled item hangs greyed and dimmed. Transforms only. */
+.hud-knapsack .item { position: absolute; padding: 0; border: 0; background: none; pointer-events: none; cursor: pointer; }
+.hud-knapsack .item > img.ico { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; display: block; z-index: 1; pointer-events: none; user-select: none;
+  transition: transform 0.09s ease-out, filter 0.09s ease-out; transform-origin: 50% 20%; }
+.hud-knapsack .item > img.unit { position: absolute; display: block; max-width: none; z-index: 0; pointer-events: none; user-select: none; }
+.hud-knapsack .item > .hit { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; z-index: 2; touch-action: manipulation; }
+.hud-knapsack .item.disabled > .hit { cursor: not-allowed; }
+.hud-knapsack .item > .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.hud-knapsack .item:hover, .hud-knapsack .item.armed, .hud-knapsack .item:focus-visible { z-index: 50 !important; } /* over the other layers (stacked inline) */
+.hud-knapsack .item:not(.disabled):hover > img.ico {
+  transform: translate(calc(-0.4 * var(--r)), calc(-1 * var(--r))) scale(1.03);
+  filter: drop-shadow(calc(-0.45 * var(--r)) calc(-0.45 * var(--r)) calc(0.5 * var(--r)) rgba(255, 196, 112, 0.75))
+    drop-shadow(calc(1.1 * var(--r)) calc(1.9 * var(--r)) calc(1.4 * var(--r)) rgba(12, 10, 4, 0.5)) brightness(1.07);
 }
-/* rendered rucksack (tools/blender/icons pack.py): canvas, stitched seams, flap on leather straps with brass buckles */
-.hud-knapsack > .ico.packart { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; user-select: none;
-  filter: drop-shadow(0 calc(2 * var(--r)) calc(3 * var(--r)) rgba(0, 0, 0, 0.7)); }
-.hud-knapsack:has(> .ico.packart) .pack { background: none; border: 0; box-shadow: none; }
-.hud-knapsack:has(> .ico.packart) .pack::before { display: none; }
-.hud-knapsack .item {
-  position: absolute; width: calc(34 * var(--r)); height: calc(34 * var(--r)); padding: 0; border: 0; background: none; cursor: pointer;
-  filter: drop-shadow(0 calc(1 * var(--r)) calc(1 * var(--r)) #000);
+.hud-knapsack .item:not(.disabled):active > img.ico { transform: translate(0, calc(0.3 * var(--r))) scale(0.985); filter: brightness(0.86); transition-duration: 0.04s; }
+.hud-knapsack .item.armed > img.ico {
+  transform: translate(calc(-0.6 * var(--r)), calc(-1.4 * var(--r))) scale(1.05);
+  filter: drop-shadow(0 0 calc(1.2 * var(--r)) rgba(255, 214, 110, 0.95)) drop-shadow(calc(-0.5 * var(--r)) calc(-0.5 * var(--r)) calc(0.5 * var(--r)) rgba(255, 220, 140, 0.8))
+    drop-shadow(calc(1.4 * var(--r)) calc(2.4 * var(--r)) calc(1.6 * var(--r)) rgba(12, 10, 4, 0.55)) brightness(1.12);
 }
-.hud-knapsack .item svg, .hud-knapsack .item > .ico { width: 100%; height: 100%; display: block; }
-.hud-knapsack .item > img.ico { object-fit: contain; pointer-events: none; user-select: none; }
-.hud-knapsack .item[data-icon] { filter: none; }
-.hud-knapsack .item[data-icon]:not(.disabled):hover { filter: brightness(1.12) drop-shadow(0 0 calc(2.5 * var(--r)) var(--brass-hi)); }
-.hud-knapsack .item[data-icon]:not(.disabled):active { filter: brightness(0.9); transform: translateY(calc(0.5 * var(--r))); }
-.hud-knapsack .item:hover { filter: drop-shadow(0 0 calc(3 * var(--r)) var(--brass-hi)); z-index: 2; }
-.hud-knapsack .item.armed { filter: drop-shadow(0 0 calc(4 * var(--r)) #f0e060); }
-.hud-knapsack .item.disabled { filter: grayscale(1) brightness(0.55); cursor: not-allowed; }
-/* §3.4 buried Green Beret: the shovel slot is the DIG OUT button (glowing, with a stamped tag); the rest is locked */
-.hud-knapsack .item.rise { z-index: 3; filter: drop-shadow(0 0 calc(3 * var(--r)) #f0e060); animation: risePulse 1.4s ease-in-out infinite; }
-.hud-knapsack .item.rise.disabled { filter: drop-shadow(0 0 calc(2 * var(--r)) #f0e060) brightness(0.85); animation: none; cursor: default; }
-.hud-knapsack .item .rise-tag { /* placed right under the shovel by knapsack.js (left / top / width / height: knapsackLayout) */
+.hud-knapsack .item.disabled > img.ico, .hud-knapsack .item.disabled > img.unit, .hud-knapsack .item.disabled > .count { filter: grayscale(0.92) brightness(0.52) contrast(0.92); }
+.hud-knapsack .item:focus-visible { outline: none; }
+.hud-knapsack .item:focus-visible > img.ico { filter: drop-shadow(0 0 calc(1.2 * var(--r)) var(--brass-hi)) drop-shadow(0 0 calc(0.6 * var(--r)) var(--brass-hi)); }
+.hud-knapsack .item.sketch > svg { width: 100%; height: 100%; filter: drop-shadow(0 calc(1 * var(--r)) calc(1 * var(--r)) #000); }
+.hud-knapsack .item.sketch > .hit { clip-path: none; }
+@media (prefers-reduced-motion: reduce) { .hud-knapsack .item > img.ico { transition: none; } }
+/* §3.4 buried Green Beret: the shovel is the DIG OUT button (glowing, with a stamped tag); the rest is locked */
+.hud-knapsack .item.rise { z-index: 40 !important; }
+.hud-knapsack .item.rise > img.ico { filter: drop-shadow(0 0 calc(3 * var(--r)) #f0e060); animation: risePulse 1.4s ease-in-out infinite; }
+.hud-knapsack .item.rise.disabled > img.ico { filter: drop-shadow(0 0 calc(2 * var(--r)) #f0e060) brightness(0.85); animation: none; }
+.hud-knapsack .item.rise.disabled > .hit { cursor: default; }
+.hud-knapsack .item .rise-tag { /* placed right under the shovel by knapsack.js (_tagAt) */
+  z-index: 3;
   position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; white-space: nowrap; pointer-events: none;
   padding: 0 calc(3 * var(--r)); font: 400 calc(8 * var(--r)) / 1 var(--f-head); letter-spacing: 0.08em; color: #2a1d08;
   background: linear-gradient(#f3d77a, #c9a03c); border: calc(0.8 * var(--r)) solid #5b4314; border-radius: calc(1.5 * var(--r));
   box-shadow: 0 calc(0.6 * var(--r)) calc(1 * var(--r)) rgba(0, 0, 0, 0.7);
 }
 @keyframes risePulse { 50% { filter: drop-shadow(0 0 calc(5 * var(--r)) #ffe680) brightness(1.15); } }
-@media (prefers-reduced-motion: reduce) { .hud-knapsack .item.rise { animation: none; } }
-/* the count tag hangs right under its item, in its own column (knapsack.js sets left / top / width: knapsackLayout,
-   whose TAG / TAG_GLYPHS numbers are the sizes below) */
-.hud-knapsack .count { position: absolute; display: flex; gap: calc(1 * var(--r)); pointer-events: none; z-index: 1; }
-/* one period treatment for every count (review): a stamped brass tag with a rivet at each end (rendered, 9-slice) */
+@media (prefers-reduced-motion: reduce) { .hud-knapsack .item.rise > img.ico { animation: none; } }
+/* counts that are not physical units are stencilled on the kit (knapsack.js _count): the number in paint on the pouch, the
+   webbing or the wrapper (a stencil's bridge cut through the middle of each figure), multiplied into the canvas; light
+   paint on olive webbing. Centred on the render's anchor. */
+.hud-knapsack .count.stencil {
+  position: absolute; z-index: 3; pointer-events: none; transform: translate(-50%, -50%) rotate(-2deg); white-space: nowrap;
+  font: 400 calc(10 * var(--r)) / 1 'Staatliches', 'Anton', 'Arial Narrow', sans-serif; letter-spacing: 0.06em; color: rgba(26, 23, 15, 0.86); mix-blend-mode: multiply;
+  -webkit-mask-image: linear-gradient(#000 0 47%, transparent 47% 55%, #000 55%); mask-image: linear-gradient(#000 0 47%, transparent 47% 55%, #000 55%);
+}
+.hud-knapsack .count.stencil[data-paint='light'] { color: rgba(232, 224, 196, 0.9); mix-blend-mode: normal; text-shadow: 0 0 calc(0.4 * var(--r)) rgba(0, 0, 0, 0.35); }
+.hud-knapsack .count.stencil.infinite { font-size: calc(12 * var(--r)); }
+/* a layer without a stencil anchor: the brass-on-leather tag under its item (knapsack.js _tagAt; TAG in knapsack-model.js) */
+.hud-knapsack .count { position: absolute; display: flex; gap: calc(1 * var(--r)); pointer-events: none; z-index: 3; }
+/* a stamped plate of the buckles' brass riveted on a strip of the straps' leather (rendered, 9-slice) */
 .hud-knapsack .count.tag {
   box-sizing: border-box; height: calc(9 * var(--r)); min-width: calc(20 * var(--r)); align-items: center; justify-content: center;
   padding: 0 calc(1 * var(--r)); border-style: solid; border-width: 0 calc(5.2 * var(--r)); border-color: transparent;
@@ -279,10 +308,20 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 .hud-knapsack .count.icons i { width: calc(4 * var(--r)); height: calc(4 * var(--r)); border-radius: 50%; background: #3b2a10; box-shadow: 0 calc(0.5 * var(--r)) 0 rgba(255, 238, 196, 0.5); }
 .hud-knapsack .count.ticks { gap: calc(1.6 * var(--r)); }
 .hud-knapsack .count.ticks i { width: calc(1 * var(--r)); height: calc(5 * var(--r)); background: #3b2a10; box-shadow: calc(0.5 * var(--r)) calc(0.4 * var(--r)) 0 rgba(255, 238, 196, 0.55); } /* engraved dose notches */
-.hud-knapsack .occupant { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(60 * var(--r)); height: calc(60 * var(--r)); padding: 0; border: calc(2 * var(--r)) solid var(--brass); background: #111; cursor: pointer; }
-.hud-knapsack .occupant img { width: 100%; height: 100%; object-fit: cover; }
-.hud-knapsack .passengers { position: absolute; left: 0; right: 0; bottom: 100%; display: flex; justify-content: center; gap: calc(2 * var(--r)); }
-.hud-knapsack .passengers img { width: calc(20 * var(--r)); height: calc(20 * var(--r)); border: calc(1 * var(--r)) solid var(--brass); }
+/* occupant view: only his photograph, a worn print tucked under the pack's straps (click = get out) */
+.hud-knapsack .occupant {
+  position: absolute; left: 53%; top: 44%; width: calc(54 * var(--r)); height: calc(62 * var(--r)); box-sizing: border-box; padding: calc(3.5 * var(--r)) calc(3.5 * var(--r)) calc(9 * var(--r));
+  border: 0; border-radius: calc(0.6 * var(--r)); cursor: pointer; transform: translate(-50%, -50%) rotate(-4deg); transition: transform 0.09s ease-out, box-shadow 0.09s ease-out;
+  background: linear-gradient(160deg, #f0e9d3, #d9cfb2 70%, #cbbf9d); box-shadow: calc(1.4 * var(--r)) calc(2.2 * var(--r)) calc(2.2 * var(--r)) rgba(10, 8, 3, 0.62), inset 0 0 calc(1.6 * var(--r)) rgba(110, 86, 40, 0.35);
+}
+.hud-knapsack .occupant img { display: block; width: 100%; height: 100%; object-fit: cover; filter: sepia(0.22) contrast(1.06) saturate(0.85); box-shadow: inset 0 0 0 calc(0.4 * var(--r)) rgba(0, 0, 0, 0.35); }
+.hud-knapsack .occupant:hover { transform: translate(-51%, -52%) rotate(-3deg) scale(1.03); box-shadow: calc(-0.45 * var(--r)) calc(-0.45 * var(--r)) calc(0.6 * var(--r)) rgba(255, 196, 112, 0.6), calc(2 * var(--r)) calc(3.2 * var(--r)) calc(2.8 * var(--r)) rgba(10, 8, 3, 0.6), inset 0 0 calc(1.6 * var(--r)) rgba(110, 86, 40, 0.35); }
+.hud-knapsack .occupant:active { transform: translate(-50%, -49.5%) rotate(-4deg) scale(0.99); }
+/* boat passengers: small prints tucked above the pack */
+.hud-knapsack .passengers { position: absolute; left: 0; right: 0; bottom: calc(100% - 6 * var(--r)); display: flex; justify-content: center; gap: calc(2 * var(--r)); z-index: 3; pointer-events: none; }
+.hud-knapsack .passengers img { width: calc(20 * var(--r)); height: calc(20 * var(--r)); box-sizing: content-box; border: calc(1.4 * var(--r)) solid #e6dec6; border-bottom-width: calc(3 * var(--r)); object-fit: cover;
+  box-shadow: calc(0.8 * var(--r)) calc(1.2 * var(--r)) calc(1.4 * var(--r)) rgba(10, 8, 3, 0.6); filter: sepia(0.2); transform: rotate(-5deg); }
+.hud-knapsack .passengers img:nth-child(2n) { transform: rotate(4deg); }
 
 /* Briefing Notes page (folded corner / Ctrl+B) */
 

@@ -1343,20 +1343,29 @@ Every button has a hover state (BEL's `M_` sprites).
 **Hand button** (50×65, a photo-real open palm): same as **H**.
 
 **Knapsack** (112×149, olive rucksack, anchored bottom-right; Tab mirrors it to the left):
-- **Contents.** Item icons are painted *on* the rucksack, overlapping. Only the selected man's items are shown.
+- **Look [remake].** A closed, voluminous olive-drab rucksack seen from the front (flap with bound edge, leather
+  straps and brass buckles, steel D-rings, side pockets), with the selected man's kit **hanging from it in 3D**, where
+  kit is carried: the pistol in a holster on the left D-ring, the knife in a sheath tied on, the long gun across the
+  front on its sling, Mills bombs clipped to the webbing, charges strapped on, the first-aid pouch on the webbing, the
+  dinghy rolled under the pack, the decoy on a cord from the top ring, the first-aid pouch on the lower webbing, ... One scene and one light rig (key upper left,
+  `tools/blender/icons/models/kit.py`), one pre-lit layer per item with its shadow on the pack, stacked by depth; items
+  may overlap and hang past the pack's outline. An item's hit area is its visible silhouette (the topmost wins; a
+  finger keeps a 28 px slop). Hover lifts an item with warm light on its edge, the armed tool stays raised, a disabled
+  item hangs greyed and dimmed. Tab shows the mirrored set, still lit from the upper left.
+- **Contents.** Only the selected man's items are shown (knapsack-model.js `knapsackKit`).
   - **For a group, only the items all of them share** (the intersection).
 - **Click or hotkey behaviour.** An item either acts at once (inflate the raft, drop the decoy, put on diving gear) or arms a cursor.
 - **Counts:**
 
   | Item | Display |
   |---|---|
-  | Sniper ammo | Row of brass cartridges, one per round |
-  | SMG | Bursts, drawn as a stencilled number |
-  | Grenades and bombs | Individual icons |
-  | First aid | Dose ticks |
+  | Sniper ammo | Row of brass cartridges, one per round (remake: a round in each bandolier loop on the lower strap, 10 loops; beyond that the number is stencilled on the webbing) |
+  | SMG | Bursts, drawn as a stencilled number (remake: stencilled on the magazine pouch that hangs with the SMG) |
+  | Grenades and bombs | Individual icons (remake: one Mills bomb clipped to the webbing per grenade, up to 5; one charge strapped on per bomb, up to 4; more: the number stencilled beside them) |
+  | First aid | Dose ticks (remake: the dose count stencilled on the first-aid pouch) |
 
 - **Swapped items.** A dropped remote bomb or decoy is replaced by its **detonator / activator** icon.
-- **Occupant view.** A man in a vehicle or building shows only **his photo**; click it to exit. Raft passengers show as small photos above the pack.
+- **Occupant view.** A man in a vehicle or building shows only **his photo** (a print tucked on the pack); click it to exit. Raft passengers show as small photos above the pack.
 - **Disabled items.** Unavailable items are greyed with a tooltip reason, e.g. "Only in shallow water".
 
 **Tooltips** (0.8 s delay): a black box with a thin light border and white bold condensed uppercase text, offset below-right of the object. Examples: "EXPLOSIVE BARREL", "SOLDIER", "SERGEANT", "MACHINE GUNNER", "GARRISON", "PRISON", "BUNKER", "ESCAPE: TRUCK".

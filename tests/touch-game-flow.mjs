@@ -497,9 +497,12 @@ async function portraitStage(c) {
   if (await page.evaluate(() => !document.querySelector('.rot-hint')?.hidden)) await tapEl('.rot-hint .rot-ok');
   await page.evaluate(() => window.__game.render());
   const m = await page.evaluate(async () => {
-    const { nearestSlot } = await import('/src/ui/knapsack.js');
+    const { BAG_TAP_SLOP } = await import('/src/ui/knapsack.js');
+    const { pickKit } = await import('/src/ui/knapsack-model.js');
+    const kitAreas = window.__game.game.hud.knapsack.hitAreas();
     const vis = (q) => [...document.querySelectorAll(q)].filter((e) => e.getBoundingClientRect().width > 0);
-    // the area a tap reaches each control through: elementFromPoint (own box + ::after pads) or the bag's nearest slot
+    // the area a tap reaches each control through: elementFromPoint (own box + ::after pads) or, in the bag, the item
+    // whose silhouette is under the finger (the topmost), else the nearest one within the tap slop (knapsack pickKit)
     const span = (e, test) => {
       const r = e.getBoundingClientRect();
       let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
@@ -512,19 +515,19 @@ async function portraitStage(c) {
     for (const e of vis('.hud-portrait, .hud-icon:not(.hud-lamp), .hud-camdial, .hud-hand, .touch-menu')) {
       out[e.dataset.role || e.className.split(' ').find((k) => k !== 'hud-icon') || e.className] = span(e, (x, y) => { const h = document.elementFromPoint(x, y); return h === e || e.contains(h); });
     }
-    const kn = document.querySelector('.hud-knapsack'), kr = kn.getBoundingClientRect();
-    const boxes = vis('.hud-knapsack button').map((b) => { const r = b.getBoundingClientRect(); return { el: b, left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
-    for (const b of boxes) {
-      out[`item:${b.el.dataset.item}`] = span(b.el, (x, y) => x >= kr.left && x < kr.right && y >= kr.top && y < kr.bottom && nearestSlot(boxes, x, y) === b.el);
+    for (const a of kitAreas) {
+      out[`item:${a.el.dataset.item}`] = span(a.el, (x, y) => pickKit(kitAreas, x, y, BAG_TAP_SLOP) === a.el);
     }
-    const k = boxes.find((b) => b.el.dataset.item === 'knife');
-    return { out, gap: k && { x: (k.left + k.right) / 2, y: k.bottom + 4 } };
+    // a point just under the knife's silhouette (its sheath tip), on the pack or beside it: no item there
+    const k = kitAreas.find((a) => a.el.dataset.item === 'knife');
+    const tip = k && k.poly.reduce((p, q) => (q[1] > p[1] ? q : p));
+    return { out, gap: tip && { x: tip[0], y: tip[1] + 4 } };
   });
   t.log(tag, 'portrait hit areas', JSON.stringify(m.out));
   const small = Object.entries(m.out).filter(([, v]) => v.w < 44 || v.h < 44);
   t(Object.keys(m.out).length >= 10 && !small.length, `${tag} portrait: every HUD control ≥ 44 × 44 px for a finger (${JSON.stringify(small)})`);
   await shot(`${tag}-portrait`);
-  // a fingertip just off the knife slot (on the bag canvas) still takes the knife
+  // a fingertip just off the knife (below its sheath) still takes the knife
   await page.touchscreen.tap(m.gap.x, m.gap.y);
   await page.evaluate(() => window.__game.render());
   t.equal(await page.evaluate(() => window.__game.game.input.targeting?.abilityId || null), 'knife', `${tag} portrait: a tap beside the knife slot arms the knife`);

@@ -1,108 +1,121 @@
 /**
- * Knapsack layout (user 2026-10-08, on the iPhone close-up: "The bullets of sniper rifle overlap gun?"): in every kit a
+ * The knapsack kit (user 2026-11-08: "Backpack doesn't look nice, look at original", "Items should be in 3d hanging from
+ * backpack"): a closed rucksack render with each item rendered in place on it, one pre-lit layer per item. In every kit a
  * player can see (tests/knapsack-kits.mjs: every commando in every mission, BEL and BCD, the kits that change in play,
- * the largest counts, two men selected together) the drawn boxes of the items (their visible pixels, shadow included),
- * their count tags (the cartridges standing above the plate included) and the DIG OUT tag never touch: at least
- * PACK_LAYOUT.gap apart, each tag right under its own item, everything on the pack's kit area. The browser check of the
- * same rule on desktop and phones at DPR 1–3 is tests/knapsack-layout.test.mjs.
+ * the largest counts, two men selected together) every item has its layer, its hit polygon and its place in the stack;
+ * counts are physical units (a round per round, a Mills bomb per grenade, a charge per bomb) or the brass tag; items may
+ * overlap, but each one keeps a clickable region where it is the topmost (pickKit). The browser check on desktop and
+ * phones is tests/knapsack-layout.test.mjs.
  */
 import { test, assert } from './lib.mjs';
-import { knapsackView, knapsackLayout, tagSpec, rectsOverlap, PACK_LAYOUT, TAG } from '../../src/ui/knapsack-model.js';
+import { knapsackView, knapsackKit, pickKit, inPolygon, polygonDistance, KIT_UNITS } from '../../src/ui/knapsack-model.js';
 import { ICON_MANIFEST } from '../../src/ui/icon-manifest.js';
-import { itemArt, COUNT_ART } from '../../src/ui/icon-art.js';
 import { knapsackKits } from '../knapsack-kits.mjs';
 
-/** The knapsack.js render's input for a kit: its view items, their art and the layout. */
-export function layoutKit(kit) {
+const has = (id) => !!ICON_MANIFEST[id];
+
+/** The knapsack.js render's input for a kit: its view and kit layers. */
+export function kitOf(kit, left = false) {
   const units = kit.units.map((u, i) => ({ id: i + 1, role: u.role, alive: true, selected: true, x: 0, z: 0, inventory: new Map(Object.entries(u.inv)), ...(u.state || {}) }));
   const world = { campaign: kit.campaign, rules: kit.campaign === 'BCD' ? { id: 'BCD' } : undefined, groundAt: () => ({}) };
   const view = knapsackView(units, world);
-  const roles = units.map((u) => u.role);
-  const arts = view.items.map((it) => itemArt(it.id, roles) || itemArt(it.item, roles));
-  const specs = view.items.map((it) => tagSpec(it, COUNT_ART[it.item || it.id] || null));
-  const L = knapsackLayout(view.items.map((it, i) => {
-    const e = ICON_MANIFEST[arts[i]];
-    return { id: it.item || it.id, box: e?.b || [34, 34], content: e?.c || null, span: e?.s || 1, tag: specs[i] };
-  }));
-  return { view, arts, specs, L };
+  return { view, kit: knapsackKit(view, { left, has }) };
 }
 
-const gapOf = (a, b) => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+/** An item's silhouette in knapsack ref px (its layer's offset + polygon fractions of its box). */
+export function polyOf(art) {
+  const e = ICON_MANIFEST[art], p = e.p || [], o = e.o || [0, 0];
+  const out = [];
+  for (let i = 0; i + 1 < p.length; i += 2) out.push([o[0] + p[i] * e.b[0], o[1] + p[i + 1] * e.b[1]]);
+  return out;
+}
 
-test('every icon the knapsack draws knows its drawn box (manifest c: visible pixels as fractions of the box)', () => {
-  for (const [id, e] of Object.entries(ICON_MANIFEST)) {
-    if (!id.startsWith('item/')) continue;
-    assert.ok(Array.isArray(e.c) && e.c.length === 4, `${id} has c`);
-    const [x0, y0, x1, y1] = e.c;
-    assert.ok(x0 >= 0 && y0 >= 0 && x1 <= 1 && y1 <= 1 && x1 - x0 > 0.3 && y1 - y0 > 0.3, `${id} c ${e.c}`);
+test('the rucksack and every item any kit shows ship as kit layers: a box on the knapsack, a hit polygon, a place in the stack', () => {
+  for (const side of ['', '.left']) {
+    if (side && !has('kit/pack.left')) continue;
+    assert.ok(has(`kit/pack${side}`), `kit/pack${side} ships`);
+    const seen = new Set();
+    for (const k of knapsackKits()) {
+      const { view, kit } = kitOf(k, !!side);
+      if (view.mode !== 'items') continue;
+      for (const { it, art, units } of kit) {
+        assert.ok(art, `${k.name}: ${it.id} has a kit layer`);
+        if (side) assert.ok(art.endsWith('.left'), `${k.name}: ${it.id} uses the mirrored layer (${art})`);
+        for (const id of [art, ...units]) seen.add(id);
+      }
+    }
+    for (const id of seen) {
+      const e = ICON_MANIFEST[id];
+      assert.ok(Array.isArray(e.o) && e.o.length === 2 && e.b[0] > 2 && e.b[1] > 2, `${id}: placed (${JSON.stringify(e.o)} ${e.b})`);
+      // kit hangs off the pack but stays within the rendered frame: it may spill left / up (into the screen), not past the
+      // box's right or bottom edge (the screen's edge); the mirrored set spills right instead
+      const [x, y] = e.o, [w, h] = e.b;
+      if (side) assert.ok(x >= -1 && x + w <= 112 + 45 && y >= -20 && y + h <= 149, `${id}: within the mirrored frame`);
+      else assert.ok(x >= -45 && x + w <= 113 && y >= -20 && y + h <= 149, `${id}: within the frame (${x},${y} ${w}x${h})`);
+      assert.ok(Number.isFinite(e.z), `${id}: z`);
+      if (!/\/(round|grenade|charge)\.\d/.test(id)) {
+        const poly = polyOf(id);
+        assert.ok(poly.length >= 4, `${id}: hit polygon (${poly.length} points)`);
+      }
+    }
+    assert.ok(seen.size > 30, `${seen.size} layers in use`);
   }
 });
 
-test('nothing on the pack overlaps: items, count tags and DIG OUT tags stay apart in every kit', () => {
-  const kits = knapsackKits();
-  assert.ok(kits.length > 60, `${kits.length} kits`);
-  const A = PACK_LAYOUT, bad = [];
-  let tags = 0;
-  for (const kit of kits) {
-    const { view, L } = layoutKit(kit);
-    if (view.mode !== 'items') continue;
-    const things = [];
-    view.items.forEach((it, i) => {
-      things.push({ what: `${it.id}`, owner: i, r: L[i].item, tag: false });
-      if (L[i].tag) { things.push({ what: `${it.id} tag`, owner: i, r: L[i].tag, tag: true }); tags++; }
-    });
-    for (const t of things) {
-      const r = t.r;
-      if (r.x < A.x - 1e-6 || r.y < A.y - 1e-6 || r.x + r.w > A.x + A.w + 1e-6 || r.y + r.h > A.y + A.h + 1e-6) bad.push(`${kit.name}: ${t.what} leaves the kit area ${JSON.stringify(r)}`);
-    }
-    for (let a = 0; a < things.length; a++) {
-      for (let b = a + 1; b < things.length; b++) {
-        const p = things[a], q = things[b], own = p.owner === q.owner;
-        const need = own ? A.attach : A.gap;
-        if (rectsOverlap(p.r, q.r, 0.01) || gapOf(p.r, q.r) < need - 0.01) bad.push(`${kit.name}: ${p.what} / ${q.what} ${gapOf(p.r, q.r).toFixed(2)} px apart (need ${need})`);
+test('counts are physical: a round per sniper round, a Mills bomb per grenade, a charge per bomb; the rest on the brass tag', () => {
+  const k = (role, inv, state) => kitOf({ name: role, campaign: 'BEL', units: [{ role, inv, state }] }).kit;
+  const sn = k('sniper', { pistol: 1, sniperRifle: 7, firstAid: 4 });
+  const rifle = sn.find((x) => x.it.id === 'sniperRifle');
+  assert.equal(rifle.units.length, 7, 'seven rounds in the bandolier');
+  assert.ok(rifle.units.every((u, i) => u === `kit/round.${i + 1}`) && !rifle.tag, 'rounds 1..7, no tag');
+  assert.equal(sn.find((x) => x.it.id === 'firstAid').tag.kind, 'ticks', 'first-aid doses on the tag');
+  const many = k('sniper', { pistol: 1, sniperRifle: 14 }).find((x) => x.it.id === 'sniperRifle');
+  assert.ok(many.units.length === KIT_UNITS.cartridges.max && many.tag?.n === 14, 'more rounds than loops: the loops full, the number on the tag');
+  const sp = k('sapper', { pistol: 1, grenade: 3, timeBomb: 2 });
+  assert.deepEqual(sp.find((x) => x.it.id === 'grenade').units, ['kit/grenade.2', 'kit/grenade.3'], 'three Mills bombs (the item + two)');
+  assert.deepEqual(sp.find((x) => x.it.id === 'timeBomb').units, ['kit/charge.2'], 'two charges strapped on');
+  assert.equal(k('driver', { pistol: 1, smg: 40 }).find((x) => x.it.id === 'smg').tag.n, 40, 'SMG bursts on the tag');
+  const spy = k('spy', { pistol: 1, lethalInjection: 1 });
+  assert.equal(spy.find((x) => x.it.id === 'pistol').art, 'kit/pistol.p38', "the Spy's P38");
+  const armed = k('sapper', { pistol: 1, remoteBomb: 2, detonator: 1 }, { remoteArmed: 1 });
+  assert.ok(armed.some((x) => x.art === 'kit/detonator@charge'), 'the detonator hangs where the charges were once they are out');
+  const gb = k('greenberet', { knife: 1, pistol: 1, decoy: 1 }, { decoyPlaced: true });
+  assert.ok(gb.some((x) => x.art === 'kit/decoyActivator'), 'the activator replaces the decoy');
+});
+
+test('pickKit: the topmost silhouette under the pointer wins; off every silhouette, the nearest within the slop', () => {
+  const sq = (x, y, s) => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
+  const A = { el: 'A', z: 1, poly: sq(0, 0, 10) }, B = { el: 'B', z: 5, poly: sq(5, 5, 10) };
+  assert.equal(pickKit([A, B], 7, 7), 'B', 'overlap: the higher one');
+  assert.equal(pickKit([A, B], 2, 2), 'A', 'only A');
+  assert.equal(pickKit([A, B], 30, 30), null, 'nothing there');
+  assert.equal(pickKit([A, B], 17, 9, 3), 'B', 'within the slop of B');
+  assert.ok(inPolygon(sq(0, 0, 4), 2, 2) && !inPolygon(sq(0, 0, 4), 5, 2) && Math.abs(polygonDistance(sq(0, 0, 4), 7, 2) - 3) < 1e-9, 'polygon helpers');
+});
+
+test('items may overlap, but each one keeps a clickable region where it is the topmost (every kit)', () => {
+  const bad = [];
+  let kits = 0;
+  for (const k of knapsackKits()) {
+    for (const left of [false, true]) {
+      if (left && !has('kit/pack.left')) continue;
+      const { view, kit } = kitOf(k, left);
+      if (view.mode !== 'items') continue;
+      kits++;
+      const items = kit.map(({ it, art }, i) => ({ el: `${i}:${it.id}`, z: ICON_MANIFEST[art].z, poly: polyOf(art) }));
+      for (const me of items) {
+        const xs = me.poly.map((p) => p[0]), ys = me.poly.map((p) => p[1]);
+        let mine = 0;
+        for (let x = Math.min(...xs); x <= Math.max(...xs); x += 0.5) {
+          for (let y = Math.min(...ys); y <= Math.max(...ys); y += 0.5) {
+            if (inPolygon(me.poly, x, y) && pickKit(items, x, y) === me.el) mine++;
+          }
+        }
+        // at least ~4 x 4 ref px (8 x 8 CSS px at 1080p) of the item is its own, topmost
+        if (mine * 0.25 < 16) bad.push(`${k.name}${left ? ' (left)' : ''}: ${me.el} only ${(mine * 0.25).toFixed(1)} ref px² clickable`);
       }
     }
   }
-  assert.ok(tags > 50, `${tags} count tags checked`);
-  assert.ok(!bad.length, `${bad.length} overlaps, e.g.\n  ${bad.slice(0, 12).join('\n  ')}`);
-});
-
-test('each count tag hangs right under its own item and fits its column; the rifle and its rounds stay readable', () => {
-  for (const kit of knapsackKits({ pairs: false })) {
-    const { view, specs, L } = layoutKit(kit);
-    if (view.mode !== 'items') continue;
-    view.items.forEach((it, i) => {
-      const t = L[i].tag, r = L[i].item;
-      if (!t) return;
-      assert.ok(Math.abs(t.y - (r.y + r.h + PACK_LAYOUT.attach)) < 0.01, `${kit.name} ${it.id}: tag right under the item`);
-      assert.ok(t.x >= L[i].slot.x - 1e-6 && t.x + t.w <= L[i].slot.x + L[i].slot.w + 1e-6, `${kit.name} ${it.id}: tag inside its column`);
-      assert.ok(t.x < r.x + r.w && t.x + t.w > r.x, `${kit.name} ${it.id}: tag under the item, not beside it`);
-      assert.ok(t.h >= TAG.h && t.w >= Math.min(specs[i].w, L[i].slot.w) - 1e-6, `${kit.name} ${it.id}: full-size tag`);
-    });
-    // no icon shrinks below 55 % of its box, whatever the kit (six items and two tags: 0.59; the mission kits: 0.8 and up)
-    view.items.forEach((it, i) => assert.ok(L[i].k >= 0.55, `${kit.name} ${it.id}: drawn at ${L[i].k.toFixed(2)} of its box`));
-    if (/^m\d\d /.test(kit.name)) view.items.forEach((it, i) => assert.ok(L[i].k >= 0.8, `${kit.name} ${it.id}: a mission kit drawn at ${L[i].k.toFixed(2)}`));
-  }
-  // the Sniper (the report): the rifle on top with its five rounds under it, the pistol below, clear of both
-  const sn = layoutKit({ name: 'sniper', campaign: 'BEL', units: [{ role: 'sniper', inv: { sniperRifle: 5, pistol: 1, firstAid: 6 } }] });
-  const i = (id) => sn.view.items.findIndex((x) => x.id === id);
-  const rifle = sn.L[i('sniperRifle')], pistol = sn.L[i('pistol')];
-  assert.ok(rifle.item.w > 70, `rifle ${rifle.item.w.toFixed(1)} px wide`);
-  assert.ok(rifle.tag.y + rifle.tag.h + PACK_LAYOUT.gap <= pistol.item.y + 1e-6, 'the rounds end above the pistol');
-  assert.ok(rifle.tag.y >= rifle.item.y + rifle.item.h, 'the rounds start below the rifle (and its shadow)');
-});
-
-test('the same item is drawn at the same size in every kit that fits the pack at full size', () => {
-  const size = new Map();
-  for (const kit of knapsackKits({ pairs: false })) {
-    const { view, arts, L } = layoutKit(kit);
-    if (view.mode !== 'items') continue;
-    view.items.forEach((it, i) => {
-      if (L[i].k < 0.999 * Math.min(PACK_LAYOUT.kMax, L[i].slot.w / (L[i].item.w / L[i].k))) return; // a crowded kit shrank
-      const s = size.get(arts[i]);
-      if (s == null) size.set(arts[i], L[i].item.h);
-      else assert.ok(Math.abs(s - L[i].item.h) < 0.01, `${arts[i]} ${s.toFixed(2)} vs ${L[i].item.h.toFixed(2)} (${kit.name})`);
-    });
-  }
-  assert.ok(size.has('item/pistol.colt1911') && size.has('item/sniperRifle'), 'checked');
+  assert.ok(kits > 60, `${kits} kits`);
+  assert.ok(!bad.length, `${bad.length} items hidden under others, e.g.\n  ${bad.slice(0, 10).join('\n  ')}`);
 });

@@ -1,8 +1,8 @@
 /**
  * Knapsack contents model (design-spec §6.4) — pure logic, no DOM, unit-tested.
  * - One man: his items. A group: only the items ALL of them carry (intersection), count = the smallest stack.
- * - Counts: sniper ammo = a row of cartridges, SMG = a stencilled number, grenades/bombs = individual icons,
- *   first aid = dose ticks; everything else is a single icon.
+ * - Counts: sniper ammo = a round in the bandolier per round, grenades / bombs = one Mills bomb / charge each (knapsackKit),
+ *   SMG bursts, first-aid doses, cigarettes, overflow = a number stencilled on the kit; everything else is the item alone.
  * - Swaps: a sapper with a live remote bomb shows the detonator; a GB whose decoy is on the ground shows the activator.
  * - Occupant view: a man in a vehicle or building shows only his photo (click = exit).
  * - Buried (GB shovel): his kit with the shovel as the DIG OUT slot (`rise`), everything else locked.
@@ -130,127 +130,89 @@ function buriedView(u, world) {
 }
 
 /**
- * §6.4 count tag geometry (ref px), the same numbers as styles/ui.css `.hud-knapsack .count`: a stamped brass tag `h`
- * tall with `chrome` px of rivet ends and padding; its glyphs stand in it side by side (`w` + `gap`), the cartridges
- * `up` px above its top edge (a round in its loop). `max`: glyphs shown at most. Numbers are engraved text.
+ * §6.4 count tag geometry (ref px), the same numbers as styles/ui.css `.hud-knapsack .count`: a stamped brass plate on a
+ * leather strip `h` tall with `chrome` px of rivet ends and padding; numbers are engraved text (`digit` px each), dose
+ * notches 1 px with 1.6 px between.
  */
 export const TAG = Object.freeze({ h: 9, chrome: 12.4, minW: 20, digit: 4.4 });
-export const TAG_GLYPHS = Object.freeze({
-  cartridges: { w: 3.6, gap: 1, up: 2, max: 12 },
-  'item/grenade.mini': { w: 7, gap: 1, up: 0.875, max: 8 },
-  'item/charge.mini': { w: 8, gap: 1, up: 0, max: 8 },
-  icons: { w: 4, gap: 1, up: 0, max: 8 }, // plain dots when an item has no glyph render
-  ticks: { w: 1, gap: 1.6, up: 0, max: 8 },
-});
 /** The buried Green Beret's DIG OUT / RISING tag under the shovel (styles/ui.css `.rise-tag`). */
 export const RISE_TAG = Object.freeze({ w: 38, h: 12 });
 
 /**
- * Size of an item's count tag (or DIG OUT tag): {w, h, up, n, gw, gap, glyph} in ref px, or null (no count).
- * `glyph`: the count glyph's art id (COUNT_ART: cartridge, grenade / charge minis), when the item has one.
+ * The knapsack is one physical object (user 2026-11-08: "Backpack doesn't look nice, look at original", then "Items should
+ * be in 3d hanging from backpack"): a closed rucksack render (`kit/pack`) with each item rendered IN PLACE on it, hanging
+ * or strapped where kit is carried (tools/blender/icons/models/kit.py), one pre-lit layer per item. Counts are physical
+ * where they can be: one brass round in the bandolier per sniper round, one Mills bomb clipped to the webbing per grenade,
+ * one charge strapped on per bomb (up to KIT_UNITS; beyond that, and for SMG bursts, first-aid doses, cigarettes and the
+ * Lee-Enfield's ∞, the number stencilled on the kit: knapsack.js _count).
  */
-export function tagSpec(it, glyph = null) {
-  if (it?.rise) return { w: RISE_TAG.w, h: RISE_TAG.h, up: 0, n: 0, kind: 'rise' };
-  if (!it || it.display === 'single' || !it.display || it.count == null) return null;
-  if (it.display === 'number' || it.display === 'infinite') {
-    const chars = it.display === 'infinite' ? 1 : String(it.count).length;
-    return { w: Math.max(TAG.minW, TAG.chrome + chars * TAG.digit), h: TAG.h, up: 0, n: 0, kind: it.display };
-  }
-  const g = TAG_GLYPHS[it.display === 'cartridges' ? 'cartridges' : it.display === 'ticks' ? 'ticks' : glyph && TAG_GLYPHS[glyph] ? glyph : 'icons'];
-  const n = Math.max(0, Math.min(it.count, g.max));
-  const w = Math.max(TAG.minW, TAG.chrome + n * g.w + Math.max(0, n - 1) * g.gap);
-  return { w, h: TAG.h, up: g.up, n, gw: g.w, gap: g.gap, kind: it.display };
-}
+export const KIT_UNITS = Object.freeze({ cartridges: { art: 'round', from: 1, max: 10 }, grenade: { art: 'grenade', from: 2, max: 5 },
+  timeBomb: { art: 'charge', from: 2, max: 4 }, remoteBomb: { art: 'charge', from: 2, max: 4 } });
 
 /**
- * The pack's kit area and spacing (ref px of the 112×149 rendered rucksack): `gap` between any two things drawn on it
- * (items, count tags), `attach` between an item and its own tag (it hangs right under its weapon), `kMax` the most an
- * icon is enlarged over its box.
+ * Art for each knapsack item as kit layers. `has(id)`: is that art shipped (ICON_MANIFEST). `left`: Tab's mirrored set.
+ * @param {{items: object[], units?: object[]}} view knapsackView() output
+ * @returns {{it: object, art: string|null, units: string[], tag: object|null}[]} art = the item's layer, units = the extra
+ *   unit layers (rounds, bombs, charges) shown with it, tag = {kind, n} for the brass tag (null: none)
  */
-export const PACK_LAYOUT = Object.freeze({ x: 7, y: 39, w: 98, h: 99, gap: 2.5, attach: 0.75, kMax: 1.12, cols: 2 });
-
-/**
- * Lay the kit out on the pack with nothing drawn over anything else (user 2026-10-08: "The bullets of sniper rifle
- * overlap gun?"). Rows as PACK_ORDER gives them (a long gun fills a row, then two items a row, an odd last one centred);
- * each item is sized by its DRAWN box (the render's visible pixels, `content` fractions of its icon box, shadow
- * included) with its count tag right under it, inside its own column. Rows are as tall as their tallest item + tag and
- * `gap` apart; the whole kit shrinks by one common factor only when the rows would not fit the pack, and the spare
- * height is spread evenly above, between and below the rows.
- * @param {{id?:string, box:number[], content?:number[], span?:number, tag?:{w:number,h:number,up:number}|null}[]} entries
- * @returns {{item:Rect, icon:Rect, tag:Rect|null, slot:Rect, k:number}[]} item = drawn box, icon = the full image box,
- *   tag = the tag's drawn box (glyphs standing above it included); Rect = {x, y, w, h} in ref px; same order as entries
- */
-export function knapsackLayout(entries, area = PACK_LAYOUT) {
-  if (!entries.length) return [];
-  const cols = area.cols || 2;
-  const span = (i) => Math.min(cols, entries[i].span || (entries[i].box[0] >= 60 ? 2 : 1));
-  const rank = (i) => {
-    const r = PACK_ORDER.indexOf(entries[i].id);
-    return r < 0 ? PACK_ORDER.length + i : r;
-  };
-  const order = entries.map((_, i) => i).sort((a, b) => (span(b) >= cols) - (span(a) >= cols) || rank(a) - rank(b) || a - b);
-  const rows = [];
-  for (const i of order) {
-    let r = rows.find((q) => q.used + span(i) <= cols && !(span(i) >= cols && q.used));
-    if (!r || (span(i) >= cols && r.used)) rows.push((r = { items: [], used: 0 }));
-    r.items.push(i);
-    r.used += span(i);
-  }
-  const colW = (area.w - area.gap * (cols - 1)) / cols;
-  const slotW = (i) => colW * span(i) + area.gap * (span(i) - 1);
-  const cbox = (i) => {
-    const [bw, bh] = entries[i].box, c = entries[i].content || [0, 0, 1, 1];
-    return { w: bw * (c[2] - c[0]), h: bh * (c[3] - c[1]), c };
-  };
-  const foot = (i) => (entries[i].tag ? area.attach + entries[i].tag.up + entries[i].tag.h : 0);
-  const kOf = (i, s) => s * Math.min(area.kMax, slotW(i) / cbox(i).w);
-  const rowH = (r, s) => Math.max(...r.items.map((i) => cbox(i).h * kOf(i, s) + foot(i)));
-  const total = (s) => rows.reduce((t, r) => t + rowH(r, s), 0) + area.gap * (rows.length - 1);
-  let s = 1;
-  if (total(1) > area.h) { // one common factor for the whole kit (the tags keep their size)
-    let lo = 0.2, hi = 1;
-    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (total(m) <= area.h) lo = m; else hi = m; }
-    s = lo;
-  }
-  const spare = Math.max(0, area.h - total(s)) / (rows.length + 1);
-  const out = new Array(entries.length);
-  const r2 = (v) => Math.round(v * 1000) / 1000;
-  const rect = (x, y, w, h) => ({ x: r2(x), y: r2(y), w: r2(w), h: r2(h) });
-  let y = area.y + spare;
-  for (const r of rows) {
-    const h = rowH(r, s);
-    let x = area.x + (r.used < cols ? (area.w - colW * r.used - area.gap * (r.used - 1)) / 2 : 0);
-    for (const i of r.items) {
-      const sw = slotW(i), k = kOf(i, s), cb = cbox(i), [bw, bh] = entries[i].box;
-      const dw = cb.w * k, dh = cb.h * k, top = y + (h - dh - foot(i)) / 2;
-      const ix = x + (sw - dw) / 2;
-      const t = entries[i].tag;
-      let tag = null;
-      if (t) {
-        const tw = Math.min(t.w, sw);
-        const tx = Math.max(x, Math.min(x + sw - tw, ix + dw / 2 - tw / 2));
-        tag = rect(tx, top + dh + area.attach, tw, t.up + t.h);
-      }
-      out[i] = {
-        k: r2(k), slot: rect(x, y, sw, h), item: rect(ix, top, dw, dh), tag,
-        icon: rect(ix - cb.c[0] * bw * k, top - cb.c[1] * bh * k, bw * k, bh * k),
-      };
-      x += sw + area.gap;
+export function knapsackKit(view, { left = false, has = () => true } = {}) {
+  const roles = (view.units || []).map((u) => u.role);
+  const side = (id) => (left && has(`${id}.left`) ? `${id}.left` : id);
+  return (view.items || []).map((it) => {
+    let id = it.id;
+    if (it.item === 'pistol' || id === 'pistol') id = roles.length && roles.every((r) => r === 'spy') ? 'pistol.p38' : 'pistol.colt1911';
+    if (it.swapped && it.id === 'detonator') id = 'detonator@charge'; // the detonator in the charges' place once they are out
+    const art = has(`kit/${id}`) ? side(`kit/${id}`) : null;
+    const units = [];
+    let tag = null;
+    const u = it.display === 'cartridges' ? KIT_UNITS.cartridges : !it.swapped ? KIT_UNITS[it.item || it.id] : null;
+    if (u && it.count > 0) {
+      for (let k = u.from; k <= Math.min(it.count, u.max); k++) if (has(`kit/${u.art}.${k}`)) units.push(side(`kit/${u.art}.${k}`));
+      if (it.count > u.max) tag = { kind: 'number', n: it.count };
+    } else if (it.display === 'ticks' || it.display === 'number' || it.display === 'infinite') {
+      tag = { kind: it.display, n: it.count };
     }
-    y += h + area.gap + spare;
-  }
-  return out;
+    return { it, art, units, tag };
+  });
 }
 
-/** Do two rects overlap (touching edges do not)? */
-export function rectsOverlap(a, b, eps = 1e-6) {
-  return a.x < b.x + b.w - eps && b.x < a.x + a.w - eps && a.y < b.y + b.h - eps && b.y < a.y + a.h - eps;
+/** Is (x, y) inside polygon `p` ([[x, y], ...])? (even-odd) */
+export function inPolygon(p, x, y) {
+  let c = false;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [xi, yi] = p[i], [xj, yj] = p[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+
+/** Distance from (x, y) to polygon `p` (0 inside). */
+export function polygonDistance(p, x, y) {
+  if (inPolygon(p, x, y)) return 0;
+  let d = Infinity;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [ax, ay] = p[j], [bx, by] = p[i], dx = bx - ax, dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+    d = Math.min(d, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
+  }
+  return d;
 }
 
 /**
- * Canonical slot order (review: the same item keeps the same place in every kit): long guns first (a full row each),
- * then the sidearm, the knife, and the rest of the kit in a fixed order. Unknown ids go last in DOM order.
+ * Which kit item a pointer at (x, y) means: the topmost (highest z, then the later one) whose silhouette contains it,
+ * else the nearest silhouette within `slop` (a finger on the bag between items). `items`: [{el, z, poly: [[x, y], ...]}]
+ * in the same px as x, y.
  */
-export const PACK_ORDER = ['sniperRifle', 'leeEnfield', 'smg', 'harpoon', 'pistol', 'beretta', 'knife', 'lethalInjection', 'uniform',
-  'decoy', 'decoyActivator', 'shovel', 'divingGear', 'inflatableBoat', 'timeBomb', 'remoteBomb', 'detonator', 'grenade', 'bearTrap',
-  'wireCutters', 'firstAid', 'stones', 'handcuffs', 'hanger', 'knuckles', 'blackjack', 'chloroform', 'cigarettes', 'lipstick', 'climbAxe'];
+export function pickKit(items, x, y, slop = 0) {
+  let best = null, bz = -Infinity, bi = -1;
+  items.forEach((k, i) => {
+    if (k.poly.length > 2 && inPolygon(k.poly, x, y) && (k.z > bz || (k.z === bz && i > bi))) { best = k.el; bz = k.z; bi = i; }
+  });
+  if (best || !slop) return best;
+  let bd = slop;
+  for (const k of items) {
+    const d = k.poly.length > 2 ? polygonDistance(k.poly, x, y) : Infinity;
+    if (d <= bd) { bd = d; best = k.el; }
+  }
+  return best;
+}

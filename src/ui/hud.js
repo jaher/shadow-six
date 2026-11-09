@@ -158,7 +158,8 @@ export class HUD {
       this._iconKey = key;
       refreshIcons(this.root, iconScale);
       this.topbar?.eyeAnim?.refresh(iconScale);
-      this.iconsReady = preloadIcons(iconScale);
+      // the knapsack's kit layers load with the mission's crew (knapsack.js _preload), the item renders with the Help dossier
+      this.iconsReady = preloadIcons(iconScale, undefined, (id) => (!id.startsWith('kit/') && !id.startsWith('item/')) || id === 'kit/pack');
     }
   }
 

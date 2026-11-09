@@ -174,7 +174,7 @@ def kelvin(k):
     return {5500: (1.0, 0.94, 0.86), 6500: (0.90, 0.95, 1.0), 4200: (1.0, 0.82, 0.62), 5000: (1.0, 0.93, 0.84)}[k]
 
 
-def lights(cam, objs, key=1.0, fill=0.22, rim=0.7, top=0.05, rim_side=1):
+def lights(cam, objs, key=1.0, fill=0.22, rim=0.7, top=0.05, rim_side=1, key_size=1.4, key_elev=0.0):
     """Key from screen upper-left, cool fill screen-right low, warm rim behind-right, big soft top bounce."""
     pts = _mesh_points(objs)
     lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
@@ -185,8 +185,8 @@ def lights(cam, objs, key=1.0, fill=0.22, rim=0.7, top=0.05, rim_side=1):
     def P(v, dist):
         return c + v.normalized() * dist
     D = 4 * s; E = float(os.environ.get('ICON_E', '14')) * D * D     # energy normaliser (W ~ distance^2)
-    kd = (-0.8 * right + 0.62 * up + 0.35 * back + 0.12 * world_up)
-    _light('key', 'AREA', P(kd, D), c, E * key, 1.4 * s, kelvin(5500))
+    kd = (-0.8 * right + 0.62 * up + 0.35 * back + (0.12 + key_elev) * world_up)   # key_elev / key_size: models/kit.py
+    _light('key', 'AREA', P(kd, D), c, E * key, key_size * s, kelvin(5500))
     _light('fill', 'AREA', P(0.9 * right - 0.15 * up + 0.7 * back, D), c, E * fill, 2.5 * s, kelvin(6500), shadow=False)
     _light('rim', 'AREA', P(0.8 * rim_side * right + 0.55 * up - 0.9 * back + 0.4 * world_up, D), c, E * rim, 0.35 * s, kelvin(4200), shadow=False, size_y=2.0 * s)
     cd = Vector(cam['dir']); refl = Vector((-cd.x, -cd.y, cd.z))       # mirror direction of the ground plane seen from the camera

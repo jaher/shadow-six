@@ -401,14 +401,14 @@ export const CREDITS_SECTIONS = [
     "Public domain (Crown copyright expired)"
    ],
    [
-    "assets/ui/icons/ (HUD icons: 35 knapsack items and count minis, 41 top-bar / pack / notebook renders incl. hover / pressed / active / disabled states, the rendered rucksack and brass count tag, 30 cursors, 6 portrait stamps; lossless WebP 1×–6× (stamps to 16×) + PNG fallbacks, manifest.json)",
+    "assets/ui/icons/ (HUD icons: 35 knapsack items and count minis, 41 top-bar / pack / notebook renders incl. hover / pressed / active / disabled states, the knapsack (kit/: a rucksack with every item hanging from it in 3D, one pre-lit layer per item, plus the mirrored Tab set) and brass-on-leather count tag, 30 cursors, 6 portrait stamps; lossless WebP 1×–6× (stamps to 16×) + PNG fallbacks, manifest.json)",
     "offline Blender 4.2 Cycles studio renders of our own models, built by tools/blender/icons/ (models, materials, printed labels and vector cursors all own work; no real brands or insignia)",
     "SHADOW SIX contributors",
     "ours (MIT project licence; CC0 inputs below)"
    ],
    [
     "textures used by the icon renders (tools/blender/icons/mats.py; not shipped as files)",
-    "Poly Haven fine_grained_wood, dark_wood, brown_leather, fabric_leather_02, rusty_metal_02, metal_plate, wool_boucle, leather_red_02, rock_face_03, hessian_230; ambientCG Fabric030",
+    "Poly Haven fine_grained_wood, dark_wood, brown_leather, fabric_leather_02, rusty_metal_02, metal_plate, wool_boucle, leather_red_02, rock_face_03, hessian_230, rough_linen; ambientCG Fabric030",
     "Poly Haven artists; ambientCG (Lennart Demes)",
     "CC0 1.0"
    ],

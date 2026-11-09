@@ -1,74 +1,101 @@
-# pack.py - the knapsack face the item icons are laid on (menus-art-direction §3: webbing, brass, leather): olive
-# canvas rucksack with a stitched body, a rounded top flap on two leather straps with brass buckles, D-rings.
-# 1 unit = 1 ref px = 1 mm; faces -Y (front ortho camera). Box 112 x 149 ref px.
+# pack.py - the knapsack's shared canvas / strap helpers (models/kit.py builds the rucksack and its hanging kit with them)
+# and the brass-on-leather count tag (the SMG bursts, first-aid doses, cigarettes, overflow counts on the knapsack).
 import sys, os, math, bmesh
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import bpy, studio as S, mats as M, mdl as D
-from mathutils import Vector
-from guns import sl, bx, cy, MM
-from tools import ring, rsec, brass_mat
+from mathutils import Vector, Matrix
+from guns import sl, MM
+from tools import ring, rsec
 
 
-def canvas():
-    return M.textured('pack_canvas3', 'hessian_230', tint=(0.21, 0.25, 0.10), scale=0.012, nstrength=1.1, sheen=0.35, rough_add=0.12)
+def stitches(name, pts, mat, step=2.6, lift=0.35, normal_fn=None):
+    """Row of raised stitches along a 3D polyline (mm); each stitch a tiny bevelled box along the line."""
+    P = []; k = 0
+    for (a, b) in zip(pts, pts[1:]):
+        A, B = Vector(a), Vector(b)
+        L = (B - A).length; m = max(1, int(L / step))
+        for i in range(m):
+            c = A + (B - A) * ((i + 0.5) / m)
+            d = (B - A).normalized()
+            nrm = Vector(normal_fn(c)) if normal_fn else Vector((0, 0, 1))
+            side = nrm.cross(d).normalized(); nrm = d.cross(side).normalized()
+            rot = Matrix((d, side, nrm)).transposed().to_4x4()
+            bmo = bmesh.new(); bmesh.ops.create_cube(bmo, size=1.0)
+            for v in bmo.verts:
+                v.co = Vector((v.co.x * 1.5, v.co.y * 0.55, v.co.z * 0.5))
+            me = bpy.data.meshes.new(f'{name}{k}'); bmo.to_mesh(me); bmo.free()
+            o = D.link(bpy.data.objects.new(f'{name}{k}', me))
+            o.matrix_world = Matrix.Translation((c + nrm * lift) * MM) @ rot @ Matrix.Scale(MM, 4)
+            o.data.materials.append(mat)
+            P.append(o)
+            k += 1
+    if not P:
+        return []
+    return [D.join(P, name)]
 
 
-def stitch_line(name, pts, mat, step=3.2, closed=False):
-    """Row of raised stitches along a 2D polyline (x, z) on the front face (y)."""
-    P = []; segs = list(zip(pts, pts[1:] + (pts[:1] if closed else [])))
-    k = 0
-    for (x0, z0), (x1, z1) in segs:
-        L = math.hypot(x1 - x0, z1 - z0); n = max(1, int(L / step)); a = math.degrees(math.atan2(z1 - z0, x1 - x0))
-        for i in range(n):
-            t = (i + 0.5) / n
-            P.append(D.box(f'{name}{k}', (1.8 * MM, 0.6 * MM, 0.55 * MM), mat, loc=((x0 + (x1 - x0) * t) * MM, -9.6 * MM, (z0 + (z1 - z0) * t) * MM),
-                           rot=(0, -a, 0), bevel=0.2 * MM)); k += 1
-    return P
-
-
-def rucksack():
-    cv = canvas()
-    thread = M.solid('pack_thread2', M.lin((0.62, 0.58, 0.38)), rough=0.8, var=0.1)
-    lt = M.textured('pack_leather', 'brown_leather', tint=(0.55, 0.36, 0.22), scale=0.03, nstrength=1.0, coat=0.25)
-    br = brass_mat()
+def buckle_parts(name, br, w=12.0, h=9.0, r=1.0):
+    """A brass roller buckle lying flat: rounded frame, centre bar, prong (local mm, centred, in the XY plane)."""
     P = []
-    body = [(-54, -72), (54, -72), (56, 30), (54, 48), (44, 60), (-44, 60), (-54, 48), (-56, 30)]
-    b = sl('body', D.chaikin(body, 3, True), 18, cv, bevel=6, segs=4)
-    b.location.y = 0.0; P.append(b)
-    P += stitch_line('bst', [(x * 0.925, z * 0.94 - 1.5) for x, z in D.chaikin(body, 3, True)], thread, closed=True)
-    # top flap: rounded, overlapping the body, its own seam
-    flap = [(-50, 38), (50, 38), (52, 50), (46, 60), (34, 66), (-34, 66), (-46, 60), (-52, 50)]
-    f = sl('flap', D.chaikin(flap, 3, True), 8, cv, y=-10 * 1.0, bevel=3.5, segs=4)
-    P.append(f)
-    P += stitch_line('fst', [(x * 0.9, z * 0.92 + 3.5) for x, z in D.chaikin(flap, 3, True)], thread, closed=True)
-    for sx in (-1, 1):     # leather straps from the flap down onto the body, brass buckles
-        x = sx * 30
-        # the straps close the flap on its lower edge: buckles sit on the flap, the pack body below stays free for the kit
-        P.append(bx(f'strap{sx}', x - 4.5, 38, x + 4.5, 62, 2.2, lt, y=-15.5, bevel=0.8))
-        P.append(bx(f'tip{sx}', x - 4.5, 34.5, x + 4.5, 42, 2.4, lt, y=-15.6, bevel=1.5))
-        fr = ring(f'buckle{sx}', 5.0, rsec(1.5, 1.3, 8), br, segs=32, loc=(x * MM, -17.2 * MM, 45 * MM), rot=(90, 0, 0))
-        fr.scale = (1.1, 1.0, 0.8); P.append(fr)
-        P.append(cy(f'prong{sx}', 0.6, 8, br, x, -17.6, 45, 'Z', 12, 0.2))
-        P.append(bx(f'keeper{sx}', x - 5.5, 52, x + 5.5, 55.5, 2.8, lt, y=-16.0, bevel=0.8))
+    pts = []
+    for k in range(24):
+        a = 2 * math.pi * k / 24
+        c, s_ = math.cos(a), math.sin(a)
+        pts.append((w / 2 * math.copysign(abs(c) ** 0.45, c) * MM, h / 2 * math.copysign(abs(s_) ** 0.45, s_) * MM, 0))
+    P.append(D.tube(f'{name}_frame', pts, r * MM, br, segs=10, closed=True, res=3))
+    bar = D.cyl(f'{name}_bar', r * 0.9 * MM, (w - 1) * MM, br, rot=(0, 90, 0), segs=16)
+    P.append(bar)
+    pr = D.cyl(f'{name}_prong', 0.55 * MM, h / 2 * MM, br, loc=(0, h / 4 * MM, 0.5 * MM), rot=(90, 0, 0), segs=10)
+    P.append(pr)
     return P
 
 
-@S.shot('pack')
-def _pack(mode):
-    D.group('pack', rucksack())
-    S.shoot('pack', 'tool', box=(112, 149), preset='front', elev=0, margin=0.0, shadow=False, scale=6,
-            extra={'nocrop': True, 'tiers': [2, 3, 4], 'edge_light': 0.0}, light={'rim': 0.35, 'fill': 0.3})
+def canvas_mat(name, tint, fade=0.18, grime=0.5, scale=0.05, wear=0.5):
+    """Worn olive canvas: linen weave (CC0 Poly Haven rough_linen), sun-faded patches, grime in the creases (AO)."""
+    def mk():
+        t = M.NT(name)
+        vec = t.coords(scale)
+        weave = t.img('rough_linen', 'diff', vec)
+        c = t.mix(1.0, weave, tint, 'MULTIPLY')
+        c = t.mix(0.55, c, tint)                             # keep the weave subtle: mostly the dyed colour
+        big = t.noise(28.0, 4.0, 0.55)
+        c = t.mix(t.math('MULTIPLY', t.math('MAXIMUM', t.math('SUBTRACT', big, 0.45), 0.0), fade * 4), c,
+                  tuple(min(1, v * 1.55 + 0.02) for v in tint))
+        stain = t.noise(45.0, 3.0, 0.5)                     # old water / oil stains: soft dark blotches
+        c = t.mix(t.math('MINIMUM', t.math('MULTIPLY', t.math('MAXIMUM', t.math('SUBTRACT', stain, 0.53), 0.0), 4.0 * grime), 0.8), c, tuple(v * 0.6 for v in tint))
+        scuff = t.noise(260.0, 4.0, 0.7)                    # rubbed, paler threads
+        c = t.mix(t.math('MINIMUM', t.math('MULTIPLY', t.math('MAXIMUM', t.math('SUBTRACT', scuff, 0.6), 0.0), 3.2 * wear), 0.8), c, tuple(min(1, v * 1.5 + 0.03) for v in tint))
+        spot = t.noise(140.0, 6.0, 0.6)
+        c = t.mix(t.math('MULTIPLY', t.math('MAXIMUM', t.math('SUBTRACT', spot, 0.62), 0.0), 2.2), c, tuple(v * 0.55 for v in tint))
+        ao = t.n('ShaderNodeAmbientOcclusion', samples=8, i_Distance=0.006)
+        g = t.math('SUBTRACT', 1.0, ao.outputs['AO'])
+        c = t.mix(t.math('MINIMUM', t.math('MULTIPLY', g, grime * 1.6), 0.85), c, tuple(v * 0.35 for v in tint))
+        cx = t.n('ShaderNodeAmbientOcclusion', samples=8, i_Distance=0.0025, inside=True)   # convex ridges: rubbed pale
+        ridge = t.math('MAXIMUM', t.math('SUBTRACT', t.math('SUBTRACT', 1.0, cx.outputs['AO']), 0.25), 0.0)
+        c = t.mix(t.math('MINIMUM', t.math('MULTIPLY', ridge, 1.4 * wear), 0.7), c, tuple(min(1, v * 1.9 + 0.05) for v in tint))
+        t.L(c, t.p.inputs['Base Color'])
+        r = t.img('rough_linen', 'rough', vec, noncolor=True)
+        t.L(t.math('MULTIPLY_ADD', r, 0.25, 0.68), t.p.inputs['Roughness'])
+        h = t.img('rough_linen', 'disp', vec, noncolor=True)
+        t.L(t.bump(t.math('ADD', h, t.math('MULTIPLY', t.noise(900.0, 3.0, 0.5), 0.3)), strength=0.55, dist=0.00035), t.p.inputs['Normal'])
+        t.set('Sheen Weight', 0.35); t.set('Sheen Roughness', 0.55)
+        t.set('Specular IOR Level', 0.25)
+        return t.m
+    return M._get(name, mk)
 
 
 @S.shot('tag')
 def _tag(mode):
-    """Count badge: a stamped brass tag with a rivet at each end (CSS border-image stretches the plain middle)."""
-    br = M.metal('tag_brass', M.lin((0.74, 0.57, 0.30)), rough=0.3, wear=0.9, wear_color=M.lin((0.95, 0.84, 0.58)), grain=0.6)
+    """Count tag (§6.4 counts): a stamped plate of the buckles' antique brass riveted on a strip of the straps' leather,
+    a rivet at each end (CSS border-image stretches the plain middle: the rivets stay inside its 22 % end slices)."""
+    br = M.metal('bag_brass', M.lin((0.60, 0.46, 0.24)), rough=0.36, wear=0.7, wear_color=M.lin((0.86, 0.72, 0.44)), grain=0.55)
+    lt = M.textured('bag_leather', 'brown_leather', tint=(0.50, 0.32, 0.19), scale=0.03, nstrength=1.0, coat=0.2)
     dk = M.solid('tag_rivet_dark', M.lin((0.10, 0.08, 0.05)), rough=0.5)
-    P = [sl('plate', D.chaikin([(-23, -9), (23, -9), (23, 9), (-23, 9)], 3, True), 1.6, br, bevel=0.5, plane='XY')]
+    P = [sl('strap', D.chaikin([(-24, -9.5), (24, -9.5), (24, 9.5), (-24, 9.5)], 3, True), 1.4, lt, y=-0.6, bevel=0.5, plane='XY'),
+         sl('plate', D.chaikin([(-20.5, -8), (20.5, -8), (20.5, 8), (-20.5, 8)], 2, True), 1.2, br, y=0.6, bevel=0.45, plane='XY')]
     for sx in (-1, 1):
-        P.append(D.lathe(f'rivet{sx}', [(0, 0), (2.2 * MM, 0), (1.8 * MM, 1.0 * MM), (0, 1.4 * MM)], br, segs=24, loc=(sx * 19 * MM, 0, 0.8 * MM)))
-        P.append(ring(f'rim{sx}', 2.6, rsec(0.6, 0.4, 6), dk, segs=24, loc=(sx * 19 * MM, 0, 0.81 * MM)))
+        P.append(D.lathe(f'rivet{sx}', [(0, 0), (2.2 * MM, 0), (1.8 * MM, 1.0 * MM), (0, 1.4 * MM)], br, segs=24, loc=(sx * 17 * MM, 0, 1.2 * MM)))
+        P.append(ring(f'rim{sx}', 2.6, rsec(0.6, 0.4, 6), dk, segs=24, loc=(sx * 17 * MM, 0, 1.21 * MM)))
     D.group('tagg', P, rot=(90, 0, 0))
     S.shoot('tag', 'tool', box=(24, 9), preset='front', elev=0, margin=0.0, shadow=False, scale=16,
             extra={'nocrop': True, 'tiers': [2, 3, 4, 6], 'halo': [0.5, 0.6]}, light={'rim': 0.5})
