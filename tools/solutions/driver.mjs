@@ -13,8 +13,8 @@
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
  */
 import { takeHeap, giveHeap, takeSet, giveSet } from './state-heap.mjs';
-import { mirrorOf, ghostOn } from './ghost.mjs';
-import { canSee, coneAt, pointInCone, targetClass, newCone } from '../../src/ai/perception.js';
+import { mirrorOf, ghostOn, withMirrors } from './ghost.mjs';
+import { canSee, coneAt, pointInCone, targetClass, newCone, ellipseFar } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
 import { CONFIG } from '../../src/config.js';
@@ -85,6 +85,7 @@ function haltPose(wp, into, x, z, h) {
  * tried at the predicted heading and at both ends of his sweep (walking men glance about).
  */
 const _seeOpt = { cone: null }, _seeCone = newCone(), _seeCone2 = newCone(); // (_seeCone2: clearAhead / routeClear's posted men)
+const _rowCone = newCone(); // (rowClear's posted men)
 function walkerSees(e, q, dummy, w, tAbs) {
   const amp = e.sweepAmp ?? e.vision?.sweep ?? 0; // radians (normalised vision data)
   // (no head reaches past the cone's longest far radius — perception.coneAt: a, or b = a·ratio for a wide ellipse)
@@ -95,10 +96,19 @@ function walkerSees(e, q, dummy, w, tAbs) {
   // arrays: this runs for every walker, every sample of every look-ahead)
   const nh = q.alt != null ? 2 : 1, no = amp ? 5 : 1;
   const m = mirrorOf(e); // (his ghosts read his fields through a mirror, never through him: ghost.mjs)
+  // (each head's cone is worked out first exactly as coneAt and pointInCone do for its ghost — the vision and the head
+  // carry read from the mirror, as the ghost reads them — and the ghost is built only for a head whose cone holds the
+  // point: most heads face elsewhere, and building every one was most of a look-ahead's time — M1's beach-gap rowClear)
+  const mv = m.vision, carry = m.headCarry || 0, d2 = dx * dx + dz * dz, bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
+  if (!mv) return false; // (coneAt: no cone)
+  const a = mv.far ?? mv.range, half = mv.fov / 2;
   for (let ih = 0; ih < nh; ih++) {
     const hd = ih ? q.alt : q.heading;
     for (let io = 0; io < no; io++) {
       const off = io === 0 ? 0 : io === 1 ? amp / 2 : io === 2 ? -amp / 2 : io === 3 ? amp : -amp;
+      const theta = (off || 0) + carry, far = mv.elliptical ? ellipseFar(a, theta, mv.ellipseRatio) : a;
+      if (d2 > far * far) continue;
+      if (d2 > 1e-12) { let an = bear - (hd + theta); an -= TAU * Math.round(an / TAU); if (Math.abs(an) > half) continue; }
       const g = ghostOn(m);
       g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
       const cone = coneAt(g, tAbs, _seeCone); // (one cone refilled: read only by the test below)
@@ -110,6 +120,9 @@ function walkerSees(e, q, dummy, w, tAbs) {
   }
   return false;
 }
+
+/** walkerSees for the unit tests (tests/unit/driver-look-exact.test.mjs). */
+export { walkerSees as driverWalkerSees };
 
 /**
  * Could a planSneak search accept ANY goal state? A popped state (cell c, step k) ends the search when c is the goal
@@ -657,6 +670,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       // guard and to either side, a margin at the edges of his cone; `except`: guards left out, e.g. a posted MG whose
       // sweep is checked apart with a tighter slack)
       const raft = D.raft(), sp = (fast ? raft.def?.fast : raft.def?.slow) || 2.5, rate = raft.def?.turn || Math.PI / 2;
+      // (the samples flat, [x, z, t] after one another: the same values in the same order as a [x, z, t] array each)
       const samples = [];
       let [x, z, h] = from ?? [raft.x, raft.z, raft.heading], t = delay + 2 * dt; // the order lands next tick
       for (const [px, pz] of pts) {
@@ -666,27 +680,44 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         t += Math.max(0, dh - 0.05) / rate + 0.25;
         h = want;
         const L = Math.hypot(px - x, pz - z), n = Math.max(1, Math.ceil(L / step));
-        for (let k = 0; k <= n; k++) for (let o = slack[0]; o <= slack[1] + 1e-6; o += 0.1) samples.push([x + ((px - x) * k) / n, z + ((pz - z) * k) / n, Math.max(0, t + o + (L * k) / n / sp)]);
+        for (let k = 0; k <= n; k++) for (let o = slack[0]; o <= slack[1] + 1e-6; o += 0.1) samples.push(x + ((px - x) * k) / n, z + ((pz - z) * k) / n, Math.max(0, t + o + (L * k) / n / sp));
         t += L / sp; x = px; z = pz;
       }
-      for (let o = 0; o <= hold + 1e-6; o += 0.25) samples.push([x, z, t + o]);
+      for (let o = 0; o <= hold + 1e-6; o += 0.25) samples.push(x, z, t + o);
       const boat = { isOpenBoat: true, def: { seated: true, occludes: false } };
+      // (one dummy and one pad dummy refilled per sample — the same fields in the same order as a fresh literal and its
+      // spread copy; neither test keeps them — and a posted man's cone worked out once per sample for the dummy and its
+      // pad tries, coneAt being pure: the same tests in the same order without that garbage, ~2 300 samples a look)
+      const dummy = { x: 0, z: 0, y: 0, state: 'inVehicle', vehicle: boat, isVisibleToEnemies: true, alive: true };
+      const padD = { x: 0, z: 0, y: 0, state: 'inVehicle', vehicle: boat, isVisibleToEnemies: true, alive: true };
       for (const e of w.enemies) {
         if (!e.alive || e.removed || !e.vision || except?.includes?.(e)) continue;
         const moving = e.isMoving || e.path || (e.route && e.route.length > 1), far = (e.vision.far ?? 36) + 1;
-        for (const [sx, sz, st] of samples) {
-          const q = moving ? predictEnemy(e, st) : { x: e.x, z: e.z, heading: e.heading };
+        const at = moving ? null : { x: e.x, z: e.z, heading: e.heading }; // (a posted man: where he stands, every sample)
+        let q = null, tAbs = 0, still = false, cone = null;
+        const sees1 = (d) => moving ? walkerSees(e, q, d, w, tAbs) || (still && walkerSees(e, { x: q.x, z: q.z, heading: e.heading }, d, w, tAbs))
+          : seeWith(canSee, e, d, w, cone) !== 'none';
+        for (let si = 0; si < samples.length; si += 3) {
+          const sx = samples[si], sz = samples[si + 1], st = samples[si + 2];
+          q = moving ? predictEnemy(e, st) : at;
           const dd = Math.hypot(q.x - sx, q.z - sz);
           if (dd > far) continue;
           if (dd < minDist && moving) { if (why) why.push(`${e.tag} close@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; }
-          const dummy = { x: sx, z: sz, y: 0, state: 'inVehicle', vehicle: boat, isVisibleToEnemies: true, alive: true };
+          dummy.x = sx; dummy.z = sz;
+          tAbs = w.time + st;
           // a patrol squad's man standing at a halt looks his own way (the prediction gives him his leader's heading)
-          const still = moving && e.squad?.id != null && Math.hypot(q.x - e.x, q.z - e.z) < 1;
-          const sees1 = (d) => moving ? walkerSees(e, q, d, w, w.time + st) || (still && walkerSees(e, { x: q.x, z: q.z, heading: e.heading }, d, w, w.time + st))
-            : canSee(e, d, w, { cone: coneAt(e, w.time + st) }) !== 'none';
+          still = moving && e.squad?.id != null && Math.hypot(q.x - e.x, q.z - e.z) < 1;
+          cone = moving ? null : coneAt(e, tAbs, _rowCone);
           // (`pad`: the hull and the men in it stand a little off its centre — tried `pad` m nearer and to either side too)
           const ux = (q.x - sx) / (dd || 1), uz = (q.z - sz) / (dd || 1);
-          const sees = sees1(dummy) || (pad > 0 && dd > pad && [[ux, uz], [-uz, ux], [uz, -ux]].some(([ox, oz]) => sees1({ ...dummy, x: sx + ox * pad, z: sz + oz * pad })));
+          let sees = sees1(dummy);
+          if (!sees && pad > 0 && dd > pad) {
+            for (let k = 0; k < 3 && !sees; k++) {
+              const ox = k === 0 ? ux : k === 1 ? -uz : uz, oz = k === 0 ? uz : k === 1 ? ux : -ux;
+              padD.x = sx + ox * pad; padD.z = sz + oz * pad;
+              sees = sees1(padD);
+            }
+          }
           if (sees) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; }
         }
       }
@@ -1338,6 +1369,12 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     },
     dispose() { for (const off of offs) off?.(); },
   };
+  // clearAhead / routeClear / rowClear: each call one look at a world standing still (ghost.mjs withMirrors) — a walker's
+  // mirror is refreshed by the first walkerSees of him in it, not by every one, for every sample and every head (M1's
+  // beach-gap look, a rowClear of ~2 300 samples every 15 ticks: 26-36 ms, two thirds of it those refreshes). Nothing in
+  // them ticks or orders, and a guard asked as a walker (through ghosts) is never asked live in the same call (a live
+  // guard's only write, perception's _postOwner memo, is his alone): every ghost reads what a refresh per ghost read
+  for (const k of ['clearAhead', 'routeClear', 'rowClear']) { const look = D[k]; D[k] = (...a) => withMirrors(() => look.apply(D, a)); }
   return D;
 }
 
