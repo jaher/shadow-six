@@ -1984,3 +1984,5 @@ BCD plan: `docs/bcd-plan.md` (written after research completes; implemented afte
 - *Flow/UI*: `schema.applyVariant` (Easy/Hard `variants` + `only` tags), `Flow` BCD career (start gold 36,
   difficulty), password Skill bit, `menus.showSkill`, Commando Warnings (`ui/bcd-ui.js` → topbar).
 - *Sandbox*: `src/missions/m00_bcd_sandbox.js` (id `b00`, `dev: true`, not in `CAMPAIGNS.BCD`).
+
+**Headless nav caches (`tools/solutions/navcache/<id>.json`: M3 M4 M7 M13 M17 M19).** The headless solution runner plays over the game's mesh-measured world cached from the real game; regenerate a mission's cache after ANY map or art change to it (a stale one warns and falls back to the plain build, which drifts from the game): `CHROME=<projects>/commandos-shots/loading/tools/chrome-nv.sh node tools/solutions/navcache.mjs <id>` (e.g. `m19`); `node tools/solutions/headless-diff.mjs <id>` shows where headless and the game first part.

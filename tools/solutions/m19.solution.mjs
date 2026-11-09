@@ -856,7 +856,9 @@ async function climbOver(D, a, b, { then = [], via = [], maxSec = 400, label = '
     } finally { W.sneakHaltExact = ex0; W.sneakTurns = tu0; W.sneakTurnTie = undefined; }
     // (the base lorry parked by e27 hides the climb from him: counted only while it will still stand there)
     const held = lorryParkedFor(D);
-    const tryD = (d, w) => climbClear(D, a, b, d, { slack: 0.4, why: w, turn }) && post(d, w);
+    // (slack 1 s: at 0.4 a window chosen on e25's predicted head turn at his halt could be a few ticks off the real one — in the
+    // headless run, or the game's after any tick of drift — and the missed attempt left no later window for 30 minutes)
+    const tryD = (d, w) => climbClear(D, a, b, d, { slack: 1.0, why: w, turn }) && post(d, w);
     for (const d of ds) if (d + tc + 0.5 <= held && tryD(d, d === ds[0] ? why : null)) { plan = D.t + d; return true; }
     const rest = ds.filter((d) => d + tc + 0.5 > held);
     const hit = rest.length ? withoutLorry(D, () => rest.find((d) => tryD(d, d === rest[0] ? why : null))) : undefined;
