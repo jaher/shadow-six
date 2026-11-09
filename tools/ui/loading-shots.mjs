@@ -62,10 +62,13 @@ export const SHOTS = {
   m20: { at: [20, 52], ya: 18, yaw: 28, pitch: 11, dist: 100, fov: 30, frame: [0, -0.05] },
 };
 
-/** B1s backdrops: a wide establishing shot of one map per theatre (the menu's olive grade goes on top). */
+/**
+ * B1s backdrops: a wide establishing shot of one map per theatre (the menu's filmic grade goes on top). No people: the
+ * menu's ground fight (src/ui/menu-ground.js) brings its own soldiers into these scenes.
+ */
 export const THEATRES = {
-  snow: { mission: 'm07', at: [35, 150], y: 2, yaw: -70, pitch: 14, dist: 95, fov: 30, frame: [0, -0.15] },
-  temperate: { mission: 'm16', at: [58.6, 81.25], y: 4, yaw: -30, pitch: 12, dist: 120, fov: 30 },
-  desert: { mission: 'm11', at: [40, 80], y: 5, yaw: -35, pitch: 12, dist: 100, fov: 30 },
-  coast: { mission: 'm13', at: [50, 25], y: 5, yaw: -130, pitch: 12, dist: 110, fov: 30 },
+  snow: { mission: 'm07', at: [35, 150], y: 2, yaw: -70, pitch: 14, dist: 95, fov: 30, frame: [0, -0.15], people: false },
+  temperate: { mission: 'm16', at: [58.6, 81.25], y: 4, yaw: -30, pitch: 12, dist: 120, fov: 30, people: false },
+  desert: { mission: 'm11', at: [40, 80], y: 5, yaw: -35, pitch: 12, dist: 100, fov: 30, people: false },
+  coast: { mission: 'm13', at: [50, 25], y: 5, yaw: -130, pitch: 12, dist: 110, fov: 30, people: false },
 };

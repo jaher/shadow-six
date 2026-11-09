@@ -1375,7 +1375,21 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   followed a few seconds after each pass by `menu-dogfight.js`'s dogfight — Bf 109s and Spitfires from the
   `assets/ui/keyart/fighters.webp` turntable (`fighter-atlas.js`), flown and seated per form factor by the pure
   `dogfight-plan.js` (seeded choreographies; placed in the open sky above the still's skyline, `STILL_SCENES.sky`,
-  never over the card's text, as little as can be behind the badge); B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
+  never over the card's text, as little as can be behind the badge), and `menu-ground.js`'s ground fight on the still
+  itself — the game's own commandos and German soldiers (and on the river the Panzer IV crossing the truss bridge and
+  firing) rendered through each still's camera into `assets/ui/keyart/ground-<theatre>.webp` and drawn behind its
+  walls, sandbags and girders by the still's baked depth (`ground-<theatre>-depth-<n>.webp`, `src/ui/ground-data/`),
+  choreographed by the pure `ground-plan.js` (seeded, on dry ground, never over the card's text). Every man of a fight
+  has his own look (`tools/ui/ground/cast.mjs`: the six commandos in their own kit and weapons, German variants in the
+  theatre's uniform — riflemen, an MP40 NCO, an officer or Feldwebel, the river's MG34 team) and phase offset, and acts
+  from a wider set (run / sprint / crouch-run, kneeling / standing / prone fire, reload, a thrown Mills bomb, pointing,
+  peek-and-fire from cover, a blast's knockback or a fall); each look is baked at 4-6x and Lanczos-packed in just the
+  acts and headings its fights use, with his own sun shadow and his muzzle point (the flashes sit on the gun). Nothing
+  fades or pops in view: a fight is staged once its sprites are in, men join from off the screen, the tank enters and
+  leaves beyond the screen's edge (the fight runs until it has), and the field then stays as it stands until the scene
+  changes; the three
+  are rotated by `menu-director.js`: the ground fight, the bombers toward its end, the dogfight after their pass,
+  then a quiet spell; B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
   + searchlight), `splash-planes.js` (S03 Spitfire passes and their bombs), `splash-plate.js` (S03: the plate's
   cover fit and crop on any stage — the crop slides on narrow screens so the burning tank stands clear of the hero —
   through which the fire, its smoke and light, the planes' horizon, bomb line and sky flash and the fallback fire are

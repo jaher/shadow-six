@@ -10,7 +10,9 @@
  * distant boom (`explosion_far`, low-passed and quiet, through game.audio so the volume settings and mute apply;
  * never before the audio is unlocked).
  * Canvas 2D inside the backdrop's scene (it drifts with the still, under the dark pool, the emblem and the menu); the
- * bursts keep clear of the card's text. Between passes it costs one timer and a 1x1 canvas; the rAF loop runs only
+ * bursts keep clear of the card's text. In the front end the scene director (menu-director.js) calls each pass
+ * (`directed`), toward the end of a ground fight; on its own it passes every 55-110 s. Between passes it costs a
+ * 1x1 canvas; the rAF loop runs only
  * during a pass and its smoke. No passes under reduced motion or MENU BACKGROUND: STILL, in test / debug / walkthrough
  * / ?mission sessions, or unless the front end shows its still; a mission load, leaving the front end, a new card or
  * a hidden tab ends a pass at once, its pending booms included.
@@ -117,8 +119,9 @@ export class MenuBombers {
   /**
    * @param {HTMLCanvasElement} canvas the layer inside the backdrop's scene (its box is the viewport's)
    * @param {{audio: () => object|null, still?: () => boolean, visible?: () => boolean, theater?: () => string|null,
-   *   grade?: string, avoid?: () => {left:number, top:number, right:number, bottom:number}[], passed?: () => void}} o —
-   *   passed(): once a pass is over — the section gone, every bomb burst and its boom heard (menu-dogfight.js follows)
+   *   grade?: string, avoid?: () => {left:number, top:number, right:number, bottom:number}[], passed?: () => void,
+   *   directed?: boolean}} o — passed(): once a pass is over — the section gone, every bomb burst and its boom heard
+   *   (menu-dogfight.js follows); directed: no timer of its own (menu-director.js calls pass())
    */
   constructor(canvas, o) {
     this.canvas = canvas;
@@ -145,7 +148,7 @@ export class MenuBombers {
     if (!this.alive || this.blocked || this.running) return;
     this.running = true;
     this._load();
-    this._schedule(FIRST_DELAY);
+    if (!this.o.directed) this._schedule(FIRST_DELAY);   // directed: menu-director.js calls pass()
   }
 
   /** Stop everything at once: timers, the pass, smoke, pending booms; the layer cleared and its store freed. */
@@ -180,6 +183,7 @@ export class MenuBombers {
 
   _schedule(ms = GAP_MIN + Math.random() * GAP_VAR) {
     clearTimeout(this._timer);
+    if (this.o.directed) return;
     this._timer = setTimeout(() => this.pass(), ms);
   }
 

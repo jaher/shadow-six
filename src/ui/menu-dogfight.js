@@ -41,8 +41,9 @@ export class MenuDogfight {
   /**
    * @param {HTMLCanvasElement} canvas the fight's layer inside the backdrop's scene
    * @param {{audio: () => object|null, still?: () => boolean, visible?: () => boolean, theater?: () => string|null,
-   *   grade?: () => string, region?: () => object|null}} o — region(): the screen as dogfight-plan regionOf() takes it
-   *   ({w, h, k, ox, cols, rows, badge, text}: the canvas' CSS px), from the live badge and card
+   *   grade?: () => string, region?: () => object|null, done?: () => void}} o — region(): the screen as dogfight-plan
+   *   regionOf() takes it ({w, h, k, ox, cols, rows, badge, text}: the canvas' CSS px), from the live badge and card;
+   *   done(): a fight has run its course
    */
   constructor(canvas, o) {
     this.canvas = canvas;
@@ -199,7 +200,7 @@ export class MenuDogfight {
 
   /** One frame on the clock: draw, keep the sounds with the planes, end when the last smoke has gone. */
   _frame(f) {
-    if (f.t >= f.end) { this._end(); return; }
+    if (f.t >= f.end) { this._end(); this.o.done?.(); return; }
     this._draw(f, f.t);
     this._audio(f, f.t);
   }

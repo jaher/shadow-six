@@ -39,14 +39,11 @@ function groundY(G, x, z) {
 }
 
 /**
- * Render one shot. `shot`: { at:[x,z], y (m above the ground at `at`, default 1) or ya (absolute height), yaw (deg, the game's convention:
- * 0 = camera south of the subject looking north, 90 = east looking west), pitch (deg below horizontal), dist (m),
- * fov (vertical, deg), frame:[sx,sy] (lens shift, the subject's screen offset in half-frames: +x right, +y up),
- * fog:{near,far} (m from the camera; default: the mission's fog colour from 0.9 to 6 × dist) or false,
- * shadowR (m around the subject the sun's shadow map covers) }.
- * @returns {Promise<string>} PNG data URL of the canvas (W × H device px)
+ * Pose the still camera for one shot and keep it (tools/ui/ground/ bakes depth and sprites through it):
+ * { cam, THREE, warm() (renders the settling frames), png() (the frame as a PNG data URL), restore() }.
+ * `shot` as renderStill.
  */
-export async function renderStill(shot, W, H) {
+export async function poseStill(shot, W, H) {
   const THREE = await import('three');
   const api = window.__game, G = api.game, R = G.renderer, rig = G.cameraRig, cc = rig.active;
   R.setDynamicScale?.(1);
@@ -75,7 +72,6 @@ export async function renderStill(shot, W, H) {
     cam.left = -400 * Z; cam.right = 400 * Z;
   };
   pose();
-
   // the sun's shadow covers this frustum's ground, clamped to shadowR around the subject (an 8k map stays sharp)
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
   const maxR = shot.shadowR ?? Math.max(90, d * 1.6);
@@ -95,8 +91,7 @@ export async function renderStill(shot, W, H) {
     }
     return out;
   };
-
-  // own-property patches, undone in `finally` (a prototype method is restored by deleting the shadowing property)
+  // own-property patches, undone by restore() (a prototype method is restored by deleting the shadowing property)
   const undo = [];
   const patch = (o, k, v) => {
     const own = Object.prototype.hasOwnProperty.call(o, k), old = o[k];
@@ -104,41 +99,71 @@ export async function renderStill(shot, W, H) {
     o[k] = v;
   };
   const saved = { fog: R.scene.fog, bg: R.scene.background };
-  try {
-    patch(rig, 'update', () => {});
-    patch(rig, 'render', (Rr, dt) => Rr.render(dt));
-    patch(rig, 'groundFootprint', footprint);
-    patch(cc, '_applyTransform', () => {}); // a resize would put the game's pose back on the camera
-    patch(cc, 'camera', cam); // the characters' / vehicles' view culling and LOD read the active view's camera
-    patch(cc, 'pxPerMeter', () => 200);
-    R.setCamera(cam);
-    pose();
-    if (R.passes?.xray) R.passes.xray.enabled = false;
-    R.decalScene.visible = false;
-    R.overlayScene.visible = false;
-    // aerial perspective: the mission's fog colour from just past the subject to a few times its distance. Past the
-    // far skirt the scene clears to a dark slate (the game never looks that far): the fog colour instead, so a low
-    // camera's horizon melts into the haze as the fog would
-    const f = R.scene.fog;
-    if (f && shot.fog !== false) {
-      R.scene.fog = new THREE.Fog(f.color.clone(), shot.fog?.near ?? d * 0.9, shot.fog?.far ?? d * 6);
-      if (!R.scene.background || R.scene.background.isColor) R.scene.background = f.color.clone();
-    } else if (shot.fog === false) R.scene.fog = null;
-    for (let i = 0; i < 5; i++) {
+  // people: false — the mission's soldiers, prisoners and dogs left out of the frame (the menu's ground fight brings its
+  // own: tools/ui/ground/)
+  const hidden = [];
+  if (shot.people === false) {
+    R.scene.traverse((o) => { if (/^real:/.test(o.name) && o.visible) hidden.push(o); });
+    for (const o of hidden) patch(o, 'visible', false);
+  }
+  patch(rig, 'update', () => {});
+  patch(rig, 'render', (Rr, dt) => Rr.render(dt));
+  patch(rig, 'groundFootprint', footprint);
+  patch(cc, '_applyTransform', () => {}); // a resize would put the game's pose back on the camera
+  patch(cc, 'camera', cam); // the characters' / vehicles' view culling and LOD read the active view's camera
+  patch(cc, 'pxPerMeter', () => 200);
+  R.setCamera(cam);
+  pose();
+  if (R.passes?.xray) R.passes.xray.enabled = false;
+  R.decalScene.visible = false;
+  R.overlayScene.visible = false;
+  // aerial perspective: the mission's fog colour from just past the subject to a few times its distance. Past the
+  // far skirt the scene clears to a dark slate (the game never looks that far): the fog colour instead, so a low
+  // camera's horizon melts into the haze as the fog would
+  const f = R.scene.fog;
+  if (f && shot.fog !== false) {
+    R.scene.fog = new THREE.Fog(f.color.clone(), shot.fog?.near ?? d * 0.9, shot.fog?.far ?? d * 6);
+    if (!R.scene.background || R.scene.background.isColor) R.scene.background = f.color.clone();
+  } else if (shot.fog === false) R.scene.fog = null;
+  return {
+    cam, THREE, pose,
+    async warm() {
+      for (let i = 0; i < 5; i++) {
+        pose();
+        api.render();
+        if (G.textureWarmer?.queue.length) G.textureWarmer.step(50);
+        await new Promise((r) => setTimeout(r, 150));
+      }
       pose();
       api.render();
-      if (G.textureWarmer?.queue.length) G.textureWarmer.step(50);
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    pose();
-    api.render();
-    return R.renderer.domElement.toDataURL('image/png');
+    },
+    png: () => R.renderer.domElement.toDataURL('image/png'),
+    restore() {
+      R.scene.fog = saved.fog;
+      R.scene.background = saved.bg;
+      R.decalScene.visible = true;
+      R.overlayScene.visible = true;
+      while (undo.length) undo.pop()();
+      R.setCamera(rig.mainCamera);
+    },
+  };
+}
+
+/**
+ * Render one shot. `shot`: { at:[x,z], y (m above the ground at `at`, default 1) or ya (absolute height), yaw (deg, the game's convention:
+ * 0 = camera south of the subject looking north, 90 = east looking west), pitch (deg below horizontal), dist (m),
+ * fov (vertical, deg), frame:[sx,sy] (lens shift, the subject's screen offset in half-frames: +x right, +y up),
+ * fog:{near,far} (m from the camera; default: the mission's fog colour from 0.9 to 6 × dist) or false, people
+ * (false: the mission's soldiers, prisoners and dogs left out),
+ * shadowR (m around the subject the sun's shadow map covers) }.
+ * @returns {Promise<string>} PNG data URL of the canvas (W × H device px)
+ */
+export async function renderStill(shot, W, H) {
+  const st = await poseStill(shot, W, H);
+  try {
+    await st.warm();
+    return st.png();
   } finally {
-    R.scene.fog = saved.fog;
-    R.scene.background = saved.bg;
-    R.decalScene.visible = true;
-    R.overlayScene.visible = true;
-    while (undo.length) undo.pop()();
-    R.setCamera(rig.mainCamera);
+    st.restore();
   }
 }

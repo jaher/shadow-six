@@ -6,10 +6,13 @@
  *    in the front end's one filmic grade over the still's own balance (an SVG filter baked into its canvas once per
  *    still and size: no CSS filter on a full-screen layer), drifting in a slow Ken Burns (a CSS transform on the compositor: no frame of ours, and the
  *    3D view is not drawn at all behind it); a dark band behind the emblem and the menu column; the solid lit badge
- *    with its 30 s light sweep. Now and then the title splash's Spitfires cross its sky and bomb its far ground
- *    (menu-bombers.js), and a few seconds after each pass Bf 109s and Spitfires fight in it (menu-dogfight.js: user, "Can
- *    we have a dog fight between airplanes after planes pass by in the main menu"). Held still under reduced motion,
- *    the Low preset, low-memory devices and MENU BACKGROUND: STILL.
+ *    with its 30 s light sweep. Now and then soldiers fight on its ground, on the river with a Panzer IV crossing the
+ *    bridge and firing on them (menu-ground.js: user, "Can we have rhe soldiers fighting and maybe a tank crossing the
+ *    bridge shooting"), the title splash's Spitfires cross its sky and bomb its far ground (menu-bombers.js), and a few
+ *    seconds after each pass Bf 109s and Spitfires fight in it (menu-dogfight.js: user, "Can we have a dog fight
+ *    between airplanes after planes pass by in the main menu"); menu-director.js runs the three as one rotation with
+ *    quiet spells between. Held still under reduced motion, the Low preset, low-memory devices and MENU BACKGROUND:
+ *    STILL.
  *  - 'mission' B2: the frozen frame of the Esc press graded to the oxblood duotone; sharp inside, 20 % vignette,
  *    1.01× Ken Burns drift.
  *  - 'paper' B3 and 'off': the menu layer paints its own ground.
@@ -22,6 +25,8 @@ import { MISSIONS } from '../missions/index.js';
 import { oxbloodLUT, STILL_THEATERS, STILL_SCENES, theaterStillURL } from './menu-model.js';
 import { MenuBombers } from './menu-bombers.js';
 import { MenuDogfight } from './menu-dogfight.js';
+import { MenuGround } from './menu-ground.js';
+import { MenuDirector } from './menu-director.js';
 
 /** Theatres with a baked B1 still (assets/ui/diorama/<theater>.webp, tools/ui/bake_mission_stills.mjs). */
 export { STILL_THEATERS };
@@ -95,21 +100,28 @@ export class Backdrop {
     // under the Ken Burns), the dark band behind the emblem and the column, B2's frozen frame, the badge, vignette
     this.scene = el('div', 'bd-scene', this.root);
     this.still = el('canvas', 'bd-still', this.scene);
+    this.groundLayer = el('canvas', 'bd-ground', this.scene);   // on the still's ground, under the planes
     this.planes = el('canvas', 'bd-planes', this.scene);
     this.fight = el('canvas', 'bd-fight', this.scene);
     const still = () => !!this.hud.kit?.reducedMotion || this.hud.options?.menuBg === 'still';
     const visible = () => this.mode === 'frontend' && this.ready && !this.game.world;
     this.bombers = new MenuBombers(this.planes, {
       audio: () => this.game.audio, still, visible, theater: () => this.theater, grade: () => this._grade(),
-      avoid: () => this._textRects(), passed: () => this.dogfight.after(),
+      avoid: () => this._textRects(), passed: () => { this.director.passed(); this.dogfight.after(); }, directed: true,
     });
     // a few seconds after each pass, a dogfight in the same sky (menu-dogfight.js)
     this.dogfight = new MenuDogfight(this.fight, {
       audio: () => this.game.audio, still, visible, theater: () => this.theater, grade: () => this._grade(),
+      region: () => this._fightRegion(), done: () => this.director.dogfightDone(),
+    });
+    // soldiers and a tank in the still's own scene (menu-ground.js); the director runs the three in one rotation
+    this.ground = new MenuGround(this.groundLayer, {
+      audio: () => this.game.audio, still, visible, theater: () => this.theater, grade: () => this._grade(),
       region: () => this._fightRegion(),
     });
+    this.director = new MenuDirector({ ground: this.ground, bombers: this.bombers, dogfight: this.dogfight }, { theater: () => this.theater });
     hud.kit.onScreen = (id, mode) => { // a new card ends a pass or fight in flight; every render re-seats the column
-      if (mode !== 'none') { this.bombers.interrupt(); this.dogfight.interrupt(); }
+      if (mode !== 'none') { this.bombers.interrupt(); this.dogfight.interrupt(); this.ground.interrupt(); this.director.interrupt(); }
       this._discSoon();
     };
     this.shade = el('div', 'bd-shade', this.root);
@@ -123,7 +135,10 @@ export class Backdrop {
     this.ready = false; // the still is graded and showing
     this._onResize = () => {
       clearTimeout(this._rsT);
-      this._rsT = setTimeout(() => { this._buildEmboss(); this._drawStill(); this._discLayout(); this.dogfight.resized(this.planes.clientWidth, this.planes.clientHeight); }, 150);
+      this._rsT = setTimeout(() => {
+        this._buildEmboss(); this._drawStill(); this._discLayout();
+        for (const a of [this.dogfight, this.ground]) a.resized(this.planes.clientWidth, this.planes.clientHeight);
+      }, 150);
     };
     // the column's seat changes with the input mode (a phone's 44 px finger rows: html.mk-touch) and the fonts
     this._classMO = typeof MutationObserver === 'function' ? new MutationObserver(() => this._discSoon()) : null;
@@ -132,7 +147,7 @@ export class Backdrop {
     window.addEventListener('resize', this._onResize);
     this._buildEmboss();
     this._subs = [
-      hud.game.events.on('mission:loading', () => { this.bombers.stop(); this.dogfight.stop(); }),
+      hud.game.events.on('mission:loading', () => this.director.stop()),
     ];
     this._onVis = () => this._vis();
     document.addEventListener('visibilitychange', this._onVis);
@@ -159,7 +174,7 @@ export class Backdrop {
     if (mode !== 'mission') this.frozen.classList.remove('on');
     if (mode === 'frontend') this._still();
     else if (mode === 'mission' && !this.frozen.classList.contains('on')) this.freeze();
-    if (mode === 'frontend' && !document.hidden) { this.bombers.start(); this.dogfight.start(); } else { this.bombers.stop(); this.dogfight.stop(); }
+    if (mode === 'frontend' && !document.hidden) this.director.start(); else this.director.stop();
     this._discSoon();
   }
 
@@ -171,15 +186,14 @@ export class Backdrop {
     if (this.stillImg?.dataset.url === url) return this._drawStill();
     this.ready = false;
     this.root.classList.remove('viewing');
-    this.bombers.stop(); // a pass (or fight) over the old theatre's sky ends with it
-    this.dogfight.stop();
+    this.director.stop(); // a pass, fight or ground fight over the old theatre's still ends with it
     const im = new Image();
     im.dataset.url = url;
     im.decoding = 'async';
     im.onload = () => { if (this.stillImg === im) this._drawStill(); };
     im.src = url;
     this.stillImg = im;
-    if (this.mode === 'frontend' && !document.hidden) { this.bombers.start(); this.dogfight.start(); }
+    if (this.mode === 'frontend' && !document.hidden) this.director.start();
   }
 
   /**
@@ -389,8 +403,8 @@ export class Backdrop {
 
   /** The front end's scene stops while the tab is hidden: no passes, fights (nor their sounds) behind it. */
   _vis() {
-    if (document.hidden) { this.bombers.stop(); this.dogfight.stop(); }
-    else if (this.mode === 'frontend') { this.bombers.start(); this.dogfight.start(); }
+    if (document.hidden) this.director.stop();
+    else if (this.mode === 'frontend') this.director.start();
   }
 
   /**
@@ -495,8 +509,8 @@ export class Backdrop {
   }
 
   dispose() {
-    this.bombers.dispose();
-    this.dogfight.dispose();
+    this.director.dispose();
+    for (const a of [this.bombers, this.dogfight, this.ground]) a.dispose();
     if (this.hud.kit?.onScreen) this.hud.kit.onScreen = null;
     this._classMO?.disconnect();
     cancelAnimationFrame(this._discRaf);

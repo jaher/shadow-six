@@ -329,6 +329,12 @@ export const CREDITS_SECTIONS = [
     "ours (MIT project licence)"
    ],
    [
+    "assets/ui/keyart/ground-{snow,temperate,desert,coast}.webp, assets/ui/keyart/ground--depth-.webp (main-menu ground fight: the soldiers' — each man his own look — and the Panzer IV's sprites by heading and clip, and each still's depth for occlusion; layout in src/ui/ground-data/.js)",
+    "the game's own commandos (all six) and German soldier variants with their weapons (MakeHuman / MPFB bodies, CC0; Quaternius UAL clips, CC0 — see Characters & animation) and its Panzer IV G (tools/blender/vehicles/, own work), rendered through each menu still's camera, light and post chain (tools/ui/ground/bake_ground.mjs) and packed by tools/ui/ground/pack_ground.py",
+    "SHADOW SIX contributors",
+    "ours (MIT project licence)"
+   ],
+   [
     "MakeHuman data used by the hero build (base mesh hm08, macro / face / expression targets, game_engine rig and weights, skins, eyes, eyelashes; not shipped as files)",
     "MakeHuman data/, MPFB 2 data/ (rig + weights JSON) and the MakeHuman system assets, downloaded 2026-10-08",
     "MakeHuman community",
