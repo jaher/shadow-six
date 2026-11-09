@@ -19,6 +19,23 @@ import { createVehicleVisual, vehicleLibraryReady, resolveVehicle } from './vehi
 import { vehicleArtReady, vehicleArtContext, noteVehicleArt, addVehicleTicker, addVehicleReleaser, markShared } from './vehicle-model.js';
 import { createWindsockSock } from './windsock-sock.js';
 import { iceFloe } from './kit-props.js';
+import { buildRailgunWreck } from './railgun-wreck.js';
+import { addCharSpots } from './wreck-char.js';
+
+/**
+ * Library assets whose wreck is built from the intact model itself rather than the library's modelled one (art/
+ * railgun-wreck.js): (inst, ctx {id, charge, groundY}) => wreck instance. The K5: its blast damage sits at the
+ * mission's own charge, the paint scorched from the gun's own (the library's burnt K5 is one uniform brown-black).
+ */
+export const WRECK_BUILDERS = { railgun_k5: buildRailgunWreck };
+
+/** World point of a demolition target's charge: its mission `marker`, else `entry.charge`, else null. */
+function chargePoint(world, d) {
+  const m = d?.marker != null ? world?.markers?.get?.(d.marker) : null;
+  if (m && Number.isFinite(m.x)) return { x: m.x, z: m.z };
+  const c = d?.entry?.charge;
+  return Array.isArray(c) ? { x: c[0], z: c[1] } : null;
+}
 
 /**
  * Structure type (+ variant hint) → library asset / type, or null (keep the placeholder, logged).
@@ -94,7 +111,11 @@ export function dressStaticVehicles(world, def) {
       noteVehicleArt(`${id} (${s.type}${s.def?.variant ? ' ' + s.def.variant : ''}): ${kit ? 'kit model (art/field-guns.js)' : 'no library model (placeholder)'}`);
       continue;
     }
-    const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck });
+    const build = !s.def?.wreck ? WRECK_BUILDERS[asset] : null;
+    const groundY = typeof world.groundY === 'function' ? (x, z) => world.groundY(x, z) : null;
+    const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck,
+      ...(build ? { wreckBuilder: (inst) => build(inst, { id, charge: chargePoint(world, s.def), groundY,
+        barrelDrop: !Array.isArray(s.def?.destroyFx) || s.def.destroyFx.includes('barrelDrop') }) } : null) });
     if (!vis) continue;
     // released with the mission's vehicles: a visual is listed live (art/vehicle-library.js) until disposed, and its
     // object3d holds the whole unloaded world through its parents (every load leaked one: tests/memory)
@@ -143,6 +164,23 @@ export function dressStaticVehicles(world, def) {
       if (asset === 'windsock') addVehicleTicker(windsockTicker(vis, s.object3d));
     });
     s.object3d.add(holder);
+    // blown up (a destructible's destroy: entities/interactables.js _applyDestroyedState): its wreck takes the model's
+    // place — the library's modelled burnt variant or one a WRECK_BUILDER made of the model — in since the loading
+    // screen's vehicle warm-up (art/vehicle-model.js warmVehicleArt), so the blast only swaps visibility; a built wreck's
+    // fire hot spots char it (art/wreck-char.js). It used to turn flat black and slump to a third of its height.
+    // A boat burns in place instead (the destroyed state's charred look on its own model): the library's naval wrecks
+    // are sunk poses, and a mission settles its boats itself (M7's U-boats: scripts/m07-art.js sinkStern).
+    const ud = s.object3d.userData, prev = ud.destroy;
+    const libWreck = () => vis.hasWreck && (!!build || vis.meta?.group !== 'naval');
+    ud.destroy = () => {
+      if (prev?.()) return true;
+      if (!libWreck()) return false;
+      vis.setDestroyed(true).catch((e) => console.warn('[static-vehicles] wreck', id, e?.message || e));
+      const wi = vis.wreckInstance;
+      if (wi?.spots) addCharSpots(world, wi.spots);
+      return true;
+    };
+    ud.hasWreck = () => !!prev || libWreck();
     out.push(rec);
   }
   return out;

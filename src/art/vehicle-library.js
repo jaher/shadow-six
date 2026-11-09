@@ -428,8 +428,12 @@ function drive(inst, dt, o) {
 /**
  * Create a vehicle visual. Returns at once; `ready` resolves when the GLBs are in (instant when preloaded).
  * @param {string} type registry type ('kubelwagen', 'panzer4', 'train', …), alias or asset name ('panzer3_l')
- * @param {{theater?: string, seed?: number, destroyed?: boolean, asset?: string, paint?: string, wreck?: boolean}} [opts]
+ * @param {{theater?: string, seed?: number, destroyed?: boolean, asset?: string, paint?: string, wreck?: boolean,
+ *   wreckBuilder?: (intact: object) => object}} [opts]
  *   wreck false: a visual that is never destroyed (ambient flyovers) — no wreck instance, not even the warm-up's
+ *   wreckBuilder: the wreck made from the intact instance itself (an instance of the same shape, + `dispose()`), in place
+ *   of the library's modelled one (art/railgun-wreck.js: the Leopold); built at its first setDestroyed(true) — the
+ *   loading screen's vehicle warm-up — synchronously
  * @returns {{object3d: THREE.Group, ready: Promise<any>, type: string, asset: string, paint: string,
  *   parts: Object<string, THREE.Object3D>, sockets: object, emitters: object[], contacts: object[], muzzles: object[],
  *   lights: object[], meta: object|null, destroyed: boolean, hasWreck: boolean, setDestroyed: (on?: boolean) => Promise<void>,
@@ -443,6 +447,7 @@ export function createVehicleVisual(type, opts = {}) {
   const r = resolveVehicle(type, opts);
   if (!r) return null;
   if (opts.wreck === false) r.wreck = null;
+  const builder = opts.wreck !== false && typeof opts.wreckBuilder === 'function' ? opts.wreckBuilder : null;
   const object3d = new THREE.Group(); object3d.name = `vehicle:${r.asset}`;
   const S = { intact: null, wreck: null, cur: null, destroyed: false, zoom: V.zoom, last: {} };
   const empty = { parts: new Map(), partList: [], sockets: {}, emitters: [], contacts: [], muzzles: [], lights: [], meta: null };
@@ -465,10 +470,14 @@ export function createVehicleVisual(type, opts = {}) {
     get sockets() { return inst().sockets; }, get emitters() { return inst().emitters; },
     get contacts() { return inst().contacts; }, get muzzles() { return inst().muzzles; },
     get lights() { return inst().lights; }, get meta() { return inst().meta; }, get destroyed() { return S.destroyed; },
-    get hasWreck() { return !!r.wreck; },
+    get hasWreck() { return !!(r.wreck || builder); },
     async setDestroyed(on = true) {
       S.destroyed = on;
-      if (on && r.wreck) { if (!S.wreck) S.wreck = await make(r.wreck, null); if (S.destroyed) S.cur = S.wreck; }
+      if (on && builder) {
+        // (no await on this path: the swap is done when the call returns — a blast's tick, the warm-up's frame)
+        if (!S.wreck && S.intact) { S.wreck = builder(S.intact) || null; if (S.wreck) object3d.add(S.wreck.root); }
+        if (S.wreck) S.cur = S.wreck;
+      } else if (on && r.wreck) { if (!S.wreck) S.wreck = await make(r.wreck, null); if (S.destroyed) S.cur = S.wreck; }
       else if (!on) S.cur = S.intact;
       show();
     },
@@ -507,7 +516,9 @@ export function createVehicleVisual(type, opts = {}) {
       return true;
     },
     setZoom(z) { S.zoom = z; show(); },
-    dispose() { V.live.delete(h); object3d.removeFromParent(); for (const x of [S.intact, S.wreck]) x?.tracks.forEach((t) => t.texs.forEach((tx) => tx.dispose())); },
+    dispose() { V.live.delete(h); object3d.removeFromParent(); for (const x of [S.intact, S.wreck]) x?.tracks.forEach((t) => t.texs.forEach((tx) => tx.dispose())); S.wreck?.dispose?.(); },
+    /** The wreck instance once built (a builder's: its hot spots, debris…), else null. */
+    get wreckInstance() { return S.wreck; },
   };
   h.ready = (async () => {
     S.intact = await make(r.model, r.swap);

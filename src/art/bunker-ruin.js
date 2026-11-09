@@ -37,7 +37,7 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
  * triangles, and a cave needs corners to move. Neighbours split alike share their midpoints (no seams); every
  * attribute is interpolated; material groups are kept. @returns {THREE.BufferGeometry} a new geometry
  */
-function tessellate(g, mw, near, maxEdge, levels, budget = 120000) {
+export function tessellate(g, mw, near, maxEdge, levels, budget = 120000) {
   // (flat buffers, no per-corner arrays: the M3 bunker's ruin is ~240 000 corners — the same arithmetic in the same
   // order as corner-by-corner arrays, so the same triangles to the bit, in a fraction of the time)
   const names = Object.keys(g.attributes), attrs = names.map((n) => g.attributes[n]);

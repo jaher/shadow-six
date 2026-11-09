@@ -36,9 +36,19 @@ import { fuelWreckNav, inLocalQuarter } from '../art/fuel-tanks.js';
 import { buildExplosiveDrum, buildMarkerProp } from '../art/kit-props.js';
 import { gripBones } from '../art/barrel-carry.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
+import { charObject, addCharSpots, structureSpots } from '../art/wreck-char.js';
+import { prepareCharRuin } from '../art/char-ruin.js';
 
 /** The breakable gate model under a structure group (art/breakable-gates.js userData.gate) or null. */
 const gateModelOf = (o) => o?.userData?.gate || o?.children?.find?.((c) => c.userData?.gate)?.userData.gate || null;
+
+/**
+ * Structure types whose destruction opens the way (their cells are cleared): what stands across a path — gates,
+ * barriers, fences, walls, wire, hedgehogs — and what is blown apart or falls away: drums, sandbags, crates, bridges, signs
+ * and poles. Every other structure's wreck stands where it stood (user: "Wrecks stay solid": men walk round the shell).
+ */
+export const OPENS_WHEN_DESTROYED = new Set(['gate', 'barrier', 'fence', 'wall', 'barbed_wire', 'wire', 'hedgehog', 'barrels', 'sandbags',
+  'crates', 'bridge', 'truss_bridge', 'sign', 'lamp_post', 'telegraph_pole', 'crater', 'road', 'river']);
 
 /** Causes that can damage an explosive target (BEL: only explosives destroy structures). */
 const NON_EXPLOSIVE = new Set(['pistol', 'rifle', 'sniperRifle', 'sniper', 'smg', 'knife', 'harpoon', 'injection', 'syringe', 'bullet', 'punch', 'mg', 'shot', 'electric']);
@@ -165,7 +175,8 @@ export class Interactable extends Entity {
       // `silentDestroy` (structure def): the charges that bring it down are its noise — heard map-wide in that same tick
       // (M18's bridge: the span's own 40 m noise sent seven guards on a second search in the third charge's tick)
       if (!(this.params?.silentDestroy || this.params?.structure?.silentDestroy)) w.emitNoise?.(this.x, this.z, 40, 'explosion', this);
-      w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: this.interactKind, owner: this.owner });
+      // (`standing`: its wreck keeps the structure's stamps — visual nav, solids, body solids: world/map-builder.js)
+      w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: this.interactKind, owner: this.owner, ...(this._standing ? { standing: true } : null) });
       // `quietDestroy` (structure def): the mission announces this one itself (M14 review: two messages per gun)
       if (!(this.params?.quietDestroy || this.params?.structure?.quietDestroy)) w.events.emit('message', { text: `${this.displayName} destroyed.`, kind: 'info' });
     }
@@ -211,8 +222,11 @@ export class Interactable extends Entity {
     this.hp = 0;
     const w = this.world;
     const wreck = w && this.owner ? fuelWreckNav(this.params?.structure) : null;
+    // a standing wreck (user: "Wrecks stay solid"): its footprint blocks exactly as the intact structure's did — its
+    // cells untouched — so men walk round the burnt shell and sight lines stay as they were
+    this._standing = !wreck && !!(w && this.owner) && this.wreckStands();
     if (wreck) this._stampWreck(w.grid, wreck); // §7 fuel tanks: the wreck still stands there (docs/fuel-tanks.md)
-    else if (w && this.owner) w.grid.clearOwner(this.owner);
+    else if (!this._standing && w && this.owner) w.grid.clearOwner(this.owner);
     if (w && this._crestCells?.length) {
       // the crest is gone: its cells become the breach (deep water), so the two banks are split again and
       // every path over the dam is invalidated (replay m03: troops walked over the destroyed dam)
@@ -223,8 +237,8 @@ export class Interactable extends Entity {
       if (S?.destroyFx?.includes('flood') && Array.isArray(S.floodPoly)) g.fillPoly(S.floodPoly, 'terrain', T.WATER);
       g.version++;
     }
-    // library buildings swap to their modelled destroyed variant (art/building-props.js); breakable gates break apart
-    // (render/gate-smash-visuals.js); others burn + slump
+    // library buildings swap to their modelled destroyed variant (art/building-props.js), static vehicles to their
+    // wreck (art/static-vehicles.js); breakable gates break apart (render/gate-smash-visuals.js); others burn in place
     if (gateModelOf(this.object3d)) { /* smash visuals */ } else if (this.object3d?.userData?.destroy?.()) { /* swapped */ } else if (this.object3d && this.bunker) {
       // a procedural bunker / casemate: a ruin of the model itself (caved-in roof, rubble, soot at the blast), not black
       const S = this.params?.structure || {};
@@ -234,12 +248,72 @@ export class Interactable extends Entity {
           w: S.w ?? this.radius * 2, d: S.d ?? this.radius * 2, rot: S.rot ?? 0, theater: w?.mission?.theater, height: S.h,
           groundY: w?.groundY ? (gx, gz) => w.groundY(gx, gz) : null });
       }
-    } else if (this.object3d) {
-      const burnt = new THREE.MeshStandardMaterial({ color: 0x1d1a17, roughness: 1 });
-      burnt.userData.shared = false;
-      this.object3d.traverse((o) => { if (o.isMesh) o.material = burnt; });
-      this.object3d.scale.y = 0.35;
+    } else if (this.object3d && !this.object3d.userData.charred) {
+      // no modelled wreck: the model itself, burnt where it stands (art/wreck-char.js) — every material its charred
+      // copy (cached per material, shared by every wreck: no new material per mesh or per blast, its programs linked
+      // at load: Game.loadMission's warm-up), the soot heaviest round the blast and the fire and climbing above them.
+      // It keeps its shape: it used to turn one flat black and slump to a third of its height.
+      // Its shape wrecked too (art/char-ruin.js: a roof sagged and holed with charred rafters over a gutted inside, a
+      // mast buckled with its top snapped off, a soot skirt round its foot): built at load, swapped in now.
+      this.object3d.userData.charred = true;
+      const ruin = this.prepareCharWreck();
+      ruin?.apply();
+      charObject(this.object3d, { double: !!ruin?.double });
+      const S = this.params?.structure || {}, x = S.x ?? this.x, z = S.z ?? this.z;
+      if (w) {
+        const gy = this._groundAt(x, z);
+        addCharSpots(w, structureSpots({ ...S, x, z, r: S.r ?? this.radius, h: ruin?.H ?? S.h }, gy, String(S.id ?? this.tag ?? this.id)));
+      }
     }
+  }
+
+  /** Ground height under (x, z) for the wreck's look (the world's drawn ground, else the model's foot). */
+  _groundAt(x, z) {
+    const w = this.world, gy = typeof w?.groundY === 'function' ? w.groundY(x, z) : this.object3d?.getWorldPosition(new THREE.Vector3()).y;
+    return Number.isFinite(gy) ? gy : 0;
+  }
+
+  /**
+   * The destroyed shape of a model without a modelled wreck (art/char-ruin.js), prepared off the scene — at load
+   * (Game.loadMission, with its warm-up copies) or, failing that, at the blast. Visual only. @returns {object|null}
+   */
+  prepareCharWreck() {
+    if (this._charRuin !== undefined) return this._charRuin;
+    if (!this.object3d || this.wreckLook() !== 'char') return (this._charRuin = null);
+    const S = this.params?.structure || {}, x = S.x ?? this.x, z = S.z ?? this.z;
+    const r = (S.r ?? this.radius ?? 1) * 2;
+    this._charRuin = prepareCharRuin(this.object3d, { id: String(S.id ?? this.tag ?? this.id), x, z, w: S.w ?? r, d: S.d ?? r, rot: S.rot ?? 0, gy: this._groundAt(x, z), type: S.type }) || null;
+    const subs = this.world?._subs, ruin = this._charRuin;
+    if (ruin && Array.isArray(subs)) subs.push(() => ruin.dispose());
+    return ruin;
+  }
+
+  /**
+   * Does its wreck stand where it stood, blocking as the intact structure did (user: "Wrecks stay solid")? From its
+   * definition alone — the same answer with or without a drawn model (the logic-only runs). Not: a door, gate or
+   * barrier, a drum, an OPENS_WHEN_DESTROYED type, a dam crest or a boat that sinks (destroyFx removeCrest / flood /
+   * sink*), a fuel tank (its own wreck nav: art/fuel-tanks.js), a structure marked `wreckOpen`.
+   */
+  wreckStands() {
+    const S = this.params?.structure;
+    if (!S || !this.destructible || this.interactKind === 'door' || this.interactKind === 'barrel' || this.barrier || S.wreckOpen) return false;
+    if (OPENS_WHEN_DESTROYED.has(S.type)) return false;
+    if ((S.destroyFx || []).some((f) => f === 'removeCrest' || f === 'flood' || /^sink/.test(f))) return false;
+    return !fuelWreckNav(S);
+  }
+
+  /**
+   * The look this destructible's destroyed state takes (_applyDestroyedState): 'gate' (smashed apart), 'model' (a
+   * modelled wreck: a library ruin, a vehicle's wreck), 'bunker' (wrecked in place), 'char' (its own model burnt:
+   * art/wreck-char.js) — null without a model. Asked at load to link the charred programs ahead (Game.loadMission).
+   */
+  wreckLook() {
+    const o = this.object3d;
+    if (!o) return null;
+    if (gateModelOf(o)) return 'gate';
+    const ud = o.userData || {};
+    if (typeof ud.destroy === 'function' && (typeof ud.hasWreck === 'function' ? ud.hasWreck() : true)) return 'model';
+    return this.bunker ? 'bunker' : 'char';
   }
 
   /**

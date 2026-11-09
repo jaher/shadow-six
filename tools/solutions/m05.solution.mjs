@@ -473,7 +473,11 @@ export const STAGES = [
     await D.until(() => Math.hypot(spy.x - DOOR[0], spy.z - DOOR[1]) < 0.5 || (!spy.path && !spy.isMoving), 30, 'the Spy by the autogyro');
     next = 0;
     const FAR = CONFIG.stealth.vision.soldier.far + 1;
-    await D.until(() => { if (D.t < next) return false; next = D.t + 0.1; return (!off.alive || Math.hypot(off.x - spy.x, off.z - spy.z) > FAR) && !eyesOn(D, spy, { ahead: 1.5, except: [off] }); }, 150, 'the officer out of sight range');
+    // (wrecks stay solid — user decision 2026-11-08: the barracks' burnt shell still hides the bodies at its far end, so
+    // the officer's search keeps to the near side and his beat never takes him out of sight range; walking that beat he
+    // is foreseeable, though: the Spy climbs in while it carries him away with the autogyro out of his cone for the climb)
+    const away = () => off.brain?.state === 'REINFORCE' && !eyesOn(D, spy, { ahead: 2.5 });
+    await D.until(() => { if (D.t < next) return false; next = D.t + 0.1; return (!off.alive || Math.hypot(off.x - spy.x, off.z - spy.z) > FAR || away()) && !eyesOn(D, spy, { ahead: 1.5, except: [off] }); }, 150, 'the officer out of sight range');
     D.ability('spy', 'enterVehicle', gyro);
     await D.until(() => spy.vehicle === gyro, 20, 'the Spy in the autogyro');
     D.checkpoint('H5 spy climbs into the autogyro: it lifts off');

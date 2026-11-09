@@ -114,6 +114,9 @@ src/art/vehicles.js                   ART — placeholder vehicle models (types 
 src/art/vehicle-library.js            ART — realistic vehicle library (manifest, LODs, paints, wrecks, parts, sockets)
 src/art/vehicle-model.js              ART — library → entity model contract (motion, doors, lamps, trails, wrecks, exhaust)
 src/art/static-vehicles.js            ART — parked wagons / aircraft / flak / U-boats / windsocks among the structures
+src/art/railgun-wreck.js              ART — the blown-up K5 (M6 Leopold) built from the gun's own model: torn at the charge, barrel dropped, debris, charred
+src/art/wreck-char.js                 ART — burnt look of a destroyed structure's own model: charred material copies (cached per source), world hot spots
+src/art/char-ruin.js                  ART — destroyed shape of a structure without a modelled wreck: roof sagged and holed (rafters), mast buckled, soot skirt
 src/art/windsock-sock.js              ART — continuous windsock fabric (banded tube on a smooth spine through the hinge angles)
 src/render/flyovers.js                ART — ambient aircraft flyovers (seeded schedule, level library aircraft, prop discs, sun-shadow twins, engine loops)
 src/art/terrain.js                    ART — terrain facade: real splat ground/grass/clutter/snow/trees/trails or placeholder
@@ -676,6 +679,29 @@ model = { root, turret /* LOD0 turret / gun-mount node (clipping audit), null un
   banded tube (`art/windsock-sock.js`, 30 × 20, two draw groups) bent along a smooth spine through the library's four
   hinge angles (the `sock_seg*` nodes stay posed, their meshes hidden): no slits at the hoops; a slack sock narrows,
   flattens and falls into lengthwise folds, a full one ripples.
+- **Destroyed looks** (`Interactable._applyDestroyedState`, visual only): a breakable gate smashes; a library building
+  swaps to its modelled ruin (`userData.destroy`, art/building-props.js; bunkers wrecked by art/bunker-ruin.js); a static
+  vehicle swaps to its wreck — the library's burnt model, or one a `WRECK_BUILDERS` entry makes of the model itself (the
+  K5: art/railgun-wreck.js — the side plating torn at the mission's charge, the deck over it blown up, the hoist knocked
+  over, the barrel off its elevation (`destroyFx` 'barrelDrop'), debris round the crater), built at load by the vehicle
+  warm-up so the blast only swaps visibility; anything else (a library building without a ruin, a boat, a procedural prop)
+  BURNS IN PLACE (art/wreck-char.js): every material its charred copy — cached per source material, its textures, normal
+  map and baked AO kept — whose shader layer scorches, peels, rusts and soots it by kind (steel, timber, masonry, canvas,
+  glass, snow) according to world hot spots (the blast, the fire) registered at the blast in one shared table — a
+  building gutted (blackest up its walls and on its roof, black openings) — and takes a wrecked shape (art/char-ruin.js:
+  its roof sagged and holed with charred rafters, drawn two-sided so the gaps show a burnt-out inside; a mast, gantry or
+  column buckled with its top snapped off and lying by its foot; a soot skirt round it), built off the scene at load
+  (`Interactable.prepareCharWreck`, a structure a task) and swapped in at the blast. The charred programs are linked at
+  load (`charWarmClone` copies in the warm-up frame). Nothing is squashed: the old fallback (one flat black material,
+  scale.y 0.35) is gone.
+- **Wrecks stay solid** (user decision 2026-11-08, "Wrecks stay solid": "A destroyed object keeps blocking movement like
+  the intact one; men walk around the burnt shell"): `Interactable.wreckStands()` — from the structure's definition, so
+  the logic-only runs agree — keeps a destroyed structure's grid cells exactly as the intact structure left them (block,
+  heights, owner, decks: sight lines unchanged) and its per-owner stamps (`structure:destroyed` carries `standing`: the
+  visual nav, low, hull, overhang, crawl-step, solid and body-solid stamps stay). Cleared as before: doors, gates and
+  barriers, the `OPENS_WHEN_DESTROYED` types (fences, walls, wire, hedgehogs, drums, sandbags, crates, bridges, signs,
+  poles), dam crests and boats that sink (destroyFx `removeCrest` / `flood` / `sink*`: the crest turns to water), a
+  structure marked `wreckOpen`; fuel tanks keep their own wreck nav (art/fuel-tanks.js).
 - Per displayed frame `Game.render` calls `tickVehicles(dt, camera, wind)` (LOD0 at zoom ≥ 0.75 else LOD2; headlamp light
   pool; tickers `fn(dt, wind, camera)`: windsocks, flyovers); `Game.unloadMission` calls `releaseVehicles()` (disposes
   models, the lamp pool and every ticker's `onRelease`, e.g. the flyover engine loops). Library geometry / materials are marked `userData.shared`.

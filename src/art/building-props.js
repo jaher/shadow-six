@@ -583,6 +583,7 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   };
   const hasRuin = () => { const dn = ruinVariant(b.asset, a); return !!(dn && buildingMeta(dn)); };
   // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
+  outer.userData.hasWreck = () => hasRuin() || ruinable;
   outer.userData.destroy = () => {
     if (!hasRuin()) {
       if (!ruinable || state.wrecked) return false;

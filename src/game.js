@@ -76,6 +76,7 @@ import { raftActionsFrame, raftPassWanted, raftWarmObjects } from './art/raft-ac
 import { switchStationsFrame } from './art/switch-station.js';
 import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps, vehicleDecalWarm } from './art/vehicle-model.js';
 import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
+import { charWarmClone, resetCharSpots } from './art/wreck-char.js';
 import { flyoverAssets, createFlyovers } from './render/flyovers.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
 import { DownloadMeter } from './engine/download-meter.js';
@@ -536,8 +537,22 @@ export class Game {
     // a material drawn by plain and instanced meshes alike: its own variant for the instanced ones (no program
     // re-derived at every switch between the two kinds — engine/program-variants.js)
     safe(() => splitInstancedMaterials(r.scene), 'instanced material variants');
+    // (+ the burnt look of every destructible without a modelled wreck: a copy drawing its materials' charred variants —
+    // art/wreck-char.js — so a blast links no program; after the instanced split, whose variants it chars)
+    // (and its wrecked shape, art/char-ruin.js: built off the scene now, a structure a task — the blast only swaps it in)
+    safe(() => resetCharSpots(world), 'char spots');
+    const charWarm = [];
+    for (const it of world.interactables || []) {
+      if (!it.destructible || it.destroyed || it.wreckLook?.() !== 'char') continue;
+      const ruin = safe(() => it.prepareCharWreck?.(), 'char ruin');
+      const c = safe(() => charWarmClone(it.object3d, { double: !!ruin?.double }), 'char warm-up');
+      if (c) charWarm.push(c);
+      if (ruin) charWarm.push(...(safe(() => ruin.warm(), 'char ruin warm-up') || []));
+      await nextTask();
+      if (this.world !== world) return prog.cancel(), world;
+    }
     if (CONFIG.render.warmFrame !== false) {
-      const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || []), ...(missionWarm?.objects || []), ...(vfxWarm?.objects || [])];
+      const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || []), ...(missionWarm?.objects || []), ...(vfxWarm?.objects || []), ...charWarm];
       const xray = [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])];
       const frame = () => this._warmFrame(extra, xray, 'world'), close = () => this._warmFrame(extra, xray, 'close');
       // the driver links the frames' programs aside first (engine/parallel-compile.js): the frames themselves never wait

@@ -652,7 +652,8 @@ export function* stampVisualNavG(world, built, points = []) {
   // and where a way had to be opened through it for the walkers, only what still stands there for them
   for (const st of stamps) if (st.core) { const fin = stampCells(st); grid.hullStamp(`hull:${st.owner}`, [...st.core].filter((k) => fin.has(k))); }
   const relaxedN = stamps.filter((st) => st.lv?.size && !st.soft).length;
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); grid.hullStamp(`hull:${e.owner}`, []); } });
+  // (a standing wreck keeps them: `standing`, entities/interactables.js wreckStands)
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && !e.standing) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); grid.hullStamp(`hull:${e.owner}`, []); } });
   return { cells, structures: n, lanes, relaxed: relaxedN, off: typeof off === 'function' ? off : null };
 }
 
@@ -1003,7 +1004,7 @@ export function* stampOverheadG(world, built) {
     grid.overStamp(`over:${b.owner}`, out);
     cells += out.size; n++;
   }
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) grid.overStamp(`over:${e.owner}`, new Map()); });
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && !e.standing) grid.overStamp(`over:${e.owner}`, new Map()); });
   return { cells, structures: n, off: typeof off === 'function' ? off : null };
 }
 
@@ -1097,7 +1098,7 @@ export function* stampCrawlStepsG(world, built, groundAt = null) {
   // (the count for the build's log only: not summed again over the whole grid inside a blast's tick)
   const first = union(), n = first ? first.reduce((a, v) => a + v, 0) : 0;
   // a destroyed structure's steps go with it (its ruin, like its visual nav stamps, stamps none)
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && per.delete(e.owner)) union(); });
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && !e.standing && per.delete(e.owner)) union(); });
   return { cells: n, off: typeof off === 'function' ? off : null };
 }
 
@@ -1134,7 +1135,7 @@ export function* stampStandingG(world, built) {
     grid.solidStamp(`solid:${b.owner}`, set);
     cells += set.size;
   }
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) grid.solidStamp(`solid:${e.owner}`, []); });
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && !e.standing) grid.solidStamp(`solid:${e.owner}`, []); });
   return { cells, off: typeof off === 'function' ? off : null };
 }
 
@@ -1296,7 +1297,8 @@ export function* stampBodySolidsG(world, built, groundAt = null, only = null) {
   setStaticSolids(world, list);
   if (world._bodySolidsOff) return { count: list.length, off: null };
   const gone = world.bodySolidsGone || (world.bodySolidsGone = new Set());
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { gone.add(e.owner); removeStaticSolids(world, e.owner); } });
+  // (a standing wreck keeps its solid: men keep their bodies off the burnt shell as off the building)
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && !e.standing) { gone.add(e.owner); removeStaticSolids(world, e.owner); } });
   world._bodySolidsOff = typeof off === 'function' ? off : () => {};
   return { count: list.length, off: world._bodySolidsOff };
 }
