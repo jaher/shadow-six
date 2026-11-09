@@ -15,6 +15,7 @@ import { resolveHouseRules } from '../core/house-rules.js';
 import { NULL_PHYSICS } from '../physics/null-physics.js';
 import { WindField } from './wind.js';
 import { doubleFields } from '../core/shapes.js';
+import { FireField } from './fires.js';
 
 /** Spatial hash bucket size (m). */
 const HASH_CELL = 4;
@@ -86,6 +87,9 @@ export class World {
     this._hash = new Map();
     this._subs = [];
     this._removals = [];
+    /** What burns (world/fires.js): the sim's fires, stamped on grid.fire while they burn (the enemies keep out). */
+    this.fires = new FireField(this);
+    this.fires.addMissionFx(mission); // (campfires the mission lights: they burn all mission)
 
     // (caches and transient records other modules keep on the world — placement, avoidance, body clearance, the AI's
     // per-tick budgets, knife / raft / spy acts, flyovers, set pieces — declared here, undefined until first used as when
@@ -304,14 +308,16 @@ export class World {
   refreshDynamicOccluders() {
     this.grid.clearDynamic();
     for (const e of this.entities) if (!e.removed && e.stampOccluder) e.stampOccluder(this.grid);
+    this.fires.update(); // (fires that caught / burned down since the last tick: before anyone moves)
   }
 
   // ------------------------------------------------------------ queries
 
   /**
    * Path from (fromX, fromZ) to (toX, toZ) on the NavGrid.
-   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
+   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, avoid?: Uint8Array, fire?: Uint8Array, nearRadius?: number}} [opts]
    *   avoid: keep-out cell mask (body clearance around vehicle hulls, world/body-clearance.js avoidMask)
+   *   fire: grid.fire — keep out of the burning cells (the enemies: Enemy.pathQuery, world/fires.js)
    *   role: who walks (off-grid climb/ladder links are role-gated, see NavGrid.linkAllowed)
    *   noLinks: no climbing over off-grid links (e.g. a commando carrying a body, §3.4); the walked ones (stair links,
    *   planks) stay open unless noWalkLinks
@@ -321,7 +327,9 @@ export class World {
     // (the same query twice in one tick — a guard swung round by the shot, the shell and the shout of one moment, a file
     // of men told the same way — is answered from the first: the grid has not moved. Not the dynamic layer's searches.)
     const memo = opts.dynamic ? null : this._pathMemo(opts.avoid);
-    const key = memo ? `${fromX},${fromZ},${toX},${toZ},${opts.role},${!!opts.noLinks},${!!opts.noWalkLinks},${!!(opts.swim || opts.allowWater)},${!!opts.dive},${opts.maxNodes},${opts.smooth},${!!opts.taut},${opts.nearRadius},${!!opts.lying}` : null;
+    // (fire: the burning cells, world/fires.js — the enemies' searches, keyed by what burns)
+    const fire = opts.fire && this.grid.fireCells > 0 ? opts.fire : null;
+    const key = memo ? `${fromX},${fromZ},${toX},${toZ},${opts.role},${!!opts.noLinks},${!!opts.noWalkLinks},${!!(opts.swim || opts.allowWater)},${!!opts.dive},${opts.maxNodes},${opts.smooth},${!!opts.taut},${opts.nearRadius},${!!opts.lying}${fire ? `,f${this.grid.fireVersion}` : ''}` : null;
     if (memo && memo.has(key)) return copyPath(memo.get(key));
     const p = findPath(this.grid, fromX, fromZ, toX, toZ, {
       role: opts.role,
@@ -334,6 +342,7 @@ export class World {
       smooth: opts.smooth,
       taut: !!opts.taut,
       avoid: opts.avoid,
+      fire,
       nearRadius: opts.nearRadius,
       lying: !!opts.lying,
       // (failed searches are remembered for the rest of this tick: pathfinding failMemo — the same answers, at once)
@@ -430,6 +439,7 @@ export class World {
       objectives: this.objectives.map((o) => ({ id: o.id, done: !!o.done, failed: !!o.failed })),
       entities: this.entities.filter((e) => e.kind !== 'prop').map((e) => e.serialize()),
       grid: this.grid.serialize(),
+      fires: this.fires.serialize(),
     };
   }
 

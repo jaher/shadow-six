@@ -146,6 +146,16 @@ export class NavGrid {
      * @type {Uint8Array}
      */
     this.dynamicBlock = new Uint8Array(n);
+    /**
+     * Fires (world/fires.js FireField): the number of burning footprints (flames + a margin) over each cell, stamped while
+     * they burn. Walking only through isWalkable(i, j, {fire: grid.fire}) (the enemies' searches: findPath opts.fire);
+     * never sight, cover or `version` (`fireVersion` counts its changes, `fireCells` its burning cells). Not saved: the
+     * world's fires are, and stamp it again.
+     * @type {Uint8Array}
+     */
+    this.fire = new Uint8Array(n);
+    this.fireCells = 0;
+    this.fireVersion = 0;
     this._dynVer = 0;
     this._dynSig = 0; // order-free signature of this step's stamps (stampDynamic)
     this._dynSigSeen = 0;
@@ -297,7 +307,8 @@ export class NavGrid {
    * @param {{swim?: boolean, dynamic?: boolean, dive?: boolean, avoid?: Uint8Array}} [opts] swim: deep water is walkable (the diver);
    *   dynamic: also treat dynamicBlock (vehicles/trains this step) as blocking; dive: a submerged diver keeps to
    *   open water (WATER/SHALLOW, no deck, no obstacle) plus the `underpass` cells under a deck and its girders;
-   *   avoid: Uint8Array mask (1 = keep out), e.g. body-clearance.avoidMask around vehicle hulls
+   *   avoid: Uint8Array mask (1 = keep out), e.g. body-clearance.avoidMask around vehicle hulls; fire: the grid's `fire`
+   *   layer (burning cells keep out: the enemies, world/fires.js)
    */
   isWalkable(i, j, opts) {
     if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) return false;
@@ -311,6 +322,7 @@ export class NavGrid {
     if (this.block[k] !== B.NONE || (this.navBlock[k] && !this.fenceHole[k])) return false; // (a cut fence hole: open)
     if (opts && opts.dynamic && this.dynamicBlock[k] !== B.NONE) return false;
     if (opts && opts.avoid && opts.avoid[k]) return false; // body clearance around vehicle hulls (world/body-clearance.js)
+    if (opts && opts.fire && opts.fire[k]) return false; // burning (world/fires.js: the enemies keep out of the flames)
     if (this.bridge[k]) return true;
     if (this.terrain[k] === T.WATER) return !!(opts && opts.swim);
     return true;

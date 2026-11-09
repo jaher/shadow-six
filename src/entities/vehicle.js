@@ -1144,12 +1144,16 @@ export class Vehicle extends Entity {
     const cs = g.cell, cols = g.cols, rows = g.rows, elev = g.elev, offOK = !!this.offMapOK || !!had?.has(-1);
     const H = new Int8Array(g.size);
     if (had) for (const k of had) if (k >= 0 && k < g.size) H[k] = 1;
+    // (a hull the player's man drives is not driven into a fire: its burning cells, world/fires.js — those it already
+    // stands on excepted, so it can drive out)
+    const fire = g.fireCells && this.driver?.faction === 'player' ? g.fire : null;
     const sweep = (px, pz, x, z) => { this._skipHulls = true; try { return self._sweepFree(px, pz, x, z, y0); } finally { this._skipHulls = false; } };
     const wheel = (px, pz) => {
       const i = Math.floor(px / cs), j = Math.floor(pz / cs);
       if (i < 0 || j < 0 || i >= cols || j >= rows) return offOK; // (a route starting past the map edge)
       const k = j * cols + i;
       if (H[k]) return true;
+      if (fire && fire[k]) return false;
       let s = W[k];
       if (!s) s = W[k] = statOnly(() => self.passableAt(px, pz)) || (gatesOpen && g.block[k] !== B.NONE && gateCell(k)) ? 1 : 2;
       return s === 1;
@@ -1159,6 +1163,7 @@ export class Vehicle extends Entity {
       if (i < 0 || j < 0 || i >= cols || j >= rows) return offOK;
       const k = j * cols + i;
       if (H[k]) return true;
+      if (fire && fire[k]) return false;
       if (elev && elev[k] > y0 + 0.3) return sweep(px, pz, x, z); // ramp / ledge: depends on the centre
       let s = O[k];
       if (!s) s = O[k] = sweep(px, pz, x, z) || (gatesOpen && g.block[k] !== B.NONE && gateCell(k)) ? 1 : 2;
@@ -1198,7 +1203,8 @@ export class Vehicle extends Entity {
    * between slices without ticking (tools/solutions/driver.mjs) gets the very plan the order would have made.
    */
   * planDriveGen(x, z, { men = false, pause = null } = {}) {
-    const key = `${x.toFixed(2)},${z.toFixed(2)}|${this.x.toFixed(3)},${this.z.toFixed(3)},${this.heading.toFixed(4)}|${this.fast ? 1 : 0}|${men ? 1 : 0}`;
+    const fv = this.world?.grid?.fireCells && this.driver?.faction === 'player' ? this.world.grid.fireVersion : 0; // (what burns: world/fires.js)
+    const key = `${x.toFixed(2)},${z.toFixed(2)}|${this.x.toFixed(3)},${this.z.toFixed(3)},${this.heading.toFixed(4)}|${this.fast ? 1 : 0}|${men ? 1 : 0}${fv ? `|f${fv}` : ''}`;
     const memo = this._planMemo || (this._planMemo = new Map());
     if (memo.has(key)) return memo.get(key);
     let had = this._hadCells(), out = yield* this._planDriveSearch(x, z, had, { men, pause });
@@ -1619,7 +1625,8 @@ export class Vehicle extends Entity {
     const w = this.world, r = (v, q = 100) => Math.round(v * q);
     let gates = 0;
     for (const o of w.interactables || []) if (o.destroyed && (o.barrier || o.interactKind === 'door' || o.gate)) gates++;
-    return `${r(this.x)},${r(this.z)},${r(this.heading, 1000)}|${r(g.x)},${r(g.z)},${r(reach)},${g.reverse ? 1 : 0}|${w.grid.version}|${gates}`;
+    const fv = w.grid.fireCells && this.driver?.faction === 'player' ? w.grid.fireVersion : 0; // (what burns: world/fires.js)
+    return `${r(this.x)},${r(this.z)},${r(this.heading, 1000)}|${r(g.x)},${r(g.z)},${r(reach)},${g.reverse ? 1 : 0}|${w.grid.version}|${gates}${fv ? `|f${fv}` : ''}`;
   }
 
   _planRouteSearch(g, reach = 0.75, opts = {}) { return drain(this._planRouteSearchGen(g, reach, opts)); }

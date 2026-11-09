@@ -41,7 +41,7 @@ const WP_NEAR = 1.0;
 /** Spec brain states (design-spec §4.6). */
 /** An empty seen list, shared (the brain's _seen is only read: iterated, counted, searched). */
 const SEEN_NONE = Object.freeze([]);
-const _STEER = { clearance: 0.3, elevRef: 0.5 };
+const _STEER = { clearance: 0.3, elevRef: 0.5, fire: null };
 /** A squad's members (a Set: they only ever join, EnemyBrain.attach) as an array in the Set's order, kept beside it. */
 function squadList(sq) {
   if (!sq._list || sq._listN !== sq.members.size) { sq._list = [...sq.members]; sq._listN = sq.members.size; }
@@ -1739,6 +1739,7 @@ export class EnemyBrain {
   _steerable(p) {
     const e = this.enemy, w = this.world, g = w.grid;
     _STEER.elevRef = g.elevAt(e.x, e.z); // (one options object refilled: walkableLine only reads it while it runs)
+    _STEER.fire = g.fireCells ? g.fire : null; // (nor through a fire: world/fires.js)
     if (!g.walkableLine(e.x, e.z, p.x, p.z, _STEER)) return false;
     // nor through a solid the grid does not hold (a vehicle hull, a wreck, a crate: body-clearance.js) — those he
     // paths round (Unit._planPath); steering straight walked a file into a passing half-track's way (M11)

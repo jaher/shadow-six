@@ -36,6 +36,8 @@ import { smokePoints, fluedStackGeometry, sootMaterial } from '../art/chimney-fl
 import { coneAt } from '../ai/perception.js';
 import { due, runSync, runSliced } from '../engine/slice.js';
 import { CONFIG } from '../config.js';
+// (the fires' sizes and burn times: the simulation's own, world/fires.js — the enemies keep out of the fires drawn here)
+import { FIRE } from '../world/fires.js';
 
 /** Theater → default ground surface (dust / clod colours). */
 const THEATER_SURF = { desert: 'sand', snow: 'snow', temperate: 'grass', coast: 'dirt', night: 'grass', winter: 'snow' };
@@ -231,7 +233,8 @@ export class FX {
       // a rack of oil drums (M8's oil-barrel store) burns on after its blast: a tall fire the size of the rack and its
       // spill, under a black column, for most of a minute (its own seed: every other effect keeps its seed)
       const variant = src?.params?.variant ?? src?.params?.structure?.variant ?? src?.variant ?? '';
-      if (/rack/.test(variant)) this.spawn('fuel_pool_fire', x, z, { radius: 1.6, tall: 1.3, dur: 45, hold: 0.55, smokeK: 1.1, seed: (FX._hash(`rack:${x.toFixed(1)}:${z.toFixed(1)}`) * 1e6) | 0 });
+      const K = FIRE.rack;
+      if (/rack/.test(variant)) this.spawn('fuel_pool_fire', x, z, { radius: K.r, tall: K.tall, dur: K.burn, hold: K.hold, smokeK: K.smokeK, seed: (FX._hash(`rack:${x.toFixed(1)}:${z.toFixed(1)}`) * 1e6) | 0 });
       return;
     }
     if (kind === 'grenade') return void this.spawn('grenade', x, z);
@@ -251,9 +254,10 @@ export class FX {
       const k = fuelBlastScale(def), w = def.w ?? (def.r ?? 2) * 2, d = def.d ?? (def.r ?? 2) * 2;
       const long = w >= d, yaw = Math.PI / 2 - (def.rot ?? 0) - (long ? 0 : Math.PI / 2);
       // fireballs bursting along the shell, then licking flame tongues from the rupture and the pool (no spark comets)
-      this.spawn('fuel_tank_blast', x, z, { yaw, dur: 90, scale: k.scale, size: [Math.min(w, d) * 0.8, Math.max(w, d) * 0.85],
+      // (its pool bed: half of [short, long] = FIRE.tank.short / long of the footprint)
+      this.spawn('fuel_tank_blast', x, z, { yaw, dur: FIRE.tank.burn, scale: k.scale, size: [Math.min(w, d) * 0.8, Math.max(w, d) * 0.85],
         h: Math.min(4.2, (def.h ?? 3) * 0.6), roof: def.h ?? 3, poolR: k.fire, smokeK: k.smoke });
-      this._afterFire(x, z, 90, Math.min(1.4, 1.2 * k.smoke));
+      this._afterFire(x, z, FIRE.tank.burn, Math.min(1.4, 1.2 * k.smoke));
       return;
     }
     if (src?.bunker || type === 'bunker' || type === 'casemate_gun') {
@@ -262,18 +266,19 @@ export class FX {
       const c = def.entry?.charge, bx = c ? c[0] : x, bz = c ? c[1] : z, door = def.entry?.path?.at(-1) ?? c ?? [x, z];
       const top = this._y(bx, bz) + Math.max(1.6, (def.h ?? 2.5) * 0.85);
       this.spawn('explosion_large', bx, bz, { scale: clamp(r / 10, 0.7, 1.4) });
-      this.spawn('fire_small', door[0], door[1], { scale: 1.1, dur: 30 });
+      this.spawn('fire_small', door[0], door[1], { scale: FIRE.bunker.scale, dur: FIRE.bunker.burn });
       this.spawn('smoke_column', bx, bz, { y: top, color: 'black', rate: 3.6, scale: 1.15, op: 0.8, dur: 120 });
       if (this.vfx) this.vfx.at(118, () => { if (!this.disposed) this.spawn('smoke_column', bx, bz, { y: top, color: 'grey', rate: 1.2, scale: 0.7, op: 0.45, dur: 240 }); });
       return;
     }
     this.spawn('explosion_large', x, z, { scale: clamp(r / 10, 0.7, 1.4) });
-    if (['sandbags', 'fence', 'gate', 'wall', 'bridge', 'crater', 'sign', 'lamp_post', 'telegraph_pole'].includes(type)) return;
+    const S = FIRE.structure;
+    if (S.skip.includes(type)) return;
     const w = def.w ?? (r * 0.9), d = def.d ?? (r * 0.9), h = Math.max(0.6, (def.h ?? 3) * 0.35);
     // timber, plaster and roofing burn with a brown-grey smoke; guns, vehicles, depots and ammunition with an oily black one
     const oily = /gun|tank|truck|vehicle|depot|fuel|ammo|bomb|plane|hangar/i.test(`${type} ${def.variant ?? ''}`);
-    this.spawn('burning_wreck', x, z, { size: [Math.min(w, 9) * 0.8, Math.min(d, 9) * 0.8], h, dur: 60, yaw: -(def.rot ?? 0), fuel: oily ? 'oil' : 'wood' });
-    this._afterFire(x, z + 0.3, 60, 0.9, h + 1.5);
+    this.spawn('burning_wreck', x, z, { size: [Math.min(w, S.max) * S.k, Math.min(d, S.max) * S.k], h, dur: S.burn, yaw: -(def.rot ?? 0), fuel: oily ? 'oil' : 'wood' });
+    this._afterFire(x, z + 0.3, S.burn, 0.9, h + 1.5);
   }
 
   /** After a fire burns out: a smouldering, thinning column for the rest of the mission. */

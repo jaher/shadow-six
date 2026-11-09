@@ -19,6 +19,7 @@
 // march steps follow the quality tier (uVolSteps).
 import * as THREE from 'three';
 import { MODE, HOT } from './pool.js';
+import { blazeLevel } from '../../world/fires.js';
 
 const rr = (r, a, b) => a + (b - a) * r();
 /** A fire volume particle's life (s): re-emitted this often (exact hand-over in the sim step). */
@@ -82,19 +83,9 @@ export function plume(vfx, rng, o) {
   } });
 }
 
-/** Burn level 0..1 over the fire's age: catches over `ramp` s; with a known burn time it holds to hold·burn, dies down
- *  to a smoulder (0.12) by 0.86·burn, then smoulders out (→ 0.08 at `burn`, and on until stopped). */
-export function blazeLevel(ramp, burn = 0, hold = 0.55) {
-  return (a) => {
-    let k = Math.min(1, 0.25 + 0.75 * a / Math.max(ramp, 1e-3));
-    if (burn > 0) {
-      const d0 = burn * Math.min(hold, 0.8), d1 = burn * 0.86;
-      if (a >= d1) k *= Math.max(0.08, 0.12 - 0.04 * (a - d1) / Math.max(burn - d1, 1e-3));
-      else if (a > d0) k *= 1 - 0.88 * ((a - d0) / Math.max(d1 - d0, 1e-3)) ** 0.85;
-    }
-    return k;
-  };
-}
+/** Burn level 0..1 over the fire's age (catch, hold, die down to a smoulder): the sim's own curve (world/fires.js), so the
+ *  fires the enemies keep out of burn exactly as long as these flames. */
+export { blazeLevel };
 
 /** Fuel looks: flame core temperature (K, fireEmit ramp), soot over the flames, smoke albedo / opacity, embers. */
 export const FUEL = {

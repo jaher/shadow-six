@@ -90,7 +90,8 @@ class FuelValve extends SetPiece {
     if (this.burnT > 0 || this.puddle <= 0.5) return;
     this.burnT = this.spec.burnTime ?? 90;
     const S = this.spec.spill;
-    this.world.events.emit('fire', { x: S.x, z: S.z, on: true });
+    // (`r`: the burning puddle — world/fires.js keeps the enemies out of it until its `fire` off)
+    this.world.events.emit('fire', { x: S.x, z: S.z, on: true, r: this.puddle });
     this.world.fx?.spawn?.('fire', S.x, S.z, { r: this.puddle, duration: this.burnT });
   }
   tick(dt) {

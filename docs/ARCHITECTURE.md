@@ -63,6 +63,7 @@ src/engine/device.js                  mobile device → default quality preset (
 src/world/world.js                    foundation — World container + spatial queries + noise
 src/world/grid.js                     foundation — NavGrid layers, LOS, cover queries
 src/world/pathfinding.js              foundation — A* + smoothing
+src/world/fires.js                    the sim's fires (where / when something burns, from the VFX's own sizes and burn times), grid.fire stamps, everyone keeps out
 src/world/body-clearance.js           body vs solids: vehicle hulls, wrecks, drums, pushables, props (disc / prone capsule, keep-out mask, clear poses)
 src/world/switch-station.js           a structure switch's station layout (pure): where the kiosk stands, the cells it blocks, the operator's stand spot, the lever timeline
 src/world/map-builder.js              MISSIONS — fills grid + registries from mission data (ART props for meshes)
@@ -186,7 +187,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `noise` | `{x, z, radius, kind, level, source}` | anyone (`world.emitNoise`) → perception (`brain.hear`) |
 | `shot` | `{from, to, shooter, target?, hit, weapon}` | weapons → audio, fx |
 | `explosion` | `{x, z, radius, kind, source, accident?}` | bombs/grenades/vehicles → fx, audio, world damage, alarm |
-| `fire` / `structure:destroyed` | `{x, z, on}` / `{id, type, owner}` | fx/interactables → audio, mission |
+| `fire` / `structure:destroyed` | `{x, z, on, r?}` (r: a burning spill's radius, world/fires.js) / `{id, type, owner}` | fx/interactables → audio, mission, world.fires |
 | `door` / `device` | `{id, open}` / `{id, sfx, x, z, on}` | interactables → audio, AI (door seen used §4.6) |
 | `vehicle:enter`/`vehicle:exit` | `{vehicle, unit}` | vehicles → ui, AI (tainted §3.7) |
 | `vehicle:move` / `vehicle:stop` | `{vehicle, speed}` / `{vehicle}` | vehicles → audio |
@@ -371,6 +372,9 @@ Typed-array layers, size `cols × rows` where `cols = ceil(W/CELL)`:
   - `dynamicBlock: Uint8Array` (B.* values) — cleared and re-stamped **every step** (`clearDynamic()`,
     `stampDynamic(cx, cz, w, d, rotHeading, value=B.HIGH)`, `dynamicAt(x,z)`); writes bump `dynamicVersion`, never
     `version`. LOS/castRay honour it unless `{dynamic:false}`; movement only with `isWalkable(i,j,{dynamic:true})`.
+  - `fire: Uint8Array` — the number of burning footprints over each cell (world/fires.js: flames + `FIRE_MARGIN`),
+    stamped while they burn; `fireCells` (cells burning), `fireVersion` (bumped when what burns changes, never
+    `version`: no static cache moves). Walking only through `isWalkable(i,j,{fire: grid.fire})`; never sight or cover.
   - `elev: Float32Array` (m) — raised walkable surfaces (roofs, wall walks, tower platforms): cells with `elev > 0`
     and `block = NONE`. `elevAt(x,z)`, `canStep(ka,kb)` (|Δelev| ≤ `MAX_STEP` 0.6 m) — raised areas are islands
     reachable only through links. LOS: a cell with `elev > max(viewerY, targetY) + LOS_CLEAR (1 m)` blocks like B.HIGH
@@ -425,6 +429,37 @@ out uncapped records the cells it reached, so a later search of the same tick, o
 set to a goal outside it returns null at once; a goal whose reverse flood (`goalPocketExcludes`, the same step rules
 backwards, ≤ 2500 cells) closes without the start returns null before the forward search. Both are exact (a blast that
 re-plans a hundred men in one tick costs one flood per pocket instead of one per man).
+`fire` (the grid's fire layer, `Unit.pathQuery` while anything burns): burning cells are shut like the mask's, in the
+search, the goal / start substitution, the pocket and the smoothing; the area labelling is untouched (fires only take
+cells away); the failed-search memo, the last-found reuse and `World.findPath`'s tick memo are keyed by `fireVersion`.
+Without fire cells the option is dropped (the very same search as before).
+
+### Fires (`src/world/fires.js`)
+User 2026-11-08: "Enemies should not walk through the fire"; then, for the player's men, "Path around fire" ("Auto-paths go
+around burning areas; clicking inside a fire stops him at its edge. Same rule as enemies."). `world.fires` (FireField)
+keeps the simulation's own record
+of what burns, from the same events and with the same sizes and burn times the VFX draws (the `FIRE` constants and
+`blazeLevel`, which render/fx.js, vfx/effects.js and vfx/blaze.js import: the sim never imports render code):
+a destroyed structure's burning wreck (`explosion` 'structure': the burning_wreck ellipse, 60 s; a fuel tank's fire round
+its wreck, 90 s; a bunker's doorway fire, 30 s), every bomb's and structure blast's burning ground (explosion_large's
+residual fire, ~16 s), a drum's spill (10 s) and an oil rack's fire (M8's store, 45 s), a destroyed vehicle while
+`vehicle.burning` (its hull + the 1.5 m where its fire hurts + half a cell), a `fire` event with a radius (M17's spill, until its `fire`
+off), a mission `fx` campfire (all mission). A fire counts from its catch (burn level 0.5: a fraction of a second after the
+blast, never in the blast's own tick) to its smoulder (`SMOULDER_AT`·burn, blazeLevel 12 %: the embers after it are
+walkable). `update()` runs at the start of every tick (`World.refreshDynamicOccluders`, before anyone moves; nothing at all
+without fires): it stamps the fires that caught on `grid.fire`, wipes the spent ones, then `react`s — every man (the
+player's, then the enemies) standing in a new fire steps out (`fireExit`, the shortest straight way out), one walking a path into it stops at its edge when his
+goal is in it (his path cut where it enters: an investigator looks from there) or re-plans round it; every 15 ticks
+while anything burns a man found in the flames is sent out (a man who could not get there before it is out, even
+running, is left alone). When a fire goes out (`resume`), a man still on his way to
+its edge goes on to the goal beyond it (his cut path's rest given back, or planned again): a drum's 9 s spill does not
+stop a guard 100 m away short of the noise he is going to. `Unit._planPath` (enemies and commandos alike) makes a goal in the
+flames their edge on his side (`fireEdge`: a click into a fire stops the man there) and plans out of them first when he
+stands in them; squad followers steer only on lines clear of fire; lanes, step-asides and nudges keep off burning cells.
+A vehicle the player's man drives plans its drive round burning cells (`Vehicle._planFree`: those its hull already
+stands on excepted); AI-driven vehicles are unchanged. The burning wreck's hull (body clearance) and its 100/s damage
+within 1.5 m, and M17's spill (deadly in its puddle), stay as they were. Saved with the world (`serialize`), the grid's
+layer stamped again on load. Deterministic: sim events and `world.time` only.
 
 ### Entities
 ```js

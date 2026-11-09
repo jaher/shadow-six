@@ -105,6 +105,7 @@ export function restoreWorld(w, S) {
     if (cur) Object.assign(cur, { done: o.done, failed: o.failed });
   }
   if (S.grid) w.grid.deserialize(S.grid);
+  if (S.fires) w.fires?.deserialize(S.fires); // (what burns: stamped on the grid again)
   if (S.ai) w.ai?.deserialize?.(S.ai); // before the entities: brains resolve footprint ids
   const saved = new Map(S.entities.map((e) => [e.id, e]));
   for (const e of [...w.entities]) {

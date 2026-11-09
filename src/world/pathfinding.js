@@ -101,12 +101,13 @@ const NBR_NEED = [1, 2, 4, 8, 5, 9, 6, 10];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, taut?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, lying?: boolean}} [opts]
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, taut?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, fire?: Uint8Array, nearRadius?: number, lying?: boolean}} [opts]
  *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
  *   lying: a crawler's path — on and off ramps and stairs head-on, along their middle (alignRuns).
  *   taut: pull the smoothed path taut (tautenPath: bends only at the real corners; a player's commandos).
  *   avoid: extra keep-out mask (grid.isWalkable opts.avoid; body clearance around vehicles). nearRadius: how far (m) a
- *   blocked start / goal looks for a walkable substitute (default 3).
+ *   blocked start / goal looks for a walkable substitute (default 3). fire: the grid's `fire` layer — burning cells are
+ *   kept out of like the mask's (the enemies, world/fires.js; its own caches keyed by grid.fireVersion).
  *   role: unit role for off-grid links (grid.linkAllowed; undefined → only links open to everyone,
  *   '*' → every enabled link). noLinks: plan on grid steps only (no climb edges / ladders — §3.4 a
  *   commando carrying a body or barrel walks around them); the walked links (a stair link, a plank: `walk`) stay
@@ -255,7 +256,7 @@ function failMemo(grid, epoch) {
 function failKey(walkOpts, opts) {
   let mask = 0;
   if (walkOpts.avoid) { mask = maskIds.get(walkOpts.avoid); if (!mask) maskIds.set(walkOpts.avoid, (mask = nextMaskId++)); }
-  return `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${mask}|${opts.role ?? ''}`;
+  return `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${mask}|${opts.role ?? ''}${walkOpts.fire ? `|f${walkOpts.fireV}` : ''}`;
 }
 
 /**
@@ -528,7 +529,8 @@ function stepOutToward(grid, sx, sz, tx, tz, nearest, walkOpts) {
 const _lastFound = new WeakMap();
 const REUSE_PAD = 2;
 const sameRules = (a, b) => a.role === b.role && !!a.noLinks === !!b.noLinks && !!a.noWalkLinks === !!b.noWalkLinks && !!a.swim === !!b.swim
-  && (a.maxNodes ?? 40000) === (b.maxNodes ?? 40000) && a.smooth === b.smooth && !!a.taut === !!b.taut && a.memo === b.memo;
+  && (a.maxNodes ?? 40000) === (b.maxNodes ?? 40000) && a.smooth === b.smooth && !!a.taut === !!b.taut && a.memo === b.memo
+  && (a.fire || null) === (b.fire || null);
 function maskClear(grid, m, box) {
   if (!m) return true;
   const cols = grid.cols, i0 = Math.max(0, box[0] - REUSE_PAD), j0 = Math.max(0, box[1] - REUSE_PAD);
@@ -541,7 +543,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const plain = !opts.dynamic && !opts.dive && !opts.lying;
   if (plain) {
     const L = _lastFound.get(grid);
-    if (L && L.version === grid.version && L.sx === sx && L.sz === sz && L.tx === tx && L.tz === tz
+    if (L && L.version === grid.version && L.sx === sx && L.sz === sz && L.tx === tx && L.tz === tz && (!opts.fire || L.fireV === grid.fireVersion)
       && sameRules(opts, L.opts) && (opts.avoid === L.avoid || maskClear(grid, opts.avoid, L.box))) {
       searchStats.expanded += L.expanded;
       return copyPath(L.path);
@@ -550,7 +552,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const info = { endBlocked: false, moved: false, box: null, expanded: 0 };
   const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
   if (p && plain && info.box && !info.moved && info.expanded < AREAS_AT && maskClear(grid, opts.avoid, info.box)) {
-    _lastFound.set(grid, { version: grid.version, sx, sz, tx, tz, avoid: opts.avoid || null, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
+    _lastFound.set(grid, { version: grid.version, fireV: grid.fireVersion, sx, sz, tx, tz, avoid: opts.avoid || null, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
   }
   if (p || !info.endBlocked) return p;
   // (shut out where a body-clearance mask covers a ladder's end — a tank ladder's foot a step from its shell, M8's deck
@@ -567,13 +569,14 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
 function walker(grid, walkOpts) {
   const { cols, rows, block, navBlock, fenceHole, bridge, terrain } = grid;
   if (walkOpts.dive || !block || !navBlock || !fenceHole || !bridge || !terrain) return (i, j) => grid.isWalkable(i, j, walkOpts);
-  const dyn = walkOpts.dynamic ? grid.dynamicBlock : null, avoid = walkOpts.avoid || null, swim = !!walkOpts.swim, NONE = B.NONE, WATER = T.WATER;
+  const dyn = walkOpts.dynamic ? grid.dynamicBlock : null, avoid = walkOpts.avoid || null, fire = walkOpts.fire || null, swim = !!walkOpts.swim, NONE = B.NONE, WATER = T.WATER;
   return (i, j) => {
     if (i < 0 || j < 0 || i >= cols || j >= rows) return false;
     const k = j * cols + i;
     if (block[k] !== NONE || (navBlock[k] && !fenceHole[k])) return false;
     if (dyn && dyn[k] !== NONE) return false;
     if (avoid && avoid[k]) return false;
+    if (fire && fire[k]) return false;
     if (bridge[k]) return true;
     if (terrain[k] === WATER) return swim;
     return true;
@@ -584,7 +587,9 @@ function walker(grid, walkOpts) {
  * stepped off from it, never walked through); `info.endBlocked`: set when a search without them met one. */
 function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const swim = !!opts.swim;
-  const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null };
+  // (fire: burning cells, only while any burn — the search is the same as without it otherwise)
+  const fire = opts.fire && grid.fireCells > 0 && !opts.dive ? opts.fire : null;
+  const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null, fire, fireV: fire ? grid.fireVersion : 0 };
   const nearR = opts.nearRadius ?? NEAREST_WALKABLE_RADIUS;
   const role = opts.role;
   // (noLinks: no climbing — a walked link, a flight of stairs or a plank, stays open unless noWalkLinks too)
@@ -692,7 +697,8 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const SL = fast ? staticLayers(grid, swim, true, dive) : null, sOpen = SL ? SL.open[dive ? 2 : swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
   // (a diver: an underpass cell is open whatever else; the clearance mask is no diver's — grid.isWalkable)
   const walkK = dive ? (q) => under[q] !== 0 || (sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE))
-    : (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
+    : fire ? (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]) && fire[q] === 0
+      : (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
   // (grid.canStep, inline: the elevation step, then a ramp / stair run's sides — the grid's own test)
   const elev = grid.elev, runOf = grid.runOf;
   const stepK = (a, q) => Math.abs(elev[a] - elev[q]) <= MAX_STEP && (!runOf || runOf[a] === runOf[q] || grid.canStep(a, q));

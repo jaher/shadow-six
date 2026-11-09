@@ -497,10 +497,13 @@ export const STAGES = [
       // (a man of the barracks squads lured to the decoy as well may stand staring with the ladder in sight: then the
       // decoy goes off until the lured men are back on their rounds, and on again)
       const lured = () => D.world.enemies.filter((e) => e.alive && e.tag !== 'e38' && e.brain?.state === 'DECOY');
+      // (a minute a try: a squad lured to the decoy stands where it stands until the decoy goes off — waiting four
+      // minutes for it to move again was a dead stretch, 21 min of it once the guards stop at the edge of gun 4's burning
+      // spill instead of in it: user 2026-11-08 "Enemies should not walk through the fire")
       for (let tries = 0; ; tries++) {
-        if (tries > 8) throw new Error('G2: the ladder never unwatched');
+        if (tries > 30) throw new Error('G2: the ladder never unwatched');
         if (!D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
-        const down = await ladderDown(D, 'sapper', { maxSec: tries < 8 ? 240 : 1500 }).then(() => true, (e) => { D.log?.(`DBG G2 descent put off: ${e.message.slice(0, 160)}`); return false; });
+        const down = await ladderDown(D, 'sapper', { maxSec: tries < 30 ? 60 : 1500 }).then(() => true, (e) => { D.log?.(`DBG G2 descent put off: ${e.message.slice(0, 160)}`); return false; });
         if (down) break;
         if (!lured().length) continue;
         if (D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');

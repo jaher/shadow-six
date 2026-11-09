@@ -39,6 +39,7 @@ import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 import { footOf } from '../ai/footprints.js';
 import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun, nearStairRun, railShift, railPath, railRoom, railPoint } from './stair-walk.js';
+import { fireAt, fireEdge, fireExit } from '../world/fires.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
 /**
@@ -70,7 +71,7 @@ export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden',
 const MOVE_ACTIONS = new Set(['shoot', 'aim']);
 /** A man stopped in place: not walking, not carried along on a conveyor belt (moved at the 20 Hz BEL tick: 3 sim steps). */
 const stopped = (n, A, w) => hypot2(n.vx || 0, n.vz || 0) < A.moving && !(n._beltTick >= w.tick - 3);
-const _LF = { clearance: 0.3, dynamic: true, elevRef: 0.5 };
+const _LF = { clearance: 0.3, dynamic: true, elevRef: 0.5, fire: null };
 /** The men standing within r of u whom he gives way to (entitiesInRadius with a module filter: no closure per call —
  *  every idle man asks every step). */
 let _snU = null, _snA = null, _snW = null;
@@ -79,9 +80,10 @@ function standersNear(u, w, A, r) {
   _snU = u; _snA = A; _snW = w;
   try { return w.entitiesInRadius(u.x, u.z, r, standerFilter); } finally { _snU = null; _snA = null; _snW = null; }
 }
-/** (x, z) is in a burning wreck's flames or within 1 m of them (§3.6: a step aside never ends, or passes, there). */
-const inFire = (w, x, z) => !!w?.vehicles?.some((v) => v.burning && !v.removed && v._inHull?.(x, z, CONFIG.vehicles.wreckFireRadius + 1));
-const fireStep = (w, x0, z0, x, z) => inFire(w, x, z) || inFire(w, (x0 + x) / 2, (z0 + z) / 2);
+/** (x, z) is in a burning wreck's flames or within 1 m of them (§3.6: a step aside never ends, or passes, there) — for a
+ *  man `u` also on any burning cell (world/fires.js: everyone keeps out of every fire). */
+const inFire = (w, x, z, u = null) => (!!u && fireAt(w?.grid, x, z)) || !!w?.vehicles?.some((v) => v.burning && !v.removed && v._inHull?.(x, z, CONFIG.vehicles.wreckFireRadius + 1));
+const fireStep = (w, x0, z0, x, z, u = null) => inFire(w, x, z, u) || inFire(w, (x0 + x) / 2, (z0 + z) / 2, u);
 /** States in which cones can never see the unit. */
 /** States in which the unit cannot be ordered to move (captured units are walked by their escort). */
 const IMMOBILE_STATES = new Set(['dead', 'inVehicle', 'carried', 'stunned', 'bound', 'jailed']);
@@ -166,6 +168,9 @@ export class Unit extends Entity {
     this._onArrive = null;
     doubleFields(this, 0, '_footstepT', '_stanceT');
     this._pathGridVersion = -1;
+    /** Fires (world/fires.js): planning out of a fire with no way out (its cells ignored for that one search); a goal in
+     *  the flames he was sent to their edge for; his path cut at a fire's edge and its rest (FireField.resume). */
+    this._fireBlind = false; this._fireGoal = null; this._fireCut = null;
     this._anim = null;
     this._animOverride = null; // {name, t}
     this._moving = false;
@@ -247,7 +252,23 @@ export class Unit extends Entity {
    * @param {{run?: boolean, onArrive?: (u: Unit) => void}} [opts]
    * @returns {boolean} false when no path exists (or the unit can't move)
    */
-  moveTo(x, z, { run = false, onArrive = null, bare = false } = {}) {
+  moveTo(x, z, opts = {}) {
+    // (fires, world/fires.js — user 2026-11-08: "Enemies should not walk through the fire", and for the player's men
+    // "Path around fire": a goal in the flames is planned to their edge (_planPath) and noted (`_fireGoal`), so that he
+    // goes on to it if they are out before he is there (FireField.resume); a re-path to the same point keeps the note)
+    const g = this.world?.grid, t0 = this.moveTarget, again = !!t0 && t0.x === x && t0.z === z;
+    const inF = !!g?.fireCells && fireAt(g, x, z);
+    const ok = this._moveTo(x, z, opts);
+    if (ok && inF) this._fireGoal = { x, z, end: this.moveTarget };
+    else if (!again) this._fireGoal = null;
+    else if (ok && this._fireGoal) this._fireGoal.end = this.moveTarget;
+    if (!again) this._fireCut = null;
+    else if (ok && this._fireCut) this._fireCut.cut = this.moveTarget; // (re-pathed to the cut: still bound for the goal beyond)
+    return ok;
+  }
+
+  /** moveTo's own work: plan (round the fires: _planPath) and set off. */
+  _moveTo(x, z, { run = false, onArrive = null, bare = false } = {}) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
     // from the path track: a dodging walker keeps its lane (avoidance.js), so re-paths do not shift the route
     // (halfway up / down a ladder: planned from its end, which he climbs on to first; halfway over a wall on a climb
@@ -366,6 +387,23 @@ export class Unit extends Entity {
    * keeps his body out of them).
    */
   _planPath(x, z, from = null, bare = false) {
+    // round the fires (world/fires.js): a goal in the flames becomes their edge on his side (an investigator looks from
+    // there; a move order clicked into a fire stops him there); standing in them he first leaves by the shortest
+    // straight way out (fireExit), then goes on round them — or only out, when the rest is shut by fire. As before when
+    // nothing burns.
+    const g = this.world?.grid;
+    if (!g?.fireCells || this._fireBlind) return this._planWalk(x, z, from, bare);
+    const tr = from || this.track, swim = this.canSwim;
+    if (fireAt(g, x, z)) { const p = fireEdge(g, x, z, tr.x, tr.z, swim); if (p) { x = p.x; z = p.z; } }
+    if (!fireAt(g, tr.x, tr.z)) return this._planWalk(x, z, from, bare);
+    const out = fireExit(g, tr.x, tr.z, x, z, swim);
+    if (!out) { this._fireBlind = true; try { return this._planWalk(x, z, from, bare); } finally { this._fireBlind = false; } }
+    const rest = this._planWalk(x, z, out, bare);
+    return rest ? [{ x: tr.x, z: tr.z }, ...rest] : [{ x: tr.x, z: tr.z }, { x: out.x, z: out.z }];
+  }
+
+  /** _planPath's search (the body-clearance tiers), fires aside. */
+  _planWalk(x, z, from = null, bare = false) {
     const w = this.world, q = this.pathQuery(), tr = from || this.track; // (from his path track, see moveTo)
     if (bare) return w.findPath(tr.x, tr.z, x, z, q);
     // (a crawler also goes round steps, porches and plinths: his body would lie into their sides, grid.crawlStep)
@@ -445,7 +483,11 @@ export class Unit extends Entity {
   /** Options for this unit's NavGrid path queries (World.findPath); subclasses add restrictions. */
   pathQuery() {
     // (`lying`: a crawler comes on and off ramps and stairs head-on and keeps to their middle, pathfinding alignRuns)
-    return { swim: this.canSwim, role: this.role, lying: this.stance === 'crawl' };
+    const q = { swim: this.canSwim, role: this.role, lying: this.stance === 'crawl' };
+    // (round the fires while any burn: world/fires.js)
+    const g = this.world?.grid;
+    if (g?.fireCells && !this._fireBlind) q.fire = g.fire;
+    return q;
   }
 
   /** Stop moving (keeps stance). Halfway up / down a ladder he climbs on to its end first (art/ladder-climb.js). */
@@ -1449,6 +1491,7 @@ export class Unit extends Entity {
     const g = this.world.grid, k = 1 + CONFIG.units.avoid.wallR / L;
     // (one options object refilled: walkableLine only reads it while it runs — asked many times a step per man)
     _LF.elevRef = g.elevAt(px, pz);
+    _LF.fire = g.fireCells ? g.fire : null; // (a dodge never takes him into a fire)
     return g.walkableLine(px, pz, px + ax * k, pz + az * k, _LF);
   }
 
@@ -1553,7 +1596,7 @@ export class Unit extends Entity {
         const dx = (fx / fl) * c - (fz / fl) * sn, dz = (fz / fl) * c + (fx / fl) * sn; // a° off the walker's heading
         const x = this.x + dx * r, z = this.z + dz * r;
         // off his way, and away from him (stepping aside is never a step into the man he makes room for)
-        if (offWay(x, z) < A.clear + 0.15 || hypot2(x - u.x, z - u.z) < hypot2(this.x - u.x, this.z - u.z) + 0.3 || !g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z)) continue;
+        if (offWay(x, z) < A.clear + 0.15 || hypot2(x - u.x, z - u.z) < hypot2(this.x - u.x, this.z - u.z) + 0.3 || !g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z, this)) continue;
         if (w.entitiesInRadius(x, z, A.clear).some((n) => n !== this && blocks(this, n))) continue;
         // nor a step towards anybody else close by (on the way there either)
         if (others.some((n) => { const d0 = hypot2(n.x - this.x, n.z - this.z); return hypot2(n.x - x, n.z - z) < d0 || [0.25, 0.5, 0.75].some((k) => hypot2(n.x - this.x - (x - this.x) * k, n.z - this.z - (z - this.z) * k) < Math.min(d0, A.clear)); })) continue;
@@ -1577,7 +1620,7 @@ export class Unit extends Entity {
     const a0 = al > 1e-3 ? Math.atan2(az, ax) : 0, o = { clearance: 0.3, dynamic: true, elevRef: g.elevAt(this.x, this.z) };
     for (const r of [0.6, 0.9, 1.2]) for (const da of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
       const a = a0 + (da * Math.PI) / 180, x = n.x + Math.cos(a) * (r + 0.35), z = n.z + Math.sin(a) * (r + 0.35);
-      if (!g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z)) continue;
+      if (!g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z, this)) continue;
       if (w.entitiesInRadius(x, z, 0.9 * A.clear, (q) => q !== this && blocks(this, q)).length) continue;
       if (this.moveTo(x, z)) return;
     }
@@ -1596,7 +1639,7 @@ export class Unit extends Entity {
     if (!on.length) return;
     const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = hypot2(ax, az), step = Math.min(0.6 * dt, 0.62 - al);
     let a0 = al > 1e-3 ? Math.atan2(az, ax) : 0;
-    const e0 = g.elevAt(this.x, this.z), same = (x, z) => g.walkableAt(x, z, { dynamic: true }) && Math.abs(g.elevAt(x, z) - e0) <= 0.3 && !inFire(w, x, z);
+    const e0 = g.elevAt(this.x, this.z), same = (x, z) => g.walkableAt(x, z, { dynamic: true }) && Math.abs(g.elevAt(x, z) - e0) <= 0.3 && !inFire(w, x, z, this);
     if ((this.y || 0) > 0.3) { // raised (a wall walk): only along the deck — its nav cells do not see the parapet
       let best = -1, axis = 0;
       for (let k = 0; k < 8; k++) {

@@ -174,6 +174,10 @@ left burning — `burning_wreck` (vehicles, buildings, guns), `fuel_pool_fire` (
 - **Lifecycle** (`blazeLevel`): catches over `ramp` s; with a known burn time (structures 60 s, vehicles the game's
   `wreckBurn` 20 s, spills, tanks, short flare-ups) it holds to `hold`·burn (wrecks 65 %) and then dies down — lower,
   fewer, redder flames, relatively more smoke, a dimmer light — to a smoulder (12 % at 0.86·burn, 8 % at the end).
+  The curve and the fires' sizes and burn times (`FIRE`: structures, tanks, the bunker's doorway fire, drums' spills,
+  racks, the blasts' burning ground, campfires) live in the simulation (`src/world/fires.js`) and are imported here: the
+  enemies keep out of each fire from its catch to its smoulder (docs/ARCHITECTURE.md § Fires) — change a burn time or a
+  footprint there, and both follow.
 - **Sizes from the fuel**: fire diameter `D` (√ footprint area), flame height `L = 1.15·D^0.72` (a truck ≈ 3 m above the
   hull, a building ≈ 5 m; spills `1.5·D^0.72`), eddies scaled by √(3.5/D). Counts go through the emitters (quality
   density × budget pressure); the march steps follow the tier.

@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { MODE, HOT } from './pool.js';
 import { tornShellGeometry } from './debris.js';
 import { blaze, forkRng, plume } from './blaze.js';
+// (the fires' sizes and burn times: the simulation's own (world/fires.js), so the fires the enemies keep out of are these)
+import { FIRE } from '../../world/fires.js';
 
 export const SOOT = [0.05, 0.044, 0.039], GREY = [0.32, 0.31, 0.3], DUST = [0.36, 0.3, 0.22], DIRT = [0.2, 0.15, 0.1];
 /** A drum's torn shell / lid flying off a fuel blast (debris.addHero): painted steel glowing as it cools. */
@@ -222,7 +224,7 @@ const LEGACY_FIRE = {
 const dryOf = (vfx, sec = 1e9) => Object.create(vfx, { emit: { value: () => -1 }, light: { value: (q) => q }, heatSource: { value: (q) => q },
   decal: { value: () => null }, addEmitter: { value: (e) => { e.dur = Math.min(e.dur, sec); return vfx.addEmitter(e); } } });
 /** explosion_large's residual ground fire turns into a sustained fire this long after the blast (its fireball is soot by then). */
-export const RESIDUAL_CUT = 2.5;
+export const RESIDUAL_CUT = FIRE.residual.cut;
 function blastFire(kind, vfx, pos, o, rng, sec) {
   LEGACY_FIRE[kind](dryOf(vfx, sec), pos, o, rng);
   return RECIPES[kind](vfx, pos, o, forkRng(pos, vfx.time, kind.length));
@@ -316,11 +318,11 @@ export const RECIPES = {
   burning_wreck(vfx, pos, o, rng) {
     const [sx, sz] = o.size ?? [2.2, 5.5], dur = o.dur ?? 1e6, top = pos.clone().setY(pos.y + (o.h ?? 1.6));
     const yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()); const lx = Math.cos(a) * q * sx * 0.42, lz = Math.sin(a) * q * sz * 0.38; return [lx * cy + lz * sy, -lx * sy + lz * cy]; };
+    const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()); const lx = Math.cos(a) * q * sx * FIRE.structure.kx, lz = Math.sin(a) * q * sz * FIRE.structure.kz; return [lx * cy + lz * sy, -lx * sy + lz * cy]; };
     // (a wreck's oil smoke is dark grey — burning paint, rubber, upholstery — with lighter grey and steam in it; a
     // building's timber smoke has some steam in it too)
     const fuel = o.fuel ?? 'oil', oil = fuel === 'oil';
-    return blaze(vfx, rng, { at: top, sampler, box: { rx: sx * 0.42, rz: sz * 0.38, yaw }, D: Math.sqrt(sx * sz), dur, burn: o.burn ?? (dur < 1e5 ? dur : 0), hold: 0.65, fuel, ramp: 1.5,
+    return blaze(vfx, rng, { at: top, sampler, box: { rx: sx * FIRE.structure.kx, rz: sz * FIRE.structure.kz, yaw }, D: Math.sqrt(sx * sz), dur, burn: o.burn ?? (dur < 1e5 ? dur : 0), hold: FIRE.structure.hold, fuel, ramp: FIRE.structure.ramp,
       smokeCol: oil ? [0.046, 0.043, 0.041] : undefined, steam: oil ? 0.14 : 0.08 });
   },
 
@@ -328,7 +330,7 @@ export const RECIPES = {
    *  plume (the chimney recipe), scorch. opts {scale, dur} (a finite dur dies down towards its end) */
   fire_small(vfx, pos, o, rng) {
     const s = o.scale ?? 1, dur = o.dur ?? 1e6;
-    const f = blaze(vfx, rng, { at: pos, D: 0.55 * s, L: 0.85 * s, W: 0.42 * s, dur, burn: dur < 1e5 ? dur : 0, fuel: 'wood', ramp: 0.6, smoke: false,
+    const f = blaze(vfx, rng, { at: pos, D: FIRE.small.D * s, L: 0.85 * s, W: 0.42 * s, dur, burn: dur < 1e5 ? dur : 0, fuel: 'wood', ramp: FIRE.small.ramp, smoke: false,
       intensity: 14 * s, radius: 6, hazeR: 0.8, haze: 0.7, lean: 0.8 });
     const e2 = RECIPES.chimney_smoke(vfx, pos.clone().setY(pos.y + 0.9 * s), { dur, rate: 8, col: [0.55, 0.55, 0.57], op: 0.24, s1: 2.6, vary: false, ambient: false }, rng);
     // (a short flare-up — M15's smouldering ruin spawns one every few seconds — leaves no scorch: the decals are a ring of
@@ -343,7 +345,7 @@ export const RECIPES = {
     const R = o.radius ?? 2, dur = o.dur ?? 20;
     const lobes = Array.from({ length: 5 }, () => [rr(rng, -0.8, 0.8) * R, rr(rng, -0.8, 0.8) * R, rr(rng, 0.3, 0.65) * R]);
     const sampler = (r) => { const L = lobes[(r() * lobes.length) | 0], a = r() * 6.283, q = Math.sqrt(r()) * L[2]; return [L[0] * 0.8 + Math.cos(a) * q, L[1] * 0.8 + Math.sin(a) * q]; };
-    const f = blaze(vfx, rng, { at: pos, sampler, box: { rx: 0.95 * R, rz: 0.95 * R, yaw: rng() * 6.283 }, D: 1.7 * R, L: (o.tall ?? 1) * 1.5 * (1.7 * R) ** 0.72, dur, burn: dur, hold: o.hold ?? 0.5, fuel: 'oil', ramp: 0.35, smokeK: o.smokeK ?? 1, y0: 0.02 });
+    const f = blaze(vfx, rng, { at: pos, sampler, box: { rx: FIRE.barrel.box * R, rz: FIRE.barrel.box * R, yaw: rng() * 6.283 }, D: 1.7 * R, L: (o.tall ?? 1) * 1.5 * (1.7 * R) ** 0.72, dur, burn: dur, hold: o.hold ?? FIRE.barrel.hold, fuel: 'oil', ramp: FIRE.barrel.ramp, smokeK: o.smokeK ?? 1, y0: 0.02 });
     for (const L of lobes) vfx.decal(V3(pos.x + L[0] * 0.8, 0, pos.z + L[1] * 0.8), L[2] * 2.6, 'fuel', { rot: rng() * 6, fade: 2 });
     return handle(f);
   },
@@ -567,10 +569,10 @@ export const RECIPES = {
     vfx.addEmitter({ dur: 14, rate: 0, noScale: true, fn: () => {}, tick: (a) => { const g = 1.4 * Math.exp(-a / 1.6); shellMat.emissiveIntensity = a > 13.9 ? 0 : g; lidMat.emissiveIntensity = a > 13.9 ? 0 : g * 0.6; } });
     chunks(vfx, pos, rng, Math.round(14 * s), { vmin: 5, vmax: 16, smin: 0.06, smax: 0.18, trail: 0.4, burn: 0.3, colors: [[0.24, 0.28, 0.16], [0.12, 0.1, 0.08]] });
     // burning fuel spill
-    const poolDur = o.poolDur ?? 10;
+    const poolDur = o.poolDur ?? FIRE.barrel.burn;
     // (the drum's own last draw is its smoke burst at 0.45 s: the old spill runs dry until then — a tanker's drums share
     // the tanker's rng with its 20 s column, so it passes dryFor: the whole spill)
-    vfx.at(0.15, () => blastFire('fuel_pool_fire', vfx, pos, { radius: (chain ? 1.1 : 1.5) * s, dur: poolDur, smokeK: ck }, rng, o.dryFor ?? 0.4));
+    vfx.at(FIRE.barrel.delay, () => blastFire('fuel_pool_fire', vfx, pos, { radius: (chain ? FIRE.barrel.chainR : FIRE.barrel.r) * s, dur: poolDur, smokeK: ck }, rng, o.dryFor ?? 0.4));
     vfx.decal(pos, 5 * s, 'scorch', { rot: rng() * 6 });
     sparks(vfx, up(0.6 * s), rng, Math.round(110 * s * ck), { vmin: 8, vmax: 26, tmin: 1800, tmax: 2500 });
     embers(vfx, up(2 * s), rng, Math.round(50 * s), 1.5 * s, { lmin: 3, lmax: 7 });
@@ -593,7 +595,7 @@ export const RECIPES = {
     }));
     sparks(vfx, up(1.2), rng, Math.round(30 * s), { vmin: 5, vmax: 14, lmin: 0.3, lmax: 0.9, stretch: 0.012 });
     embers(vfx, up(2), rng, Math.round(40 * s), 1.6 * s, { lmin: 3, lmax: 7 });
-    vfx.at(0.35, () => blastFire('fuel_tank_fire', vfx, pos, o, rng, 21)); // (its explosion_large column draws for 20 s)
+    vfx.at(FIRE.tank.delay, () => blastFire('fuel_tank_fire', vfx, pos, o, rng, 21)); // (its explosion_large column draws for 20 s)
     vfx.decal(pos, Math.max(size[0], size[1]) * 0.9, 'scorch', { rot: yaw });
     vfx.addShake(0.6 * s);
     vfx.blast(pos, (o.chainRadius ?? 8) * s, rng);
@@ -611,7 +613,7 @@ export const RECIPES = {
     const top = pos.clone().setY(pos.y + Math.max((o.h ?? 2) * 0.75, (o.roof ?? 0) - 0.3)), R = o.poolR ?? Math.max(sw, sl) * 0.4;
     const D = Math.sqrt(sw * sl) * 0.75, ph = rng() * 6.283, f = Math.min(2.4, Math.max(0.6, 1.5 / Math.sqrt(D)));
     const a = blaze(vfx, rng, { at: top, sampler: ell(0.32, 0.4), box: { rx: sw * 0.32, rz: sl * 0.4, yaw }, D, dur, burn: dur, hold: 0.6, fuel: 'oil', ramp: 0.6, f, ph, smokeK: o.smokeK ?? 1 });
-    const b = blaze(vfx, rng, { at: pos, sampler: ell(0.62, 0.58), box: { rx: sw * 0.5, rz: sl * 0.5, yaw }, D: Math.max(D, R), L: 0.9 * R ** 0.72, dur, burn: dur, hold: 0.6, fuel: 'oil', ramp: 0.9, f, ph,
+    const b = blaze(vfx, rng, { at: pos, sampler: ell(0.62, 0.58), box: { rx: sw * 0.5, rz: sl * 0.5, yaw }, D: Math.max(D, R), L: 0.9 * R ** 0.72, dur, burn: dur, hold: FIRE.tank.hold, fuel: 'oil', ramp: FIRE.tank.ramp, f, ph,
       smoke: false, light: false, density: 0.8 });
     vfx.decal(pos, R * 2.4, 'fuel', { rot: rng() * 6, fade: 2 });
     return handle(a, b);
@@ -633,11 +635,11 @@ export const RECIPES = {
   /** explosion_large's burning debris field after RESIDUAL_CUT: low volumetric flames over the blast disc, dying
    *  away with the blast's own residual light (exp(-t/7), 18 s); the blast keeps its smoke, light and haze. */
   _residual_fire(vfx, pos, o, rng) {
-    const s = o.scale ?? 1, t0 = RESIDUAL_CUT, R = 2.5 * s;
+    const s = o.scale ?? 1, t0 = RESIDUAL_CUT, R = FIRE.residual.R * s, end = FIRE.residual.end;
     const sampler = (r) => { const a = r() * 6.283, q = Math.sqrt(r()) * R; return [Math.cos(a) * q, Math.sin(a) * q]; };
     // (it dies away like the blast's residual light, exp(-t/7): held briefly, down to a smoulder by 13 s, out at 18 s)
-    return blaze(vfx, rng, { at: pos, sampler, box: { rx: 0.8 * R, rz: 0.8 * R, yaw: 0 }, D: 2.4 * s, L: 1.5 * s, W: 0.85 * s, dur: 18 - t0, fuel: 'wood', smoke: false, light: false, y0: -0.1,
-      ramp: 0.5, burn: 18 - t0, hold: 0.1 });
+    return blaze(vfx, rng, { at: pos, sampler, box: { rx: FIRE.residual.box * R, rz: FIRE.residual.box * R, yaw: 0 }, D: 2.4 * s, L: 1.5 * s, W: 0.85 * s, dur: end - t0, fuel: 'wood', smoke: false, light: false, y0: -0.1,
+      ramp: FIRE.residual.ramp, burn: end - t0, hold: FIRE.residual.hold });
   },
 
   /** explosion_large's aftermath column after RESIDUAL_CUT: the same black smoke rising from the blast, as one smooth

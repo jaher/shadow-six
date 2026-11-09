@@ -18,6 +18,9 @@ test('wreck fire: a man on foot beside the burning wreck burns, a man in a truck
   wreck.destroy(null, 'test');
   for (let k = 0; k < 30; k++) sim.step();
   walker.x = 20; walker.z = 21.6;
+  // (a man who cannot walk away — §C.8: world/fires.js would step a walker out of the flames at once, the user's "Path
+  // around fire" rule; tests/unit/fire-avoid)
+  walker.cannotWalk = true;
   ride.x = 23.5; ride.z = 20; rider.x = ride.x; rider.z = ride.z;
   assert.equal(rider.vehicle, ride);
   const hp0 = rider.hp;
