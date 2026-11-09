@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Play a mission solution headless (no renderer) and report its checkpoints. APPROXIMATE: the headless grid has no
- * library-mesh nav clearance (buildMap meshes:false), so paths and timings drift from the game; the reference run is
- * tools/solutions/run-browser.mjs.
+ * Play a mission solution headless (no renderer) and report its checkpoints. A mission with a cache
+ * (tools/solutions/navcache/<id>.json: the game's mesh-measured grid, ground, spawns, physics) plays tick for tick as
+ * the game does for hundreds of seconds (M3, M4, M13, M17 win at the browser's very time); the others run on the
+ * mesh-less build and drift. Reference run: tools/solutions/run-browser.mjs; where they part: headless-diff.mjs.
  *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json] [--until <stage id>]
  * Exit code 0 when every required objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
  */

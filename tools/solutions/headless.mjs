@@ -19,6 +19,10 @@ import { createObjectives, checkObjectives, updateExtractionVehicle, skipExtract
 import { CONFIG } from '../../src/config.js';
 import '../../src/abilities/index.js';
 import { readFileSync, existsSync } from 'node:fs';
+import { createPhysics } from '../../src/physics/world-physics.js';
+import { gunzipSync } from 'node:zlib';
+import { importGrid, groundFn, visibilityTerrain } from './grid-snap.mjs';
+import { applyExtras, applyVehicleDims, ownStructures } from './world-snap.mjs';
 
 /** A fingerprint of a grid's gameplay layers (block, nav stamps, terrain): what a nav cache was taken against. */
 export function gridPrint(g) {
@@ -29,9 +33,10 @@ export function gridPrint(g) {
 }
 
 /**
- * The browser's mesh-derived walking stamps (map-builder rule (e)) for mission `id`, if tools/solutions/navcache.mjs
- * cached them and they were taken against this very headless build: stamped on as one nav stamp ('navcache'), so the
- * headless men walk the game's ways. Returns whether it was applied.
+ * The game's mesh-measured world for mission `id`, if tools/solutions/navcache.mjs cached it against this very headless
+ * build: the whole grid, the ground relief and print visibility, the body solids / doors / vehicle dims / spawn spots
+ * (grid-snap.mjs, world-snap.mjs), so the headless men path, see, fall and are seen as in the game. Returns whether it
+ * was applied. (Only the cached missions: M3, M4, M7, M13, M17, M19; the rest run on the plain build as before.)
  */
 function applyNavCache(world, id) {
   const f = new URL(`./navcache/${id}.json`, import.meta.url);
@@ -41,47 +46,51 @@ function applyNavCache(world, id) {
     console.warn(`headless ${id}: tools/solutions/navcache/${id}.json is stale (the map changed): re-run tools/solutions/navcache.mjs ${id}`);
     return false;
   }
-  const cells = [];
-  for (const [k0, n] of c.nav) for (let k = k0; k < k0 + n; k++) cells.push(k);
-  g.navStamp('navcache', cells);
-  for (const [k0, n] of c.clear || []) for (let k = k0; k < k0 + n; k++) g.navBlock[k] = 0;
-  for (const [k, v] of c.block) g.block[k] = v;
-  for (const [k, v] of c.owner || []) g.owner[k] = v;
-  const typed = { crawlStep: Uint8Array, blockTop: Float32Array, flatExtra: Uint8Array };
-  for (const [name, cells] of Object.entries(c.layers || {})) {
-    if (!cells.length || !typed[name]) continue;
-    const a = g[name] || (g[name] = new typed[name](g.cols * g.rows));
-    for (const [k, v] of cells) a[k] = v;
-  }
-  if (c.solid?.length) {
-    const S = g.cols * 2, q = [];
-    for (const [k0, n] of c.solid) for (let k = k0; k < k0 + n; k++) q.push(`${k % S},${Math.floor(k / S)}`);
-    g.solidStamp('navcache', q);
-  }
+  importGrid(g, c.grid, gunzipSync);
+  world.cachedSpawns = c.spawns || null;
+  world.cachedExtras = c.extras || null;
+  if (c.ground) world.terrain = visibilityTerrain(c.ground, gunzipSync); // (the guards follow prints by the ground's material: ai/footprints.js)
+  if (c.ground) for (const fn of ['groundY', 'lyingY']) { const f = groundFn(c.ground, fn, gunzipSync, g); if (f) world[fn] = f; }
   return true;
 }
 
-export function headlessMission(id, { patch = null, navCache = true } = {}) {
+/**
+ * Where the game stood a unit at load (Game._spawnUnits `placed`: the placement rules over the drawn map, tower decks
+ * on the measured surface): the cached spawn point (x, z, y) of unit `i` of kind `kind`, laid over its authored spawn.
+ */
+function atCachedSpawn(world, kind, i, spawn) {
+  const p = world.cachedSpawns?.[kind]?.[i];
+  return p ? { ...spawn, x: p[0], z: p[1], y: p[2] } : spawn;
+}
+
+/**
+ * @param {{patch?: (def) => def, navCache?: boolean}} [o] navCache: lay the game's cached mesh-measured world over the build
+ *   (tools/solutions/navcache.mjs; headlessDriver does, for the solutions). Off by default: the unit tests of the plain build
+ *   (M3, M13…) were written against it.
+ */
+export function headlessMission(id, { patch = null, navCache = false } = {}) {
   Entity.nextId = 1;
   // (`patch`: def → def, a variant of the mission for a test — e.g. M3 with its old start wall back, tests/unit/prone-wall)
-  const mission = normalizeMission(patch ? patch(getMission(id)) : getMission(id), { quiet: true });
+  const mission = ownStructures(normalizeMission(patch ? patch(getMission(id)) : getMission(id), { quiet: true }));
   const world = new World({ size: mission.size, scene: new THREE.Scene(), mission, seed: mission.seed ?? CONFIG.sim.seed });
   world.alarm = new Alarm(world);
   buildMap(world, mission, { meshes: false });
   // (the game's drawn models close a few more cells to walking: the cached browser stamps, when there are some)
   world.navCached = !patch && navCache && applyNavCache(world, id);
+  if (world.cachedExtras) applyExtras(world, world.cachedExtras); // (after the map, before the units: the units' own spawn spots are cached)
   world.vehicleFactory = (s) => new Vehicle(s);
   const medic = firstAidCarrier(mission.commandos.map((c) => c.role));
-  for (const c of mission.commandos) {
+  for (const [i, c] of mission.commandos.entries()) {
     const s = { ...c, campaign: mission.campaign, inventory: c.inventory ? { ...c.inventory } : undefined };
     if (c.role === medic && s.inventory?.firstAid === undefined && mission.firstAid !== false) s.inventory = { ...(s.inventory || defaultInventory(c.role)), firstAid: FIRST_AID_DOSES };
-    const cmd = world.add(new Commando(s)) || world.commandos.at(-1);
+    const cmd = world.add(new Commando(atCachedSpawn(world, 'commandos', i, s))) || world.commandos.at(-1);
     if (c.hideout) admitAtSpawn(world, cmd, c.hideout); // (as Game._spawnUnits: he starts inside his hideout)
     // §7.3 `stance: 'crawl'`: the mission starts him prone (as Game: already down, no stance-change lockout)
     if (c.stance === 'crawl') { cmd.setStance('crawl'); cmd._stanceT = 0; }
   }
-  for (const e of mission.enemies) world.add(new Enemy(e));
+  for (const [i, e] of mission.enemies.entries()) world.add(new Enemy(atCachedSpawn(world, 'enemies', i, e)));
   for (const v of mission.vehicles) world.spawnVehicle(v.vehicleType || 'truck', v);
+  applyVehicleDims(world, world.cachedExtras);
   world.objectives = createObjectives(mission.objectives || []);
   if (!world.extraction) world.extraction = mission.extraction || null;
   world.rebuildSpatial();
@@ -107,10 +116,27 @@ export function headlessMission(id, { patch = null, navCache = true } = {}) {
   };
 }
 
+/**
+ * The game's blast / ragdoll physics (Game.loadMission: createPhysics over the finished map, tier from the house rules)
+ * on a headless mission: without it the corpses never settle where the game's do, and a man carrying one walks on a
+ * different line (the null object is the fallback: gameplay then runs by the rule it can honour, physicsGameplay off).
+ */
+export async function headlessPhysics(s) {
+  const w = s.world;
+  // (only over the game's own ground: Rapier on the mesh-less build's flat 0 settles bodies differently from the game and from
+  // the null object the other missions' solutions were tuned on; a cached mission (navcache) has the game's ground and doors)
+  if (!w.navCached) return null;
+  w.physics = (await createPhysics(w, { tier: w.house?.physicsTier })) || w.physics;
+  if (w.physics.isNull) w.house.physicsGameplay = false;
+  for (const c of w.commandos) c.refreshAbilities?.();
+  return w.physics;
+}
+
 /** Driver (tools/solutions/driver.mjs) over a headless copy of mission `id` (node only). */
 export async function headlessDriver(id, o = {}) {
   const { makeDriver } = await import('./driver.mjs');
-  const s = headlessMission(id);
+  const s = headlessMission(id, { navCache: o.navCache ?? true });
+  await headlessPhysics(s); // (as Game.loadMission: Rapier over the finished map — corpses, props and gates settle as in the game)
   const D = makeDriver(s.world, { step: s.step, dt: s.dt, skipEscape: s.skipEscape, ...o });
   D.sim = s;
   return D;
