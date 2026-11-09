@@ -539,12 +539,15 @@ export class VisionCone {
     // the head has turned out of the shown sector (a guard looking round, turning to a noise — fast in video mode's AUTO):
     // the window past the sector's edge drew the cone with a slice missing, or none at all, until the rebuild landed a
     // few frames later — behind a head still turning, so the cones blinked (every mission's opening). The window waits
-    // at the sector's edge meanwhile (whole, a little behind his head); past TURN_LAG the rebuild finishes at once.
+    // at the sector's edge meanwhile (whole, a little behind his head); past TURN_LAG the rebuild finishes at once —
+    // coarse, as a walker's is: a head swinging that fast is a cone in motion, and its exact sector follows over frames
+    // once it settles (stale: coarse and he stands). (Exact, the at-once sectors of a turn cost 4–17 ms each: M9's
+    // opening, four guards' heads swinging out of their title-card sectors at the first tick, drew a 48–57 ms frame.)
     const mid = (S.a0 + S.a1) / 2, room = (S.a1 - S.a0) / 2 - cone.halfFov, dw = wrapPi(cone.heading - mid);
     if (Math.abs(dw) > room) {
       if (Math.abs(dw) - room > TURN_LAG || room < 0) {
         this._job = null;
-        const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null, turn);
+        const it = this._buildSteps(enemy, cone, world, grid, gv, reach, true, coarse ? lead : null, turn);
         let r = it.next();
         while (!r.done) r = it.next();
         this._finish(r.value, cone);
@@ -567,7 +570,11 @@ export class VisionCone {
    */
   *_buildSteps(enemy, cone, world, grid, gv, reach, coarse, lead = null, turn = 0) {
     // the sector: the head's whole sweep round its centre (body heading + head offset), plus a margin
-    const amp = enemy.sweepActive ? Math.abs((enemy.sweepAmp ?? enemy.vision?.sweep ?? 0) * (enemy.sweepW ?? 1)) : 0;
+    // (before the world's first tick — the still world under video mode's title card — a man halted on his beat may
+    // start sweeping at that tick: the sector covers his vision's sweep then too, or the cones built on the card were
+    // all rebuilt at once in play's first frame, the heads swung out of them: M9's opening, four in one frame)
+    const sweeps = enemy.sweepActive || (world?.tick === 0 && !!enemy.vision?.sweep);
+    const amp = sweeps ? Math.abs((enemy.sweepAmp ?? enemy.vision?.sweep ?? 0) * (enemy.sweepW ?? 1)) : 0;
     let c = (enemy.heading || 0) + (enemy.headOffset || 0) + (enemy.headCarry || 0);
     c += TAU * Math.round((cone.heading - c) / TAU);
     let a0 = c - cone.halfFov - amp - SECTOR_MARGIN, a1 = c + cone.halfFov + amp + SECTOR_MARGIN;

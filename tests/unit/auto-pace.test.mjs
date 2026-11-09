@@ -5,7 +5,7 @@
  * and nothing written to the game.
  */
 import { test, assert, near } from './lib.mjs';
-import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, isTrueWait, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
+import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, climaxSlows, isTrueWait, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
 import { TickPacer } from '../../src/debug/solution-replay.js';
 import { EventBus } from '../../src/core/events.js';
 
@@ -181,6 +181,25 @@ test('auto pace: a true wait is the solution waiting with nobody acting and noth
   assert.ok(!isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: 'x', busy: true }), 'a man acts');
   assert.ok(!isTrueWait({ motion: 'crawl' }, { why: 'crawl' }, { waiting: 'x' }), 'a man moves');
   for (const why of ['caption', 'cone', 'closing in', 'kill', 'charge', 'climax']) assert.ok(!isTrueWait({ motion: 'idle' }, { why }, { waiting: 'x' }), `${why}: not a true wait`);
+});
+
+test('auto pace: the climax slows its blasts and the escape\'s action, not a true wait in it (played at the play\'s own pace, never skipped)', () => {
+  const wait = { waiting: 'our lorry at the pick-up point', busy: false };
+  // M9 after its last blast: the team at the pick-up point, the solution waiting for the lorry, nothing to slow for
+  assert.equal(climaxSlows(true, { motion: 'idle' }, { ceiling: 4 }, wait), false, 'a true wait: no ½×');
+  const tg = paceTarget({ motion: 'idle' }, { ceiling: 4, climax: climaxSlows(true, { motion: 'idle' }, { ceiling: 4 }, wait) });
+  assert.equal(tg.rate, AUTO_PACE.cruise.idle, `the play's own pace (${tg.rate}×)`);
+  // the climax still slows everything else
+  assert.equal(climaxSlows(false, { motion: 'idle' }, { ceiling: 4 }, wait), false, 'no climax: nothing to slow');
+  assert.equal(climaxSlows(true, { motion: 'idle' }, { ceiling: 4 }, { ...wait, busy: true }), true, 'a man acts (the escape: running, driving off)');
+  assert.equal(climaxSlows(true, { motion: 'walk' }, { ceiling: 4 }, wait), true, 'a man walks');
+  assert.equal(climaxSlows(true, { motion: 'idle' }, { ceiling: 4 }, { waiting: null }), true, 'the solution is not waiting (an order, a plan)');
+  assert.equal(climaxSlows(true, { motion: 'idle', blastAgo: 1 }, { ceiling: 4 }, wait), true, 'a blast just went off');
+  assert.equal(climaxSlows(true, { motion: 'idle', blastAgo: AUTO_PACE.blastPost + 2 }, { ceiling: 4 }, wait), false, 'a blast past its ½× window: easing back up, the wait is not held at ½×');
+  near(paceTarget({ motion: 'idle', blastAgo: AUTO_PACE.blastPost + 2 }, { ceiling: 4, climax: false }).rate, AUTO_PACE.blast * 3, 1e-9); // (the blast's own ease still applies)
+  assert.equal(climaxSlows(true, { motion: 'idle', fuse: 2 }, { ceiling: 4 }, wait), true, 'a charge about to go off');
+  assert.equal(climaxSlows(true, { motion: 'idle', windows: [{ rate: 1, why: 'kill', left: 1 }] }, { ceiling: 4 }, wait), true, 'a moment after a kill');
+  near(paceTarget({ motion: 'idle' }, { ceiling: 4, climax: true }).rate, AUTO_PACE.climax, 1e-9);
 });
 
 // ------------------------------------------------------------------ the sensor, on a small fake world

@@ -32,7 +32,7 @@ import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpI
 import { Director, freeRect, isActing, pickLive } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
-import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, underWay, trapEta } from './auto-pace.js';
+import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, climaxSlows, isTrueWait, underWay, trapEta } from './auto-pace.js';
 import { ScopeShow, warmScope } from './walkthrough-scope.js';
 import { doubleFields } from '../core/shapes.js';
 
@@ -746,17 +746,20 @@ export class Walkthrough extends SolutionReplay {
     const t = w.time;
     const sig = this.sensor.sample(t, this._paceCtx(), performance.now());
     const reading = this.captions ? (this._readUntil - performance.now()) / 1000 : 0;
-    const climax = inClimax(t, this._lastChapterT0, this.sensor.blastT);
+    const climaxOn = inClimax(t, this._lastChapterT0, this.sensor.blastT);
     const held = this.holdNow();
     if (held) sig.windows.push({ rate: 1, why: held.id, left: 1 }); // (an action watched until it has visibly finished: 1×)
+    const busyNow = this._anyBusy();
+    // (the climax slows its blasts and the escape's action, not a true wait in it: climaxSlows)
+    const climax = climaxSlows(climaxOn, sig, { ceiling }, { waiting: this.waitLabel, busy: busyNow });
     const tg = paceTarget(sig, { ceiling, reading, climax });
     // a true wait (the solution waits for a guard, a gap, a timer; nobody acts; nothing to slow for — a caption needs no
     // slow play when nothing happens: it stays up after the skip) is skipped like a jump once it has lasted SKIP_AFTER s;
     // anything that happens (an order, an event, an action) ends the skip at once
-    const tq = reading > 0 ? paceTarget(sig, { ceiling, reading: 0, climax }) : tg, busyNow = this._anyBusy();
-    const quiet = isTrueWait(sig, tq, { waiting: this.waitLabel, busy: busyNow });
+    const tq = reading > 0 ? paceTarget(sig, { ceiling, reading: 0, climax }) : tg;
+    const quiet = !climaxOn && isTrueWait(sig, tq, { waiting: this.waitLabel, busy: busyNow });
     // (why a wait is not skipped, for tests and tuning: a man acting, a man moving, what AUTO slows for)
-    this.waitWhy = !this.waitLabel ? null : quiet ? 'skip' : busyNow ? 'busy' : (sig.motion || 'idle') !== 'idle' ? `moving (${sig.motion})` : tq.why;
+    this.waitWhy = !this.waitLabel ? null : quiet ? 'skip' : busyNow ? 'busy' : (sig.motion || 'idle') !== 'idle' ? `moving (${sig.motion})` : climaxOn ? 'climax' : tq.why;
     // a skipped wait: its time-lapse, as fast as a frame allows (every frame drawn), every ease of paceTarget still on —
     // so a moment coming (a guard walking onto a trap) brings it down smoothly, and below the play's own speed it is
     // play again: no cut, the speed goes on from there

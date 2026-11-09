@@ -25,7 +25,7 @@ import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey, sessionCache } from '../engine/asset-cache.js';
 import { screenDensity, startDensity } from '../engine/texel-budget.js';
-import { HD_TEXTURES, registerHdJob } from '../engine/hd-textures.js';
+import { HD_TEXTURES, registerHdJob, uploadNow, hdPause } from '../engine/hd-textures.js';
 import { terrainLayerUrls } from './terrain/terrain.js';
 import { createApronG } from './apron.js';
 import { buildApronFieldG, extendPath } from '../world/apron-field.js';
@@ -453,6 +453,8 @@ export function buildMaskedWater(grid, theater) {
 const composePaint = (...fs) => { fs = fs.filter(Boolean); return fs.length ? (x, z, w) => { for (const f of fs) f(x, z, w); } : undefined; };
 
 const presetOf = (renderer) => QUALITY_OF[renderer?.presetName] || 'medium';
+/** The HD queue's upload of the terrain's new arrays: each on a pause of its own (engine/hd-textures.js hdPause). */
+async function uploadEach(textures) { for (const t of textures) { await hdPause(); uploadNow(t); } }
 
 /**
  * Build the ground for a finished grid.
@@ -534,7 +536,8 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
       if (disposed) return;
       registerHdJob(`terrain:${theater}:${fullRes}_albedo.layers`, {
         urls: terrainLayerUrls(theater, fullRes),
-        run: async () => { if (!disposed && quality === q0) await inner.terrain?.setTextureRes?.(fullRes); },
+        // (each new array uploaded on its own pause before the swap: the frame that first draws them uploads nothing)
+        run: async () => { if (!disposed && quality === q0) await inner.terrain?.setTextureRes?.(fullRes, { prepare: uploadEach }); },
       });
     }, () => {});
   }

@@ -496,14 +496,20 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     setQuality,
     get quality() { return quality; },
     get texRes() { return texRes; },
-    /** Swap the albedo/normal arrays to 512, 1K or 2K (async; keeps the current ones until the new pair decodes). */
-    async setTextureRes(res) {
+    /**
+     * Swap the albedo/normal arrays to 512, 1K or 2K (async; keeps the current ones until the new pair decodes).
+     * `prepare(textures)` (optional, async): runs on the new arrays before they are swapped in — the HD queue uploads
+     * them there, one per pause, so the first frame that draws them does not upload three whole arrays at once (M5's
+     * walkthrough: 23 ms of compressedTexSubImage3D in the first frame of play, after the job finished on the title card).
+     */
+    async setTextureRes(res, { prepare = null } = {}) {
       res = norm(res);
       if (res === texRes) return texRes;
       const want = res;
       texRes = res;
       try {
         const [[a, n], d] = await Promise.all([loadRes(want), loadData(want)]);
+        if (prepare && texRes === want) await prepare(d !== tDat ? [a, n, d] : [a, n]);
         if (texRes !== want) { cache.release(a); cache.release(n); if (d !== tDat) cache.release(d); return texRes; }
         cache.release(tAlb); cache.release(tNor);
         if (d !== tDat) { cache.release(tDat); tDat = d; U.tDat.value = d; }

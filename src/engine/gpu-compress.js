@@ -1133,6 +1133,10 @@ const isBitmap = (x) => typeof ImageBitmap !== 'undefined' && x instanceof Image
 const BAND_BYTES = 2 << 20;
 /** What a banded encode yields between two bands: the pump goes on after the next frame, not at once. */
 const BAND_PAUSE = Symbol('band');
+/** What a band counts for one draw + read-back pair on top of its texels (see _encodeGlG): 8 pairs to a play band. */
+const BAND_PAIR_TEXELS = 1 << 15;
+/** The longest a band's fence holds the next band back (ms): past it the encode goes on (a fence that never passes). */
+const BAND_WAIT_MS = 1000;
 /** Bytes per read-back call (made while the GPU is idle: a plain copy). */
 const READ_BYTES = 1 << 20;
 
@@ -1225,9 +1229,12 @@ export class GpuCompressor {
     /** Texels per encode band (0: a whole level per draw). Set while the game is played (engine/hd-textures.js): the
      *  GPU work of one task stays a few ms, so the frames are not held behind an atlas's encode. */
     this.encodeBand = 0;
+    /** The fence after the last band a banded encode issued: the next band waits until the GPU has run it (see _run). */
+    this._bandSync = null;
+    this._bandT0 = 0;
     this._jobs = new WeakMap(); // original Source → Map(variant → Promise<{source, mipmaps}|null>)
     const el = renderer.domElement;
-    this._onLost = () => { this.progs = {}; this.fbo = this.rt = this.vao = this.tab = this.seedTex = null; this.rtSize = [0, 0]; };
+    this._onLost = () => { this.progs = {}; this.fbo = this.rt = this.vao = this.tab = this.seedTex = null; this.rtSize = [0, 0]; this._bandSync = null; };
     el?.addEventListener?.('webglcontextlost', this._onLost);
   }
 
@@ -1499,11 +1506,18 @@ export class GpuCompressor {
           gl.drawArrays(gl.TRIANGLES, 0, 3);
           if (n < L.bh) gl.disable(gl.SCISSOR_TEST);
           gl.readPixels(0, r0, L.bw, n, gl.RGBA_INTEGER, gl.UNSIGNED_INT, L.off + z * L.per + r0 * L.bw * 16);
-          acc += L.bw * n * 16;
+          // (a draw + its read-back cost the GPU a round of their own whatever their size — the read waits for the draw:
+          // counted as BAND_PAIR_TEXELS more, so the small levels of a layer array (levels 3+ of 48 layers: ~290 pairs
+          // that one band took whole, 100-130 ms of GPU) are spread over bands like any other work)
+          acc += L.bw * n * 16 + BAND_PAIR_TEXELS;
           const more = r0 + n < L.bh || z + 1 < nz || l + 1 < plan.length;
           if (banded && more && acc >= bandTexels) {
             acc = 0;
             gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+            // (the band's own fence: the pump issues the next band only once the GPU has run this one — a band queued
+            // behind a band still running stacked them up when the GPU was slower than a band a frame: 50-180 ms frames
+            // in M5's first seconds of play under a busy GPU)
+            this._fenceBand(gl);
             gl.flush();
             this.renderer.resetState(); // three's cached GL state no longer matches
             yield BAND_PAUSE; // (the pump: the next band after the page drew a frame)
@@ -1695,7 +1709,7 @@ export class GpuCompressor {
     }
     if (gl.isContextLost()) {
       for (const j of [...this._inflight, ...this._queue, ...(this._current ? [this._current.q] : [])]) j.reject(new Error('context lost'));
-      this._inflight = []; this._queue = []; this._current = null;
+      this._inflight = []; this._queue = []; this._current = null; this._bandSync = null;
       return;
     }
     const hidden = typeof document !== 'undefined' && document.hidden; // timers crawl there: read back at once
@@ -1733,6 +1747,7 @@ export class GpuCompressor {
         this._current = { q, gen: it && typeof it.next === 'function' ? it : null, done: it && typeof it.next === 'function' ? null : it };
       }
       const c = this._current;
+      if (c.gen && !this._bandDone(gl, hidden)) { bandWait = true; break; } // the last band still on the GPU: after a frame
       if (c.gen) {
         let res;
         try { res = stepFor(c.gen, left()); } catch (e) { this._current = null; c.q.reject(e); continue; }
@@ -1746,6 +1761,27 @@ export class GpuCompressor {
     else if (reading || ((this._current || this._queue.length) && this._inflight.length < this.maxPending)) this._kick(); // more to do: after a yield
     else if (this._inflight.length || this._queue.length || this._current) this._kick(1); // waiting on the GPU
     else this._idleSoon();
+  }
+
+  /** A fence after a band of a banded encode (the previous one, if any, is dropped: fences pass in order). */
+  _fenceBand(gl) {
+    if (this._bandSync) gl.deleteSync(this._bandSync);
+    this._bandSync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    this._bandT0 = performance.now();
+  }
+
+  /**
+   * Has the GPU run the last band issued? (no band pending, its fence passed, a hidden page — timers crawl there — or
+   * BAND_WAIT_MS gone: a stuck fence never holds the encode). The fence is dropped once it has passed.
+   */
+  _bandDone(gl, hidden) {
+    const sy = this._bandSync;
+    if (!sy) return true;
+    const st = gl.clientWaitSync(sy, 0, 0);
+    if (st === gl.TIMEOUT_EXPIRED && !hidden && performance.now() - this._bandT0 < BAND_WAIT_MS) return false;
+    gl.deleteSync(sy);
+    this._bandSync = null;
+    return true;
   }
 
   /** Nothing left to encode: free the block target (sized for the largest map: MBs) once the pump has been idle a moment. */

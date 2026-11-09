@@ -208,6 +208,58 @@ test('height sight: a turning head\'s cone never loses a slice while its sector 
   vcs.dispose();
 });
 
+test('height sight: a cone built before the first tick (a title card) covers the sweep his head starts at that tick: no rebuild in play\'s first frames', () => {
+  // M9's opening: four guards halted on their beats, cones built on the title card (heads not set: no sweep), their
+  // heads swinging up to 50° at the first tick — all four sectors rebuilt at once, exact, in one frame (48–57 ms)
+  for (const before of [true, false]) {
+    const w = bumpy();
+    const g = { kind: 'enemy', id: 1, x: 30, z: 40, heading: 0.3, alive: true, world: w, vision: { ...makeVision('soldier'), phase: 0.37 }, sweepActive: false, coneVisible: true };
+    w.enemies.push(g);
+    const vcs = new VisionCones(w, { add() {} }, { budgetMs: 0.001 });
+    if (!before) { w.tick = 1; w.time = 0; } // (control: the same cone built after a tick spans no sweep)
+    vcs.update();
+    const vc = vcs.cones.get(g), n0 = vc.rebuilds;
+    // the first tick: his head starts sweeping; a whole sweep period of frames at 60 fps
+    g.sweepActive = true; w.tick = 1;
+    const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+    let missing = 0;
+    for (let f = 1; f <= Math.ceil(g.vision.period * 60); f++) {
+      w.time = f / 60;
+      vcs.update();
+      const S = vc._sector, d = vc.drawnWindow();
+      if (Math.abs(wrap(d.heading - (S.a0 + S.a1) / 2)) + d.halfFov - (S.a1 - S.a0) / 2 > 1e-9) missing++;
+    }
+    assert.equal(missing, 0, 'no slice of the cone missing');
+    if (before) assert.equal(vc.rebuilds - n0, 0, 'the title card\'s sector holds the whole sweep: not rebuilt');
+    else assert.ok(vc.rebuilds - n0 > 0, `control: a sector built after a tick without the sweep is rebuilt as the head sweeps (${vc.rebuilds - n0})`);
+    vcs.dispose();
+  }
+});
+
+test('height sight: a head swinging out of its sector is rebuilt at once COARSE (cheap); the exact sector follows over frames once he settles', () => {
+  const w = bumpy();
+  const rng = new Rng(77);
+  const g = { kind: 'enemy', id: 1, x: 30, z: 40, heading: 0, alive: true, world: w, vision: makeVision('soldier'), sweepActive: false, coneVisible: true };
+  w.enemies.push(g);
+  w.tick = 1;
+  const vcs = new VisionCones(w, { add() {} }, { budgetMs: 0.001 });
+  vcs.update();
+  const vc = vcs.cones.get(g);
+  // a snap turn of 60° in one frame (past TURN_LAG beyond the sector's edge): the rebuild lands in that frame, coarse
+  const n0 = vc.rebuilds;
+  g.heading += 60 * Math.PI / 180;
+  vcs.update();
+  assert.equal(vc.rebuilds, n0 + 1, 'rebuilt at once');
+  assert.equal(vc._sector.coarse, true, 'coarse: a cone in motion');
+  // he stands: the exact sector follows, a step a frame (the coarse one shown meanwhile)
+  let k = 0;
+  for (; k < 4000 && (vc._sector.coarse || vc._job); k++) vcs.update();
+  assert.equal(vc._sector.coarse, false, `settled: the exact sector (${k} frames)`);
+  const st = checkMesh(w, g, vc, 0, rng, 1500);
+  assert.equal(st.bad.length, 0, `settled drawn cone == detection: ${JSON.stringify(st.bad.slice(0, 4))}`);
+  vcs.dispose();
+});
+
 test('height sight: the cone runs on past a bump and a low wall; the light shade marks where only a crawler is hidden', () => {
   const { w, g, g2 } = lanes();
   for (const [v, x, z] of [[g, 30, 10], [g2, 26, 27]]) {

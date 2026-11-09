@@ -12,7 +12,8 @@
  *  - after a kill, an objective, a capture, an alarm, a beat of the walkthrough: a moment at 1× (the films' +2 s), then
  *    eased back up the same way (two kills in a row stay slow);
  *  - blasts at ½× (from 0.8 s before the fuse runs out to 3 s after) and the climax — the escape after the last
- *    blast, in the last chapter — at ½× (the films' dam blast and escape, their speed floor);
+ *    blast, in the last chapter — at ½× (the films' dam blast and escape, their speed floor); a true wait in it (the
+ *    team at the pick-up point for its lorry) plays at the play's own pace instead, never skipped (climaxSlows);
  *  - the step's acting man closing in on the guard the step names (12 m: 4× … 3 m: 1.5×), a man at work within
  *    striking distance of an unaware guard (2×), a near miss — a guard who would see a man at work if his cone reached
  *    a few metres further, tried with the AI's own canSee (1.5× touching … 4× at 3 m; ×0.75 while the cone turns to
@@ -238,6 +239,20 @@ export class PerfCeiling {
 /** Is this a true wait? `sig`/`tg`: PaceSensor sample and paceTarget result; o: {waiting (the solution's wait label), busy (a man acts)}. */
 export function isTrueWait(sig, tg, { waiting = null, busy = false } = {}) {
   return !!waiting && !busy && (sig?.motion || 'idle') === 'idle' && tg?.why === 'idle';
+}
+
+/**
+ * Does the climax slow this moment (½×)? `on`: inClimax; `sig`: PaceSensor sample; `o`: paceTarget's options (ceiling);
+ * `w`: isTrueWait's. Its blasts and the escape's action, yes; a true wait in it — nobody acting, the solution only
+ * waiting, nothing else to slow for (M9's team at the pick-up point for its lorry: 20 s of game after the last blast,
+ * 33 s of wall at ½×) — plays at the play's own pace instead (and is still not skipped: a climax is no wait to skip).
+ */
+export function climaxSlows(on, sig, o = {}, w = {}) {
+  if (!on) return false;
+  // (a blast past its ½× window is easing back up, not slowing the wait: M9's last blast held a still team at ½× for
+  // the 10 s its ease takes to reach the cruise)
+  const s = sig?.blastAgo > AUTO_PACE.blastPost ? { ...sig, blastAgo: null } : sig;
+  return !isTrueWait(s, paceTarget(s, { ...o, reading: 0, climax: false, skip: 0 }), w);
 }
 
 /**
