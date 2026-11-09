@@ -140,7 +140,9 @@ export function dressStaticVehicles(world, def) {
       sunk.add(vis.object3d); holder.add(sunk);
       if (s.def.ice) s.object3d.add(iceCrust(s.def));
     } else if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
-    const rec = { id, asset, scale: 1, vis };
+    // `vehicleArtMerge`: a parked model that never moves draws one mesh per material per LOD (the wreck is separate). Run by
+    // Game.loadMission once the body solids are measured on the model's own meshes (merged ones would be measured differently)
+    const rec = { id, asset, scale: 1, vis, merge: s.def?.vehicleArtMerge && !build ? () => vis.mergeParked?.() : null };
     // (`ready`: the model in, fitted, the placeholder hidden — what Game.loadMission awaits before the body solids are
     // measured on the drawn model: map-builder restampBodySolidsG)
     rec.ready = vis.ready.then(() => {

@@ -77,7 +77,7 @@ export default {
     { id: 'clothesline', type: 'wall', variant: 'clothesline_sheets', mat: 'canvas', points: [[13, 4.5], [18.5, 4.5]], h: 2, width: 0.3 },
     // a requisitioned Opel Blitz parked in the fenced paddock
     { id: 'lorry_paddock', type: 'crates', variant: 'parked_lorry', x: 26, z: 45.6, rot: deg(-8), w: 6.2, d: 2.3, h: 2.2, block: 2,
-      vehicleArt: 'opel_blitz_cargo', fixed: true },
+      vehicleArt: 'opel_blitz_cargo', vehicleArtMerge: true, fixed: true },
     // the garrison flag on its pole by the barracks' W gable
     { id: 'flag_barracks', type: 'sign', variant: 'flagpole_german', x: 47.2, z: 15.8, rot: 0, w: 0.3, d: 0.3, h: 6.5, block: 2, fixed: true },
     // the depot's drum dump on timber dunnage in the SE corner of the yard (art/fuel-drums.js)

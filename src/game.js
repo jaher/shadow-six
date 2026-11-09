@@ -399,6 +399,7 @@ export class Game {
       if (this.world !== world) return prog.cancel(), world;
       const owners = new Set(dressed.map((d) => world.structures?.get(d.id)?.owner).filter((o) => o != null));
       await safeAsync(() => runSliced(this.mapHandle.restampBodySolidsG(owners)), 'body solids');
+      for (const d of dressed) safe(() => d.merge?.(), 'parked model merge'); // (draw-call cut, after the solids: static-vehicles.js)
       if (this.world !== world) return prog.cancel(), world;
     }
     await nextTask(); // (the steps below start on their own task, not on the one that finished the terrain)

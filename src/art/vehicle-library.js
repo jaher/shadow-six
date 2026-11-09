@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../engine/glb-gzip.js'; // gzip-wrapped GLBs (assets/**/*.glb)
 import { keepEncodedImages } from '../engine/texture-memory.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { libTier, loadLibDensity, setLibPreset } from './lib-tiers.js';
@@ -327,6 +328,42 @@ function buildInstance(model, swap, meta) {
     emitters: mk(meta?.emitters), lights: mk(meta?.lights), contacts: mk(meta?.contacts), odo: 0, lod: -1 };
 }
 
+/**
+ * Draw-call cut for a parked model (static-vehicles.js `vehicleArtMerge`): in every LOD of the instance, the opaque rigid
+ * meshes that share a material (and shadow flags) become ONE mesh in the LOD's frame, at the pose they have now. Only for
+ * a model the mission keeps still (no door, hatch or wheel is ever posed afterwards: part nodes stay but their meshes move
+ * into the merged one); skinned / transparent / instanced ones stay as they are. Pixels unchanged (same triangles, materials, order within a material).
+ * @returns {THREE.Mesh[]} the merged meshes (their geometry is the caller's to dispose)
+ */
+function mergeParked(inst) {
+  const out = [];
+  for (const lod of inst.lods.values()) {
+    lod.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert(), groups = new Map();
+    lod.traverse((o) => {
+      const m = o.material;
+      if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || !m || Array.isArray(m) || m.transparent || o.morphTargetInfluences
+        || o.layers.mask !== 1 || o.renderOrder !== 0 || o.customDepthMaterial || o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;
+      const k = `${m.uuid}|${o.castShadow}|${o.receiveShadow}|${Object.keys(o.geometry.attributes).sort().join()}`;
+      (groups.get(k) || groups.set(k, []).get(k)).push(o);
+    });
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const idx = list.every((o) => o.geometry.index), geos = list.map((o) => {
+        const g = (idx ? o.geometry : o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone();
+        return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      });
+      const geo = mergeGeometries(geos, false);
+      if (!geo) continue;
+      const mesh = new THREE.Mesh(geo, list[0].material);
+      mesh.castShadow = list[0].castShadow; mesh.receiveShadow = list[0].receiveShadow; mesh.name = `${lod.name}:merged`;
+      lod.add(mesh); out.push(mesh);
+      for (const o of list) o.removeFromParent();
+    }
+  }
+  return out;
+}
+
 /** Write a part pose to every LOD node: rest ∘ extra rotation, rest + model-space offset. */
 function pose(p, q = null, off = null) {
   // (an index loop: a closure per call was most of the vehicles' per-tick garbage — every wheel of a train, every tick)
@@ -516,7 +553,9 @@ export function createVehicleVisual(type, opts = {}) {
       return true;
     },
     setZoom(z) { S.zoom = z; show(); },
-    dispose() { V.live.delete(h); object3d.removeFromParent(); for (const x of [S.intact, S.wreck]) x?.tracks.forEach((t) => t.texs.forEach((tx) => tx.dispose())); S.wreck?.dispose?.(); },
+    /** Parked model: one draw per material per LOD (see mergeParked). */
+    mergeParked() { if (S.intact && !S.intact.merged) S.intact.merged = mergeParked(S.intact); return S.intact?.merged?.length ?? 0; },
+    dispose() { S.intact?.merged?.forEach((m) => m.geometry.dispose()); V.live.delete(h); object3d.removeFromParent(); for (const x of [S.intact, S.wreck]) x?.tracks.forEach((t) => t.texs.forEach((tx) => tx.dispose())); S.wreck?.dispose?.(); },
     /** The wreck instance once built (a builder's: its hot spots, debris…), else null. */
     get wreckInstance() { return S.wreck; },
   };
