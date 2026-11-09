@@ -794,6 +794,44 @@ export class Vehicle extends Entity {
     return d;
   }
 
+  /**
+   * `_hullDepth(v, x, z, h) > T` for one other hull `v` that stands still (a plan's snapshot of it), asked at many poses
+   * of this hull: (x, z, h, cos h, sin h) → bool. The same depths in the same order — v's outline, heading and half sizes
+   * worked out once, this hull's outline placed from its own frame with _outline's arithmetic, each point's depth as
+   * _rectDepth works it out — without allocating, and decided as soon as it is: the running maximum is final once it
+   * is over T, and a pose whose rectangle lies more than 0.25 m (+1e-6) from v's along an axis of either is no deeper
+   * than minus that (every outline point is at least as far outside the other rectangle; T ≥ -0.25 in every caller).
+   * A route search's pose tests (M13's tank shut in by the truck: 60 % of ~200 searches' time) — the same answers.
+   */
+  _hullDepthAt(v, T) {
+    const OL = this._outline(0, 0, 0, 0), VO = v._outline(v.x, v.z, v.heading, 0);
+    const vx = v.x, vz = v.z, vc = Math.cos(v.heading), vs = Math.sin(v.heading), vL = v.def.size[0] / 2, vW = v.def.size[1] / 2;
+    const L = this.def.size[0] / 2, Wd = this.def.size[1] / 2, GAP = 0.25 + 1e-6;
+    return (x, z, h, c, s) => {
+      // (separated along an axis of either rectangle by more than 0.25 m: every depth is under -0.25 ≤ T)
+      const ox = x - vx, oz = z - vz, cc = Math.abs(c * vc + s * vs), sc = Math.abs(-s * vc + c * vs);
+      if (Math.abs(ox * vc + oz * vs) - (L * cc + Wd * sc + vL) > GAP) return false;
+      if (Math.abs(-ox * vs + oz * vc) - (L * sc + Wd * cc + vW) > GAP) return false;
+      if (Math.abs(ox * c + oz * s) - (vL * cc + vW * sc + L) > GAP) return false;
+      if (Math.abs(-ox * s + oz * c) - (vL * sc + vW * cc + Wd) > GAP) return false;
+      let d = -Infinity;
+      for (let n = 0; n < OL.length; n++) {
+        const u = OL[n][0], q = OL[n][1];
+        const dx = x + c * u - s * q - vx, dz = z + s * u + c * q - vz;
+        const a = Math.abs(dx * vc + dz * vs) - vL, b = Math.abs(-dx * vs + dz * vc) - vW;
+        d = Math.max(d, a <= 0 && b <= 0 ? -Math.max(a, b) : -hypot2(Math.max(0, a), Math.max(0, b)));
+        if (d > T) return true;
+      }
+      for (let n = 0; n < VO.length; n++) {
+        const dx = VO[n][0] - x, dz = VO[n][1] - z;
+        const a = Math.abs(dx * c + dz * s) - L, b = Math.abs(-dx * s + dz * c) - Wd;
+        d = Math.max(d, a <= 0 && b <= 0 ? -Math.max(a, b) : -hypot2(Math.max(0, a), Math.max(0, b)));
+        if (d > T) return true;
+      }
+      return d > T;
+    };
+  }
+
   /** Point inside this hull's oriented rectangle (+margin)? */
   _inHull(x, z, margin = 0, hx = this.x, hz = this.z, h = this.heading) {
     const dx = x - hx, dz = z - hz;
@@ -1124,12 +1162,16 @@ export class Vehicle extends Entity {
     // other hulls: kept 0.25 m clear, or — one this hull already touches — at least not driven deeper into
     const d0 = others.map((v) => this._hullDepth(v, this.x, this.z, this.heading));
     const near = others.map((v) => (Math.hypot(...v.def.size) + Math.hypot(...this.def.size)) / 2 + 0.5);
+    // (`dq > -0.25 && dq > d0 - 1e-6` is `dq > max(-0.25, d0 - 1e-6)`: asked of _hullDepthAt, the same depths without
+    // allocating, decided as soon as they can be)
+    const deep = others.map((v, n) => this._hullDepthAt(v, Math.max(-0.25, d0[n] - 1e-6)));
     const hullHit = (x, z, h) => {
+      let c = 0, s = 0, trig = false;
       for (let n = 0; n < others.length; n++) {
         const v = others[n];
         if (Math.abs(v.x - x) > near[n] || Math.abs(v.z - z) > near[n]) continue;
-        const dq = this._hullDepth(v, x, z, h);
-        if (dq > -0.25 && dq > d0[n] - 1e-6) return true;
+        if (!trig) { c = Math.cos(h); s = Math.sin(h); trig = true; }
+        if (deep[n](x, z, h, c, s)) return true;
       }
       return false;
     };

@@ -1032,6 +1032,44 @@ export function planSneakAsync(D, tx, tz, o = {}) {
   return D.runSliced ? D.runSliced(planSneakGen(D, tx, tz, o)) : Promise.resolve(planSneak(D, tx, tz, o));
 }
 
+/** Bit masks of a 32-step word: steps lo..31 (WORD_FROM[lo]) and 0..hi (WORD_UPTO[hi]) — stepMemo's clear(). */
+const WORD_FROM = Int32Array.from({ length: 32 }, (_, i) => -1 << i);
+const WORD_UPTO = Int32Array.from({ length: 32 }, (_, i) => (i === 31 ? -1 : ~(-1 << (i + 1))));
+
+/**
+ * planSneakGen's memo of `fresh(c, k)` (is cell c seen at step k?) for `cells` cells × `KS` steps: seen(c, k) — the
+ * answer worked out once — and clear(c, k0, k1) — no step k0..k1 (from 0) seen. Two bits a step (known, seen) in words of
+ * 32 steps: a window whose steps are all known is one test a word; else its steps are asked in order up to the first one
+ * seen, exactly as asking seen() step by step — fresh() is called for the same steps in the same order, the answers and
+ * the memo after are the same. A step k ≥ KS has the memo slot of cell c + ⌊k / KS⌋ at step k mod KS, as the byte per
+ * (cell, step) it replaces had (planSneakGen's own steps stay below KS). (perf/m13: M13's crawl into the crates' shadow
+ * fails ~40 times, each search ~10 M memo lookups.)
+ */
+export function stepMemo(cells, KS, fresh) {
+  const KW = (KS + 31) >> 5, sBits = new Int32Array(cells * KW), eBits = new Int32Array(cells * KW);
+  const seen = (c, k) => {
+    const sc = k < KS ? c : c + Math.floor(k / KS), sk = k < KS ? k : k % KS;
+    const wd = sc * KW + (sk >> 5), bit = 1 << (sk & 31);
+    if (eBits[wd] & bit) return (sBits[wd] & bit) !== 0;
+    const s = fresh(c, k);
+    eBits[wd] |= bit; if (s) sBits[wd] |= bit;
+    return s;
+  };
+  const clear = (c, k0, k1) => {
+    let k = Math.max(0, k0);
+    if (k1 >= KS) { for (; k <= k1; k++) if (seen(c, k)) return false; return true; }
+    while (k <= k1) {
+      const wd = c * KW + (k >> 5), lo = k & 31, hi = Math.min(31, lo + k1 - k), m = WORD_FROM[lo] & WORD_UPTO[hi];
+      const e = eBits[wd];
+      if ((e & m) === m) { if (sBits[wd] & m) return false; }
+      else for (let q = lo; q <= hi; q++) if (e & (1 << q) ? sBits[wd] & (1 << q) : seen(c, k + q - lo)) return false;
+      k += hi - lo + 1;
+    }
+    return true;
+  };
+  return { seen, clear };
+}
+
 /** planSneak's search as a generator (it yields every few hundred states). */
 export function* planSneakGen(D, tx, tz, o = {}) {
   const t0v = __verify ? performance.now() : 0;
@@ -1107,7 +1145,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (!L) { const q = predAt(e, kk); m.set(key, L = walkerViews(e, r < 0 ? q : { ...q, heading: (r * Math.PI) / 4 }, w, now + kk * DT, wMirror[wi])); }
     return L;
   };
-  const KS = HS + 256, seenMemo = new Uint8Array(W * H * KS);
+  // (the answer per (cell, step) memoised — stepMemo: two bits a step, a window of steps asked a word at a time)
+  const KS = HS + 256;
   // (which posts can reach a cell at all — the same test as below, `dd > far + 1 + hull`, once per cell instead of once
   // per cell and step: the posts stand still while he plans — and, per walker and block of 32 steps, the box his
   // predicted places keep to: a cell beyond his reach of that box is out of his reach at every step of the block)
@@ -1120,7 +1159,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     for (let i = 0; i < statics.length; i++) { const e = statics[i], far = e.vision?.far ?? 36; if (!(hypot2(e.x - x, e.z - z) > far + 1 + hullR)) L.push(i); }
     return (sCand[c] = L);
   };
-  const BLK = 32, dkMin = Math.min(...walkerSlack), dkMax = Math.max(...walkerSlack), wBox = walkers.map(() => []);
+  const BLK = 32, wBox = walkers.map(() => []);
   const wReach = walkers.map((e) => (e.vision?.far ?? 36) + walkerPad + 3 + hullR + 1e-6);
   const boxOf = (wi, b) => {
     let B = wBox[wi][b];
@@ -1130,19 +1169,40 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     for (let kk = b * BLK; kk < (b + 1) * BLK; kk++) { const q = predAt(e, kk); if (!(q.x >= B[0])) B[0] = q.x; if (!(q.x <= B[1])) B[1] = q.x; if (!(q.z >= B[2])) B[2] = q.z; if (!(q.z <= B[3])) B[3] = q.z; }
     return (wBox[wi][b] = B);
   };
-  /** Can walker `wi` reach cell (x, z) at any step `k + dk` of walkerSlack? (false: every dk would be skipped below) */
-  const walkerNear = (wi, k, x, z) => {
-    const R = wReach[wi];
-    for (let b = Math.floor(Math.max(0, k + dkMin) / BLK), b1 = Math.floor(Math.max(0, k + dkMax) / BLK); b <= b1; b++) {
-      const B = boxOf(wi, b);
-      if (!(x < B[0] - R || x > B[1] + R || z < B[2] - R || z > B[3] + R)) return true;
-    }
-    return false;
+  /** Can walker `wi` reach cell (x, z) at step kk? (false: the look there is skipped below) */
+  const walkerNearAt = (wi, kk, x, z) => {
+    const R = wReach[wi], B = boxOf(wi, Math.floor(kk / BLK));
+    return !(x < B[0] - R || x > B[1] + R || z < B[2] - R || z > B[3] + R);
   };
   let work = 0; // (cells × steps worked out afresh since the last yield: a slice is so many of them, not so many states)
-  const seen = (c, k) => {
-    const key = c * KS + k;
-    const m = seenMemo[key]; if (m) return m === 2;
+  // (the walkers' verdict per (cell, step): seen() asks it at k and at k + each walkerSlack offset, the same look up to
+  // three times — once each now; a step past the table is asked afresh)
+  const KSW = KS + Math.max(0, ...walkerSlack), wsMemo = walkers.length ? new Uint8Array(W * H * KSW) : null;
+  const walkersSee = (c, kk, x, z, hull) => {
+    const key = kk < KSW ? c * KSW + kk : -1, m = key >= 0 ? wsMemo[key] : 0;
+    if (m) return m === 2;
+    let s = false;
+    walk: for (let wi = 0; wi < walkers.length; wi++) {
+      const e = walkers[wi];
+      if (!walkerNearAt(wi, kk, x, z)) continue; // (out of his reach at this step)
+      const q = predAt(e, kk), dd = hypot2(q.x - x, q.z - z), far = e.vision?.far ?? 36;
+      if (dd > far + walkerPad + 3 + hull) continue;
+      const d = dummyFor(w, mode, x, z, q.x, q.z);
+      // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
+      // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
+      if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w, o.coneMargin)) { s = true; break walk; }
+      if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(e, kk, r), d, w, o.coneMargin))) { s = true; break walk; }
+      const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'boat' ? 2 : 0;
+      const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
+      if (pad > 0 && dd > pad) {
+        const f = pad / dd, d2 = dummyAt(w, mode, x + (q.x - x) * f, z + (q.z - z) * f);
+        if (seesAny(headViews(e, kk, -1), d2, w)) { s = true; break walk; }
+      }
+    }
+    if (key >= 0) wsMemo[key] = s ? 2 : 1;
+    return s;
+  };
+  const fresh = (c, k) => {
     work++;
     const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0;
     let s = false;
@@ -1165,27 +1225,10 @@ export function* planSneakGen(D, tx, tz, o = {}) {
         }
       }
     }
-    if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) for (const dk of walkerSlack) {
-      const e = walkers[wi];
-      if (dk === walkerSlack[0] && !walkerNear(wi, k, x, z)) break; // (out of his reach at every dk: on to the next)
-      const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = hypot2(q.x - x, q.z - z), far = e.vision?.far ?? 36;
-      if (dd > far + walkerPad + 3 + hull) continue;
-      const d = dummyFor(w, mode, x, z, q.x, q.z);
-      // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
-      // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
-      if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w, o.coneMargin)) { s = true; break walk; }
-      if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(e, kk, r), d, w, o.coneMargin))) { s = true; break walk; }
-      const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'boat' ? 2 : 0;
-      const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
-      if (pad > 0 && dd > pad) {
-        const f = pad / dd, d2 = dummyAt(w, mode, x + (q.x - x) * f, z + (q.z - z) * f);
-        if (seesAny(headViews(e, kk, -1), d2, w)) { s = true; break walk; }
-      }
-    }
-    seenMemo[key] = s ? 2 : 1;
+    if (!s && wsMemo) for (const dk of walkerSlack) if (walkersSee(c, Math.max(0, k + dk), x, z, hull)) { s = true; break; }
     return s;
   };
-  const clear = (c, k0, k1) => { for (let k = Math.max(0, k0); k <= k1; k++) if (seen(c, k)) return false; return true; };
+  const { seen, clear } = stepMemo(W * H, KS, fresh);
   const s0 = cellOf(ux, uz);
   let s1 = cellOf(tx, tz);
   if (s0 < 0 || s1 < 0) throw new Error(`planSneak: (${tx},${tz}) outside the box`);
@@ -1198,7 +1241,29 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (best >= 0) { s1 = best; tx = cx(best); tz = cz(best); }
   }
   passMemo[s0] = 1; passMemo[s1] = 1;
-  const hfun = o.shelter ? () => 0 : (c) => hypot2(cx(c) - tx, cz(c) - tz) / speed / DT;
+  // (the heuristic per cell, once: the same quotient every push)
+  const hMemo = o.shelter ? null : new Float64Array(W * H).fill(NaN);
+  const hfun = o.shelter ? () => 0 : (c) => { let v = hMemo[c]; if (v !== v) v = hMemo[c] = hypot2(cx(c) - tx, cz(c) - tz) / speed / DT; return v; };
+  // (a cell's moves — the neighbours he may step to, in the order the search tries them: passable, both corners of a
+  // diagonal passable, a walkable straight line — with their steps, worked out once per cell: the world stands still)
+  const STEP1 = Math.max(1, Math.ceil(1 / speed / DT)), STEP2 = Math.max(1, Math.ceil(Math.SQRT2 / speed / DT)), movesOf = new Array(W * H);
+  const moves = (c) => {
+    let M = movesOf[c];
+    if (M) return M;
+    M = [];
+    const i = c % W, j = Math.floor(c / W);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
+      const nc = nj * W + ni;
+      if (!pass(nc)) continue;
+      if (di && dj && (!pass(j * W + ni) || !pass(nj * W + i))) continue;
+      if (!edge(c, nc)) continue;
+      M.push(nc, di && dj ? STEP2 : STEP1);
+    }
+    return (movesOf[c] = M);
+  };
   // (the open list and the reached states in typed arrays, reused plan after plan — state-heap.mjs: no [f, c, k] array
   // per push, no Map and Set of tens of thousands of entries to outlive the young generation; given back at every return)
   const heap = takeHeap(), prev = takeSet();
@@ -1232,17 +1297,13 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (atGoal && clear(c, k, k + holdK) && (!o.goalOk || o.goalOk(cx(c), cz(c), now + k * DT))) { found = [c, k]; break; }
     if (k >= HS) continue;
     if (clear(c, k + 1 - ma, k + 1 + mb)) push(k + 1 + hfun(c), c, k + 1, key);
-    const i = c % W, j = Math.floor(c / W);
-    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-      if (!di && !dj) continue;
-      const ni = i + di, nj = j + dj;
-      if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
-      const nc = nj * W + ni;
-      if (!pass(nc)) continue;
-      if (di && dj && (!pass(j * W + ni) || !pass(nj * W + i))) continue;
-      if (!edge(c, nc)) continue;
-      const steps = Math.max(1, Math.ceil((di && dj ? Math.SQRT2 : 1) / speed / DT));
-      if ((!(c === s0 && k === k0) && !clear(c, k - ma, k + steps)) || !clear(nc, k - ma, k + steps + mb)) { if (work >= 16) { work = 0; yield; } continue; }
+    // (his moves from this cell in their order, and the cell kept clear while he leaves it, once per step count)
+    const M = moves(c), first = c === s0 && k === k0;
+    let src1, src2;
+    for (let mi = 0; mi < M.length; mi += 2) {
+      const nc = M[mi], steps = M[mi + 1];
+      if (!first && !(steps === STEP1 ? (src1 ??= clear(c, k - ma, k + steps)) : (src2 ??= clear(c, k - ma, k + steps)))) { if (work >= 16) { work = 0; yield; } continue; }
+      if (!clear(nc, k - ma, k + steps + mb)) { if (work >= 16) { work = 0; yield; } continue; }
       push(k + steps + hfun(nc), nc, k + steps, key);
       if (work >= 16) { work = 0; yield; }
     }

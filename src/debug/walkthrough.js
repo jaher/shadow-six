@@ -90,6 +90,14 @@ export const MIN_LAPSE_MS = 4;
  */
 export const THINK_SKIP_MS = 250;
 /**
+ * AUTO: a look-ahead the solution starts again the moment one of its waits ends (no tick in between, nobody acting), within
+ * this many seconds of game time of its last skipped plan, is skipped at once (_thinkGrace) — a sneak that found no way
+ * waits a little and looks again (sneak.mjs: 0.5–2.5 s back-offs; M13's crawl into the crates' shadow, 37 tries in stage
+ * J): the wait's end ends the skip, and every try stood the clock still for THINK_SKIP_MS again (~0.27 s still every
+ * 0.5–2.5 s of game). An order in between (the men going on) gives the next plan the usual grace.
+ */
+export const REPLAN_S = 4;
+/**
  * A skip shows (its tag, the camera's cut to what is waited for, or to the men for a plan) once it has lasted this long
  * (wall ms): a plan answered a frame after it was skipped cut the view to the men and straight back — the whole picture
  * jumping for one frame (M5's opening in AUTO) — and flashed the tag. A shorter skip never moves the camera.
@@ -511,6 +519,7 @@ export class Walkthrough extends SolutionReplay {
     // (an order inside a wait the solution reports — `quiet`: a sneak's leg the game would not take, planned again — does
     // not end its skip; one that sets a man going ends it on the next frame: _anyBusy)
     if (!(meta?.quiet && this._skip)) this._endSkip();
+    if (!meta?.quiet) this._planSkipT = null; // (the men go on: the next plan gets the usual grace, _thinkGrace)
     (this._orderT ||= new Map()).set(u, this.world.time);
     super._onOrder(role, u, o, meta);
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
@@ -751,11 +760,12 @@ export class Walkthrough extends SolutionReplay {
     const pb = this._autoBudget();
     const ceiling = Math.max(1, Math.min(this.autoCeiling.frame(dt, msPerTick), this.autoCeiling.rateFor(pb * FIT_SHARE, this._slotMs(pb))));
     if (this.paused || this._held()) { p.boost = this.autoPace.rate; this._thinkSince = null; return; }
-    // a long plan, nobody acting: skipped like a wait (THINK_SKIP_MS)
+    // a long plan, nobody acting: skipped like a wait (THINK_SKIP_MS; a look-ahead tried again as its wait ends, at once:
+    // _thinkGrace)
     if (this._thinking && !this._anyBusy()) {
       const now = performance.now();
       if (this._thinkSince == null) this._thinkSince = now;
-      else if (now - this._thinkSince >= THINK_SKIP_MS) { this._thinkSince = null; this._startSkip(PLAN_WAIT); return; }
+      if (now - this._thinkSince >= this._thinkGrace()) { this._thinkSince = null; this._startSkip(PLAN_WAIT); return; }
     } else this._thinkSince = null;
     const t = w.time;
     const sig = this.sensor.sample(t, this._paceCtx(), performance.now());
@@ -842,6 +852,7 @@ export class Walkthrough extends SolutionReplay {
     const plan = label === PLAN_WAIT && !this.waitLabel;
     // (`plan`: begun by a long look-ahead, inside a wait or alone; `jump`: alone — it runs like a jump)
     this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs, turbo: false, plan: label === PLAN_WAIT, jump: plan };
+    if (label === PLAN_WAIT) this._planSkipT = this.world.time; // (_thinkGrace: a try again after its wait, skipped at once)
     if (plan) this._planTurbo();
     this.autoWhy = 'wait';
     this._capKey = null;
@@ -935,7 +946,19 @@ export class Walkthrough extends SolutionReplay {
 
   _onWait(label) {
     super._onWait(label);
-    if (!label) this._endSkip(); // (the wait is over: the ticks of this frame stop here, the play goes on at AUTO's pace)
+    if (!label) { // (the wait is over: the ticks of this frame stop here, the play goes on at AUTO's pace)
+      this._waitEndT = this.world.time; // (a look-ahead started now, after a skipped one: _thinkGrace)
+      this._endSkip();
+    }
+  }
+
+  /**
+   * Wall ms a plan thinks before AUTO skips it: THINK_SKIP_MS — none for a look-ahead started again the moment a wait
+   * ended (no tick since), within REPLAN_S of game time of the last skipped plan with no order since (a sneak's retry).
+   */
+  _thinkGrace() {
+    const t = this.world.time;
+    return this._waitEndT === t && this._planSkipT != null && t - this._planSkipT <= REPLAN_S ? 0 : THINK_SKIP_MS;
   }
 
   /** The step's acting men and the guards it (or its beat) names: the sensor's "closing in". Cached per step / beat. */

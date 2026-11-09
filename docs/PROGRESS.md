@@ -1019,3 +1019,6 @@ Claude-Session: https://claude.ai/code/session_01J8AeHrBrbUrVcpvL5ZEEwr
 
 ## 2026-11-09 — Flaky CI test (fix/flaky-gameplay-inputs)
 - Merged 9e52376d6: user "Github action failing". Unit shard 4/4 failed 6 of the last 12 public CI runs on 'gameplay inputs: awaited however long they take, a slow one logged while it is pending' (logged while pending (1)): the input resolved after a fixed 60 ms and timers coalesced on a loaded runner. The test now resolves the input on the 3rd warning (5 s safety timeout), so it is deterministic. No other failing test in the last 12 runs. 50/50 plain and 20/20 under CPU stress; unit 2675/0 over 4 shards
+
+## 2026-11-09 — M13 perf (perf/m13)
+- Merged 53f6e12eb: look-ahead planner memos, vehicle-route speedups, AUTO look-ahead skip. Unit 2665/0, m13-solution won t=3199.0 (0 detections, 0 exposures), render-budget m13 and debug-walkthrough-sim passed. video-perf m13 AUTO wall check failed on worst frame (83.3 ms > 51.1 ms) under host load 16-19; own work held: tick max 10.1 ms, frame max 44.0 ms. Not rerun on a calm host.
