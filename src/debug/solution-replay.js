@@ -28,7 +28,7 @@ import { ROLE_NAMES } from '../ui/catalogue.js';
 import { CONFIG } from '../config.js';
 import { loadWalkthrough } from './solutions.js';
 import { normalizeWalkthrough } from './walkthrough-data.js';
-import { Director, freeRect } from './walkthrough-director.js';
+import { Director, FocusKeeper, SHOT_SPAN, freeRect } from './walkthrough-director.js';
 import { ActionHolds } from './action-hold.js';
 import { clickMarkerFor } from '../engine/input.js';
 import { ABILITIES } from '../abilities/index.js';
@@ -460,7 +460,7 @@ export class SolutionReplay {
     const pts = [a];
     const tg = h.target;
     if (tg && Number.isFinite(tg.x) && Math.hypot(tg.x - a.x, tg.z - a.z) < 40) pts.push({ x: tg.x, z: tg.z, y: tg.y ?? 0 });
-    return { pts, must: 1, frame: { minSpan: [12, 8], maxZoom: 1.5 }, pitch: this._pitch(pts), cut, hold: h };
+    return { pts, must: 1, who: h.unit, frame: { minSpan: [12, 8], maxZoom: 1.5 }, pitch: this._pitch(pts), cut, hold: h };
   }
 
   _onCheckpoint(cp) {
@@ -595,11 +595,17 @@ export class SolutionReplay {
     return p;
   }
 
-  /** The acting commandos' points: the last ordered man, plus the men near him (the walkthrough's _actors shape). */
+  /**
+   * The acting commandos' points: the last ordered man, plus the men near him (the walkthrough's _actors shape). Focus
+   * hysteresis (FocusKeeper, user 2026-11-09): a man still at work keeps the lead FOCUS_MIN_MS while orders go to
+   * another — two parties ordered by turns no longer swap the shot at every order.
+   */
   _actors() {
     const w = this.world;
     let lead = this.focus && !this.focus.removed && this.focus.alive !== false ? this.focus : null;
     if (!lead) lead = w.commandos.find((c) => c.alive) || (this.focus && !this.focus.removed ? this.focus : null);
+    lead = (this._leadKeep ||= new FocusKeeper()).pick(lead, performance.now()) || lead;
+    this._lead = lead || null;
     if (!lead) return [];
     const lp = this._pointOf(lead);
     if (!lp) return [];
@@ -626,7 +632,7 @@ export class SolutionReplay {
     const w = this.world, now = w.time;
     if (this.pacer.turbo) {
       const a = this._actors();
-      return a.length ? { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) } : null;
+      return a.length ? { pts: a, must: a.length, who: this._lead, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) } : null;
     }
     const held = this.holdNow(); // an action is watched until it has visibly finished
     if (held) { const s = this.holdShot(held); if (s) return s; }
@@ -640,7 +646,7 @@ export class SolutionReplay {
       if (p && (!a0 || Math.hypot(p.x - a0.x, p.z - a0.z) < 40)) pts.push(p);
     }
     if (!pts.length) return null;
-    return { pts, must: Math.max(1, actors.length), frame: { minSpan: [16, 10] }, pitch: this._pitch(actors.length ? actors : pts) };
+    return { pts, must: Math.max(1, actors.length), who: this._lead, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch(actors.length ? actors : pts) };
   }
 
   /** The free part of the view (view px) for the director: below the replay bar, above its caption. */

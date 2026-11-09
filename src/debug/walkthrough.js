@@ -29,7 +29,7 @@
 
 import { SolutionReplay } from './solution-replay.js';
 import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpId } from './walkthrough-data.js';
-import { Director, freeRect, isActing, pickLive } from './walkthrough-director.js';
+import { Director, FocusKeeper, FOCUS_MIN_MS, SHOT_SPAN, freeRect, isActing, pickLive } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
 import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, climaxSlows, isTrueWait, underWay, trapEta } from './auto-pace.js';
@@ -107,8 +107,13 @@ export const SKIP_SHOW_MS = 300;
 const PLAN_WAIT = 'a way past the guards';
 /** AUTO's adaptive tick budget never goes under this (ms a frame): the run keeps moving under a heavy draw. */
 export const MIN_TICK_MS = 1;
-/** Always action: a man or a guard the camera turned to while the step's men wait is kept this long (ms) at least. */
-export const LIVE_DWELL = 2500;
+/**
+ * Always action: a man or a guard the camera turned to while the step's men wait is kept this long (ms) at least — a
+ * man at work even when the step's own men go on meanwhile (focus hysteresis: no ping-pong, user 2026-11-09).
+ */
+export const LIVE_DWELL = FOCUS_MIN_MS;
+/** Always action: the camera turns to a guard (nobody else at work) once the step's men have stood this long (wall ms). */
+export const LIVE_ENTER_MS = 1500;
 /** Skip waits: the most the pace is raised while every commando waits. */
 export const SKIP_BOOST = 4;
 /** Skip waits at a fixed speed: no boost while a guard is this many seconds from walking onto a set trap. */
@@ -358,6 +363,7 @@ export class Walkthrough extends SolutionReplay {
     this.skipWaits = o.skipWaits ?? true;
     this.director = new Director(this);
     this.director.on = !o.free;
+    this._leadKeep = new FocusKeeper(); // (the step's man at work the actors' shot leads with: _actors)
     this.hold = null;
     this.showIntro = o.intro ?? !o.toMarker;
     this.introWait = !!o.introWait;
@@ -880,9 +886,9 @@ export class Walkthrough extends SolutionReplay {
   }
 
   /**
-   * The skip is over. `cut` (the wait ended, an order, an event, an action): a cut back to the play, AUTO on from 2×,
-   * the ticks still owed from the time-lapse let go. Else (the time-lapse eased down to the play's speed: a moment
-   * coming) the play goes on from there, no cut.
+   * The skip is over. `cut` (the wait ended, an order, an event, an action): back to the play — the camera at once (a
+   * cut when far), AUTO on from 2×, the ticks still owed from the time-lapse let go. Else (the time-lapse eased down
+   * to the play's speed: a moment coming) the play goes on from there, no cut.
    */
   _endSkip({ cut = true } = {}) {
     const s = this._skip;
@@ -893,7 +899,9 @@ export class Walkthrough extends SolutionReplay {
     (this.skips ||= []).push({ label: s.label, game: this.world.time - s.t0, wall: (performance.now() - s.wall) / 1000, cut });
     this._quietSince = null;
     if (cut) {
-      if (s.shows) this._camCut = true; // (a skip that never took the camera has nothing to cut back from)
+      // (a skip that never took the camera has nothing to go back from; one that did: a fresh framing of the play — a
+      // cut when it is far, nothing when the men are in the picture already: the director's calmFrame)
+      if (s.shows) this._camBack = true;
       this.autoPace.reset(2);
       this.pacer.boost = this.autoPace.rate;
       this.pacer.budget = Math.min(this.pacer.budget, 0.999);
@@ -1068,6 +1076,11 @@ export class Walkthrough extends SolutionReplay {
     // (the lead is the one at work: a step's man standing by while the other walks is framed beside him, not first)
     const focus = units.includes(this.focus) ? this.focus : null;
     let lead = (focus && isActing(focus) ? focus : units.find(isActing)) || focus || units[0] || this.focus || w.commandos.find((c) => c.alive);
+    // (focus hysteresis: a step's man at work keeps the lead FOCUS_MIN_MS while another of them takes his turn — two
+    // men acting by turns no longer swap the shot every few seconds; framed together when they are near)
+    const kept = this._leadKeep.pick(lead, performance.now());
+    if (kept && units.includes(kept)) lead = kept;
+    this._lead = lead || null;
     if (!lead) return [];
     const pt = (c) => this.resolve(c.role);
     const lp = pt(lead);
@@ -1075,7 +1088,7 @@ export class Walkthrough extends SolutionReplay {
     for (const u of units) {
       if (u === lead) continue;
       const q = pt(u);
-      if (q && lp && Math.hypot(q.x - lp.x, q.z - lp.z) < 26) out.push(q);
+      if (q && lp && Math.hypot(q.x - lp.x, q.z - lp.z) < (isActing(u) ? 34 : 26)) out.push(q);
     }
     return out;
   }
@@ -1093,23 +1106,28 @@ export class Walkthrough extends SolutionReplay {
     const w = this.world, now = w.time;
     const cut = this._camCut;
     this._camCut = false;
-    // a skipped wait: what the men wait for, moving fast (the guard, another man), else the men themselves — once it
-    // shows (SKIP_SHOW_MS); a young skip (a plan about to answer) keeps the play's shot
+    // (back from a skipped wait: a fresh framing of the play, at once — a cut when far: Director)
+    const back = this._camBack ? { fresh: true, lapse: true } : null;
+    this._camBack = false;
+    // a skipped wait: the waiting men with what they wait for (_lapseShot) — once it shows (SKIP_SHOW_MS); a young
+    // skip (a plan about to answer) keeps the play's shot
     const skip = this._skip, young = !!skip && !this._skipShows();
-    if (skip && !young) { const l = this._liveShot(false); if (l) return { ...l, cut: true, frame: { minSpan: [24, 15] } }; }
+    if (skip && !young && !skip.turbo) { const l = this._lapseShot(skip); if (l) return l; }
     if (this.pacer.turbo && !young) {
       const a = this._actors();
-      return { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) };
+      // (a skipped plan: the clock stands still, nothing moves — the play's framing stays; a jump: cut to the men)
+      if (skip?.turbo) return { pts: a, must: a.length, who: this._lead, lapse: true, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch(a) };
+      return { pts: a, must: a.length, who: this._lead, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) };
     }
     // the Sniper's scope is up: the man in the glass is the shot (debug/walkthrough-scope.js)
     const sc = this.scope.shot();
-    if (sc) return cut ? { ...sc, cut: true } : sc;
+    if (sc) return cut ? { ...sc, cut: true } : back ? { ...sc, ...back } : sc;
     // a charge in its last seconds, a blast: the explosion is the shot
     const bomb = this._bombs.find((b) => !b.removed && !b.exploded && Number.isFinite(b.fuse) && b.fuse <= 4.5);
     this._blasts = this._blasts.filter((b) => b.until > now);
     if (bomb || this._blasts.length) {
       const pts = bomb ? [this.resolve([bomb.x, bomb.z])] : this._blasts.map((b) => ({ x: b.x, y: b.y, z: b.z }));
-      return { pts, must: 1, frame: { minSpan: [26, 16], maxZoom: 0.9 }, pitch: this._pitch(pts), cut, stiff: 2.6 };
+      return { pts, must: 1, key: bomb ? 'charge' : 'blast', frame: { minSpan: [26, 16], maxZoom: 0.9 }, pitch: this._pitch(pts), cut, stiff: 2.6, ...back };
     }
     // an objective just done: a moment on it
     for (const o of w.objectives) {
@@ -1119,19 +1137,20 @@ export class Walkthrough extends SolutionReplay {
       const p = ref ? this.resolve(ref) : null;
       if (p) this._objHold = { pts: [p], until: now + 3 };
     }
-    if (this._objHold && this._objHold.until > now) return { pts: this._objHold.pts, frame: { minSpan: [24, 15] }, pitch: this._pitch(this._objHold.pts), cut };
+    if (this._objHold && this._objHold.until > now) return { pts: this._objHold.pts, key: 'objective', urgent: true, frame: { minSpan: [24, 15] }, pitch: this._pitch(this._objHold.pts), cut, ...back };
     const b = this.beat && (this.beat.until == null || now <= this.beat.until) ? this.beat : null;
     const cue = b?.look ? b : this.step;
     // an action is watched until it has visibly finished (and its beat), unless the walkthrough asks for a `shot`
     const held = cue?.shot && cue.look?.length ? null : this.holdNow();
-    if (held) { const s = this.holdShot(held, cut); if (s) return s; }
+    if (held) { const s = this.holdShot(held, cut); if (s) return back ? { ...s, ...back } : s; }
     const zoom = cue?.zoom || this.step?.zoom;
-    const frame = zoom === 'close' ? { minSpan: [10, 6], maxZoom: 1.7 } : zoom === 'wide' ? { minSpan: [30, 18] } : { minSpan: [16, 10] };
+    // (the usual shot a little wider than it was — [16, 10] — so a few steps either way need no reframe: user 2026-11-09)
+    const frame = zoom === 'close' ? { minSpan: [10, 6], maxZoom: 1.7 } : zoom === 'wide' ? { minSpan: [30, 18] } : { minSpan: SHOT_SPAN };
     const look = (cue?.look || []).map((r) => this.resolve(r)).filter(Boolean);
-    if (cue?.shot && look.length) return { pts: look, must: 1, frame, pitch: this._pitch(look), cut };
+    if (cue?.shot && look.length) return { pts: look, must: 1, key: `look:${cue.look.join()}`, urgent: true, frame, pitch: this._pitch(look), cut, ...back };
     // always action: the step's men stand idle — then another man at work, else the guard they wait for
     const live = this._liveShot(cut);
-    if (live) return live;
+    if (live) return back ? { ...live, ...back } : live;
     const actors = this._actors();
     const pts = [...actors];
     const a0 = actors[0];
@@ -1144,7 +1163,29 @@ export class Walkthrough extends SolutionReplay {
       if (p && nearA(p)) pts.push(p);
     }
     if (!pts.length) return null;
-    return { pts, must: Math.max(1, actors.length), frame, pitch: this._pitch(actors.length ? actors : pts), cut };
+    return { pts, must: Math.max(1, actors.length), who: this._lead, frame, pitch: this._pitch(actors.length ? actors : pts), cut, ...back };
+  }
+
+  /**
+   * The shot of a skipped wait (a time-lapse): the waiting men, with what they wait for when it is near them (the guard
+   * walking off, another man: _liveShot's pick, made once for the whole skip — no hopping from guard to guard as each
+   * one stops); the camera holds still while they stay in its picture, the yaw as it is, a cut (never a sweep) when it
+   * must go far. Until 2026-11-09 the camera followed the guard itself, cut to it at every frame and from guard to guard
+   * (M3: ~3 cuts and ~30 m of pans in each 2–3 s time-lapse; user: "Debug solutions dont need the camera to be moving
+   * around so much, it used to be more static before").
+   */
+  _lapseShot(skip) {
+    const actors = this._actors();
+    if (skip.watch === undefined) { const l = this._liveShot(false, true); skip.watch = l ? this._live?.unit ?? null : null; }
+    const u = skip.watch, g = u && !u.removed && u.alive !== false ? this._pointOf(u) : null;
+    const alone = g ? { pts: [g], must: 1, who: u, lapse: true, noYaw: true, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch([g]), live: u.role || u.tag } : null;
+    if (!actors.length) return alone;
+    const pts = [...actors], near = g && Math.hypot(g.x - actors[0].x, g.z - actors[0].z) < 45;
+    // (another man at work — a way the solution is still walking him: always action, he is one of the men shown)
+    const man = u?.kind === 'commando' && isActing(u);
+    if (man && !near) return alone;
+    if (near) pts.push(g);
+    return { pts, must: man ? pts.length : actors.length, who: this._lead, lapse: true, noYaw: true, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch(actors), live: u ? u.role || u.tag : null };
   }
 
   /**
@@ -1153,25 +1194,40 @@ export class Walkthrough extends SolutionReplay {
    * man beside him when he is close. A pick is kept LIVE_DWELL ms (no ping-pong); null: the step's men act, or nothing
    * else moves (then the usual shot). User 2026-10-15: "Also no long quiet periods, always action in the walkthrough".
    */
-  _liveShot(cut) {
+  _liveShot(cut, lapse = false) {
     const w = this.world, now = performance.now();
     const who = this._paceCtx().actors.filter((u) => u && u.alive !== false && !u.removed);
-    if (!who.length || who.some(isActing)) { this._live = null; return null; }
-    let pick = this._live && now < this._live.until && isActing(this._live.unit) ? this._live : null;
+    const busy = who.some(isActing);
+    this._idleAt = busy ? null : this._idleAt ?? now;
+    // (the step's men at work again: their shot — unless the man at work shown meanwhile has not had his LIVE_DWELL
+    // yet and is still at it: no ping-pong between two men acting by turns)
+    const keepMan = this._live?.unit?.kind === 'commando' && now < this._live.until && isActing(this._live.unit);
+    if (!who.length || (busy && !keepMan)) { this._live = null; return null; }
+    // (a guard keeps the shot his LIVE_DWELL even if he halts, and longer while he walks on: no hopping from guard to
+    // guard as each one stops — M3 stage G: e23 / e19 / e23 / e19 in 15 s)
+    const L = this._live, guard = L && L.unit.kind !== 'commando' && L.unit.alive !== false && !L.unit.removed;
+    if (guard && now >= L.until && L.unit.path) L.until = now + LIVE_DWELL;
+    let pick = L && now < L.until && (guard || isActing(L.unit)) ? L : null;
     if (!pick) {
       const tags = new Set([...(this.step?.cones || []), ...(this.step?.look || [])].filter((r) => typeof r === 'string'));
       const unit = pickLive({ who, commandos: w.commandos, enemies: w.enemies, tags, orderT: this._orderT });
       if (!unit) { this._live = null; return null; }
+      // (a guard, nobody else at work: only once the step's men have stood LIVE_ENTER_MS — a man pausing between two
+      // legs of his way keeps his shot; a skipped wait has stood long enough)
+      if (unit.kind !== 'commando' && !lapse && now - this._idleAt < LIVE_ENTER_MS) return null;
       pick = this._live = { unit, until: now + LIVE_DWELL };
     }
     const p = this._pointOf(pick.unit);
     if (!p) return null;
-    const pts = [p];
-    if (pick.unit.kind !== 'commando') {
-      const a = this._pointOf(who[0]);
-      if (a && Math.hypot(a.x - p.x, a.z - p.z) < 30) pts.push(a);
+    const live = pick.unit.role || pick.unit.tag;
+    // near the waiting men (they fit together at a fair zoom): still their shot — the same subject, nothing to reframe
+    // unless he walks out of the picture — with him in it: the man at work first, the guard they wait on after them
+    const actors = this._actors(), a0 = actors[0];
+    if (a0 && Math.hypot(a0.x - p.x, a0.z - p.z) < (pick.unit.kind === 'commando' ? 35 : 30)) {
+      const pts = pick.unit.kind === 'commando' ? [p, ...actors] : [...actors, p];
+      return { pts, must: pts.length, who: this._lead, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch(pts), cut, live };
     }
-    return { pts, must: 1, frame: { minSpan: [18, 11] }, pitch: this._pitch(pts), cut, live: pick.unit.role || pick.unit.tag };
+    return { pts: [p], must: 1, who: pick.unit, frame: { minSpan: SHOT_SPAN }, pitch: this._pitch([p]), cut, live };
   }
 
   /** The guards whose cones are drawn now: the step's (or beat's) `cones`, else the ones that matter near the actor. */

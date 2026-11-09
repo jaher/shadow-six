@@ -299,9 +299,11 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
 
 - **The director** frames the commando who acts with what matters to the step (his target, the guard he slips past,
   the objective, a charge in its last seconds and the blast) in the part of the screen the walkthrough's bar and
-  caption and the HUD leave free, with smooth pans and zooms, the mission's camera pitch (M3 looks down steeper over
-  the plateau) and your camera angle, swung aside only while a building would hide the shot. The guards' cones that
-  matter to the step are drawn.
+  caption and the HUD leave free, the mission's camera pitch (M3 looks down steeper over the plateau) and your camera
+  angle, swung aside only once a building has hidden the men for a while. A calm camera: it holds its picture while
+  the men stay in the middle of it, slides along with a man walking out of it, moves to another man only when it
+  matters (an action, a blast) or after a few seconds, and goes a long way in one short eased move or a cut. The
+  guards' cones that matter to the step are drawn.
 - **The HUD follows the play**: every order selects the man it goes to, as a click on his portrait would — his
   portrait, his knapsack, his stance hand and the selection ring under him (two men ordered together: two rings).
 - **An action is watched to its end**: a knife, an injection, a charge, the clothesline take, the raft inflated or

@@ -138,8 +138,17 @@ You do not need cues for these; they happen in every mission:
 - an armed time bomb is framed for the last seconds of its fuse and the blast; a finished objective is held on
   screen for a moment;
 - a guard's cone is drawn while he is in `cones`, in `look`, or close to the actor;
-- smooth pans and zooms only, `pitchAt` where the file gives one, and the player's own yaw, swung aside (30° or
-  55°) only while a building would hide the men or the guards in the shot;
+- a calm camera (user 2026-11-09: "Debug solutions dont need the camera to be moving around so much, it used to be
+  more static before"): a framing is held while the acting men stay in its dead zone (the middle 70% of the free part
+  of the screen) — a man walking out of it is followed by sliding the picture just enough, never re-centred step by
+  step; a new subject moves the camera at once only for what matters (an action watched, a charge or a blast, a
+  `shot`) or when he is off screen, otherwise once the framing has been held 3.5 s; a man at work keeps the shot 4 s
+  while another takes his turn (no ping-pong); slow critically damped pans and zooms, the zoom changed only for a
+  real difference, one eased move (or a cut, in a time-lapse or past 70 m) for a long way; a skipped wait holds on the
+  waiting men with what they wait for when it is near;
+- `pitchAt` where the file gives one, and the player's own yaw, swung aside (30° or 55°) only once a building has hidden
+  the men for 2 s (the guards in the shot: 4 s), kept for the rest of the shot (trees, smoke, glass and other
+  see-through meshes never count);
 - the acting men always stay in the picture: when not everything fits even zoomed out, the farthest `look` targets
   are left out first.
 

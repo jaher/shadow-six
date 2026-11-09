@@ -56,14 +56,17 @@ export default async function debugWalkthrough(page, t) {
   }));
   t(listed.wt.includes('m03'), `M3 has a walkthrough (${listed.wt})`);
   // (more missions get walkthroughs as their solutions land: the first one still listed without one stands for them)
+  // (every mission of the campaign has had one since 2026-10-30: then the "no walkthrough yet" card has nothing to show)
   const noneId = listed.none[0];
-  t(!!noneId && !listed.none.includes('m03') && !listed.none.includes('m01') && !listed.none.includes('m02'), `${noneId} is listed without one (${listed.none.length} missions)`);
-  await click(`#dbg-select .dbg-wt-none[data-walkthrough="${noneId}"]`);
-  await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=none]'));
-  t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), `${noneId}: "No walkthrough yet"`);
-  await click('#wt-card [data-act=ok]');
-  await page.waitForFunction(() => !document.getElementById('wt-card') && !!document.getElementById('dbg-select'));
-  t(true, 'OK goes back to the debug menu');
+  t(!listed.none.includes('m03') && !listed.none.includes('m01') && !listed.none.includes('m02'), `${noneId ?? 'no mission'} is listed without one (${listed.none.length} missions)`);
+  if (noneId) {
+    await click(`#dbg-select .dbg-wt-none[data-walkthrough="${noneId}"]`);
+    await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=none]'));
+    t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), `${noneId}: "No walkthrough yet"`);
+    await click('#wt-card [data-act=ok]');
+    await page.waitForFunction(() => !document.getElementById('wt-card') && !!document.getElementById('dbg-select'));
+    t(true, 'OK goes back to the debug menu');
+  }
 
   step('2. M3: title card, then the walkthrough plays');
   await click('#dbg-select .dbg-wt[data-walkthrough="m03"]');

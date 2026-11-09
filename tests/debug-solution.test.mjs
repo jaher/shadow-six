@@ -21,6 +21,9 @@ export default async function debugSolution(page, t) {
       detections: r?.driver?.detections() ?? null, cap: document.getElementById('dbg-sol-cap')?.textContent || '',
       bar: !!document.getElementById('dbg-sol-bar'), mission: g.missionDef?.id ?? null, last: m.lastReplay ?? null,
       camDist: ft && cc ? Math.hypot(cc.target.x - ft.x, cc.target.z - ft.z) : null, focus: f?.role ?? null,
+      // (the smart camera holds its framing while the man stays in its dead zone — user 2026-11-09, calmer: he is in
+      // the free part of the screen, not necessarily at its centre)
+      framed: (() => { if (!ft || !cc?.worldToScreen || !r?.safeRect) return null; const s = cc.worldToScreen(ft.x, ft.y || 0, ft.z), q = r.safeRect(); return s.x >= q.x && s.x <= q.x + q.w && s.y >= q.y && s.y <= q.y + q.h; })(),
       solBtn: !document.getElementById('dbg-sol-btn')?.hidden,
     };
   });
@@ -86,7 +89,7 @@ export default async function debugSolution(page, t) {
   await page.waitForTimeout(600);
   r = await R();
   t(r.checkpoints.includes('B1') && r.detections === 0, `B1 e5 knifed, 0 detections (${r.checkpoints})`);
-  t(r.focus && r.camDist != null && r.camDist < 6, `the camera follows the acting commando (${r.focus}, ${r.camDist?.toFixed(2)} m)`);
+  t(r.focus && r.camDist != null && r.camDist < 18 && r.framed, `the camera follows the acting commando: in the free part of the screen (${r.focus}, ${r.camDist?.toFixed(2)} m from its centre, framed ${r.framed})`);
   await t.shot('debug-solution-b1');
 
   step('6. pause');
