@@ -414,6 +414,17 @@ export class Input {
     this.setCursor('track');
   }
 
+  /**
+   * The armed ability's cursor ('forbidden' when the shot / use is refused there) for a client point. A mouse refreshes it
+   * as it moves (_pointerMove); a finger does not hover (that leaves touch pointers to input/touch-game.js) and the map
+   * pans under a parked one, so the cursor layer asks for it each frame its sniper scope is up on a touch screen.
+   * @returns {string} the cursor now (input.cursor)
+   */
+  targetCursorAt(clientX, clientY) {
+    if (this.targeting) this._updateTargetCursor(clientX, clientY);
+    return this.cursor;
+  }
+
   _updateTargetCursor(clientX, clientY) {
     const t = this.targeting;
     if (!t) return;

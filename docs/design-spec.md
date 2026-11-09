@@ -1242,7 +1242,9 @@ Rules: a gesture that ever became a drag, a pinch or a long press can no longer 
 drag into a pinch; after a pinch the finger left on the glass can pan but never taps. Panning follows the same pause rule
 as other user scrolling (frozen while paused in faithful mode); zoom always works. Panning untracks the tracking camera.
 The camera's clamp (§2.3) applies to every touch pan and zoom (`CameraController.panScreen` / `zoomAt`). Fingers never
-edge-scroll. The software cursor is hidden in touch mode (the destination sparkle stays). Knapsack items, portraits, the
+edge-scroll. The software cursor is hidden in touch mode (the destination sparkle stays), except the sniper scope's lens: with the
+rifle armed the 2× glass is drawn where the finger is (it stays where the finger last was) and its ring, cross and range
+read-out are drawn on it, as with a mouse (`.ui-cursor.lens`, `styles/menus.css`). Knapsack items, portraits, the
 posture / eye / camera / hand / help buttons are plain buttons and work by tap.
 
 Device defaults (`src/engine/device.js`): a touch-first device or a mobile GPU boots on the **medium** preset (**low** on

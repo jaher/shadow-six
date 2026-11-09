@@ -12,7 +12,9 @@
  * The sniper scope is a live 2× magnifier (render/scope-magnifier.js draws the world into the glass right after
  * the frame, from `lensState()`); this layer then swaps the scope sprite for the clear ring + the reticle and the
  * range read-out. The reticle is always dark; no shot shows as a dark circle-and-slash mark, greyed "NO SHOT" range
- * text and a dimmed, desaturated glass. Without WebGL the plain sprite stays.
+ * text and a dimmed, desaturated glass. Without WebGL the plain sprite stays. On a touch screen the soft cursor is hidden
+ * (fingers do not hover: menus.css) except this lens — `.lens` on the layer while the magnifier draws — so a finger's scope
+ * has its ring, cross and range too (pos follows the finger's pointer moves, below).
  * A scripted aim (setScripted: video mode's Sniper scope before a shot, debug/walkthrough-scope.js) puts the same scope —
  * the lens, its ring, reticle and range — where the walkthrough aims it, on touch screens too, over whatever the pointer
  * shows (the native pointer is left alone).
@@ -27,6 +29,7 @@ import { iconEntry, iconHTML } from './icon-art.js';
 import { UI } from './ui-config.js';
 import { boardingHint } from '../abilities/drive.js';
 import { glassRadius } from '../render/scope-magnifier.js';
+import { isTouchUI } from './touch.js';
 
 /** Scope reticle (88-unit box, glass r 36): BEL's three heavy posts, a fine cross with mil-dots and holdover marks.
  *  Always near-black like an etched optical reticle (never tinted by the shot state; user request 2026-09-30). */
@@ -204,7 +207,8 @@ export class CursorLayer {
   /**
    * Scope magnifier input for this frame (game.render calls it right after the world frame, before the HUD
    * update): null unless the sniper scope cursor is up over the game view. Valid shot → the enemy under the
-   * cursor is passed for the highlight. Touch (long-press aim) only needs `pos` set, like the pointer.
+   * cursor is passed for the highlight. Touch: a finger's pointer moves set `pos` like the mouse's (the listener in the
+   * constructor takes every pointer type), so the lens is where the finger is, and stays where it last was.
    * @returns {{x:number, y:number, radius:number, bad:boolean, target:any, time:number, sway:boolean, range:number|null}|null}
    */
   lensState() {
@@ -214,6 +218,9 @@ export class CursorLayer {
     const r = (this._pre = this.resolve());
     if (r.id !== 'scope' || r.native) return (this._lens = null);
     const input = this.hud.game.input, tg = input?.targeting;
+    // a finger does not hover (Input leaves touch pointers' moves alone) and the map pans under a parked one: the shot's
+    // valid / no-shot state (dimmed glass, NO SHOT, no highlight) is read from where the scope is, this frame
+    if (isTouchUI() && input?.targetCursorAt) r.forbidden = input.targetCursorAt(this.pos.x, this.pos.y) === 'forbidden';
     let target = null;
     try { target = tg ? input.resolveTarget?.(tg.def, this.pos.x, this.pos.y, tg.commando) || null : null; } catch { target = null; }
     if (target && target.kind !== 'enemy') target = null;
@@ -227,8 +234,9 @@ export class CursorLayer {
   }
 
   /**
-   * Aim point from a non-mouse source (touch long-press aim, gamepad): the scope, its magnifier and the hover
-   * cursors all read `pos`, so this is the whole API. @param {number} x client px @param {number} y client px
+   * Aim point from a source that is not a pointer event (the video capture's, a gamepad): the scope, its magnifier and
+   * the hover cursors all read `pos`, so this is the whole API. (A finger needs none of it: its pointer moves set `pos`.)
+   * @param {number} x client px @param {number} y client px
    */
   setAim(x, y, over = true) {
     this.pos = { x, y, over: !!over };

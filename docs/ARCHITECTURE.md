@@ -1824,7 +1824,10 @@ Emitters add the events they own; AUDIO never needs another team to call it.
   (`SCOPE.margin`); while the smoothed render cost is over 80% of the budget, up to `SCOPE.maxReuse` (3) following
   frames composite the old image shifted to the current window (uniforms `uC`/`uK`, the window centre projected through
   the stored view-projection; same rotation/zoom/target only, inside the margin).
-  Nothing is created until the scope first shows. Touch / gamepad aim: `hud.cursor.setAim(x, y)`.
+  Nothing is created until the scope first shows. Aim: the mouse, and a finger (cursor.js's pointermove listener takes every pointer type, so the glass
+  follows a long press or a drag and stays where the finger last was); a gamepad / the video capture: `hud.cursor.setAim(x, y)`. On a touch screen the soft cursor is
+  hidden (menus.css `html.mk-touch .ui-cursor:not(.lens):not(.scripted)`) except while the lens is up, so the ring, reticle and range stay on the glass;
+  a finger does not hover, so `lensState()` reads the armed cursor's valid / no-shot state itself each frame (`Input.targetCursorAt`; tests/sniper-scope-touch).
 - Off-map surround: `setFog` sets `scene.background` to the fog colour × 0.07 — a dark slate border (the original's
   black surround) where the widest zoom shows past a narrow map's edge.
 - **Render efficiency** (perf/render-efficiency; nothing here changes a pixel — every change was A/B diffed against
