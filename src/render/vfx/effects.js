@@ -220,9 +220,20 @@ const LEGACY_FIRE = {
     return handle(e1, e2, e3, e4, e5, e6, fl);
   },
 };
-/** The library seen by a dry run: it draws and schedules as usual but emits nothing (emitters it adds end after `sec`). */
-const dryOf = (vfx, sec = 1e9) => Object.create(vfx, { emit: { value: () => -1 }, light: { value: (q) => q }, heatSource: { value: (q) => q },
-  decal: { value: () => null }, addEmitter: { value: (e) => { e.dur = Math.min(e.dur, sec); return vfx.addEmitter(e); } } });
+/** The library seen by a dry run: it draws and schedules as usual but emits nothing (emitters it adds end after `sec`).
+ *  A view of `vfx` that keeps what the dry run writes (a seed counted on, a shake) to itself and reads the rest live, as
+ *  a child made by Object.create(vfx) did — without making the library a prototype: that, at a mission's first fuel
+ *  blast, rebuilt the library's shape mid-play and threw away the optimised code of what runs it every frame (update,
+ *  _step, advance, emit; V8 --trace-deopt: "prototype chain changed", "field type constness changed"). */
+const dryOf = (vfx, sec = 1e9) => {
+  const own = { emit: () => -1, light: (q) => q, heatSource: (q) => q, decal: () => null,
+    addEmitter: (e) => { e.dur = Math.min(e.dur, sec); return vfx.addEmitter(e); } };
+  return new Proxy(vfx, {
+    get: (t, k, r) => (Object.hasOwn(own, k) ? own[k] : Reflect.get(t, k, r)),
+    set: (t, k, v) => { own[k] = v; return true; },
+    has: (t, k) => Object.hasOwn(own, k) || k in t,
+  });
+};
 /** explosion_large's residual ground fire turns into a sustained fire this long after the blast (its fireball is soot by then). */
 export const RESIDUAL_CUT = FIRE.residual.cut;
 function blastFire(kind, vfx, pos, o, rng, sec) {

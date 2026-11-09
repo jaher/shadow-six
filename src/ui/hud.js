@@ -226,10 +226,14 @@ export class HUD {
 
   _listen() {
     const on = (t, fn) => this._subs.push(this.game.events.on(t, fn));
+    // (the message line, the barks and the "?" marks only draw: under a host that draws after its ticks — video mode —
+    // they come with the other visual handlers at the next draw, in order (EventBus.onLate), not inside the tick: a
+    // blast's tick put up "ALARM!", the structure's line and a round of barks, DOM made the first time in a while)
+    const drawn = (t, fn) => this._subs.push(this.game.events.onLate ? this.game.events.onLate(t, fn) : this.game.events.on(t, fn));
     const isCommando = (u) => u && (u.kind === 'commando' || u.faction === 'player');
-    on('message', (m) => m?.kind !== 'bark' ? this.message(m?.text, m?.kind) : this.messages.bark({ unit: m.unit, text: m.text }));
-    on('bark', (b) => this.messages.bark(b));
-    on('enemy:heard-steps', (p) => this.messages.mark(p?.enemy)); // house rule runningNoise: "?" over the guard
+    drawn('message', (m) => m?.kind !== 'bark' ? this.message(m?.text, m?.kind) : this.messages.bark({ unit: m.unit, text: m.text }));
+    drawn('bark', (b) => this.messages.bark(b));
+    drawn('enemy:heard-steps', (p) => this.messages.mark(p?.enemy)); // house rule runningNoise: "?" over the guard
     on('mission:refused', (p) => this.message(p?.reason || 'ALL YOUR MEN MUST ESCAPE.', 'warn'));
     on('ui:warning', (p) => this.topbar.flag(p?.unit, p?.kind || 'seen'));
     on('unit:held', (p) => p?.held !== false && this.topbar.flag(p?.unit, 'held', 1.5));

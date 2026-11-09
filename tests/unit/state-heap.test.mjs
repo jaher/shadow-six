@@ -7,7 +7,7 @@
 import { test, assert } from './lib.mjs';
 import { takeHeap, giveHeap, takeSet, giveSet } from '../../tools/solutions/state-heap.mjs';
 import { mirrorOf, ghostOn, ghost, protoOf } from '../../tools/solutions/ghost.mjs';
-import { doubleFields } from '../../src/core/shapes.js';
+import { doubleFields, anyFields } from '../../src/core/shapes.js';
 
 const rng = (seed) => () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296;
 
@@ -78,4 +78,24 @@ test('doubleFields: the same values, read the same', () => {
   assert.deepEqual(o, { a: 0, b: 0, c: 1, d: -3 });
   assert.ok(Object.is(o.a, 0), 'plus zero, not minus');
   assert.deepEqual(Object.keys(o), ['a', 'b', 'c', 'd']);
+});
+
+test('anyFields: the same values, read the same, in the same order (only V8 tracks them as fields that change)', () => {
+  const o = { a: 1 };
+  anyFields(o, undefined, 'b', 'c'); anyFields(o, null, 'd'); anyFields(o, 0, 'e'); anyFields(o, 'x', 'a');
+  assert.deepEqual(Object.keys(o), ['a', 'b', 'c', 'd', 'e'], 'new keys appended in order, an existing one kept in place');
+  assert.equal(o.a, 'x'); assert.equal(o.b, undefined); assert.equal(o.c, undefined); assert.equal(o.d, null); assert.ok(Object.is(o.e, 0));
+  assert.equal(JSON.stringify(o), '{"a":"x","d":null,"e":0}');
+});
+
+test('mirrorOf: a new mirror holds its unit\'s own fields as they are (the fields made changeable keep their values)', () => {
+  class U { constructor(id) { this.id = id; this.world = null; this.x = 1.5; this.flag = undefined; this.n = 3; this.o = { k: 1 }; } }
+  const w = { byId: (id) => units.find((u) => u.id === id) };
+  const units = [new U(1), new U(2)]; for (const u of units) u.world = w;
+  const m = mirrorOf(units[0]);
+  assert.deepEqual(Object.keys(m), Object.keys(units[0]));
+  for (const k of Object.keys(units[0])) assert.ok(Object.is(m[k], units[0][k]), k);
+  units[0].flag = { hit: true }; units[0].n = 4;
+  const m2 = mirrorOf(units[0]);
+  assert.equal(m2, m, 'the same mirror'); assert.equal(m.flag, units[0].flag); assert.equal(m.n, 4);
 });

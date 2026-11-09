@@ -35,6 +35,8 @@ import { PERF } from '../engine/perf-flags.js';
 import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, climaxSlows, isTrueWait, underWay, trapEta } from './auto-pace.js';
 import { ScopeShow, warmScope } from './walkthrough-scope.js';
 import { doubleFields } from '../core/shapes.js';
+import { idleWarm } from '../engine/idle-warm.js';
+import { blastPathTasks } from '../world/path-warm.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
@@ -122,6 +124,18 @@ export function fixedTickMs(base, drawMs, lagTicks, frameTicks, tickOnly = false
   return Math.min(base, Math.max(MIN_TICK_MS, slots * v - drawMs - 1.5));
 }
 /** Skipping waits at a fixed speed: is this a frame of ticks only (the last one drew, the boost past SKIP_ALTERNATE)? */
+/**
+ * AUTO's overrun (_frame): the solution's look-ahead past the last frame's tick budget, a decaying maximum (ms). Only a
+ * tick window the last frame opened counts (`tickFrom` at or after that frame's start, `frameAt`): the pacer leaves
+ * its window as it was while paused or fast-forwarding, and a sliced look handing a later frame back (`workEnd`)
+ * measured against such a stale one gave minutes — M8 after a chapter jump: 131 s, AUTO's ticks then cut to ~1 ms a
+ * frame and its time-lapse to ~1× for ~400 frames.
+ */
+export function nextOverrun(prev, tickFrom, workEnd, tickMs, frameAt) {
+  if (tickFrom >= 0 && tickFrom >= frameAt && workEnd > tickFrom) return Math.max(Math.max(0, workEnd - tickFrom - tickMs), (prev || 0) * 0.97);
+  return prev ? prev * 0.97 : prev;
+}
+
 export function skipTickOnly(boost, turbo, drawMs, drewLast) {
   return !turbo && boost >= SKIP_ALTERNATE && drawMs > 0 && !!drewLast;
 }
@@ -326,6 +340,7 @@ export class Walkthrough extends SolutionReplay {
     this.markers = this._buildMarkers();
     this.markerIndex = -1;
     this.chapterId = null;
+    this._blastWarm = null;   // the last chapter card's path warm-up tasks (_chapterCard)
     this.doneCps = [];
     this.step = null;
     this.stepWall = performance.now();
@@ -629,11 +644,10 @@ export class Walkthrough extends SolutionReplay {
     // (the solution's look-ahead that runs on after a frame's last tick — a check after it, a plan's piece past its
     // slice: M2's trip waits, 5-20 ms — measured against the frame's tick budget: the next frames' ticks leave room
     // for it, so a frame's own work stays what _autoBudget allows; a decaying maximum)
-    const pc = this.pacer;
-    if (pc.tickFrom >= 0 && this._workEnd > pc.tickFrom) {
-      const over = Math.max(0, this._workEnd - pc.tickFrom - pc.tickMs);
-      this._overrun = Math.max(over, (this._overrun || 0) * 0.97);
-    } else if (this._overrun) this._overrun *= 0.97;
+    // (the last frame's own window only: nextOverrun)
+    const pc = this.pacer, frameAt = performance.now();
+    this._overrun = nextOverrun(this._overrun, pc.tickFrom, this._workEnd, pc.tickMs, this._frameAt ?? -Infinity);
+    this._frameAt = frameAt;
     // (the view's draw time, smoothed: _viewMs is the last drawn frame's Game.frame, ticks excluded)
     if (this._viewMs > 0 && !this.pacer.turbo && this._drewLast !== false) this._drawMs = this._drawMs ? this._drawMs * 0.85 + this._viewMs * 0.15 : this._viewMs;
     this._tickMsBase ??= this.pacer.tickMs;
@@ -1473,6 +1487,13 @@ export class Walkthrough extends SolutionReplay {
     if (!c) return;
     this.hold = { until: performance.now() + Math.min(5200, 2400 + (c.say || '').length * 22), kind: 'chapter' };
     this._capKey = null;
+    // (the card is a still screen: the path code a blast runs — labelling floods, patched layers, long searches — run on
+    // a scratch copy of the grid there, so a blast in the chapter finds it compiled: world/path-warm.js. In small tasks,
+    // a few a frame; a newer card's warm-up drops what is left of the last one)
+    const w = this.world;
+    this._blastWarm?.cancel();
+    this._blastWarm = blastPathTasks(w);
+    for (const t of this._blastWarm) idleWarm.add('blast paths', () => { if (this.world === w) t(); });
   }
 
   _flashMsg(text, ms = 3500) {

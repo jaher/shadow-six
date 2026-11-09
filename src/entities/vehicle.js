@@ -439,7 +439,7 @@ export class Vehicle extends Entity {
     // (set later — driving, routes, boarding, blasts, the hull's measures — declared here, undefined until then as when
     // absent: one hidden-class shape per vehicle class; a field first added in play threw away the optimised code)
     this._turretKeep = undefined; this._hdSize = undefined; this._halfDiag = undefined; this.blastRock = undefined;
-    this.blastFlip = undefined; this._arcKey = undefined; this._arc = undefined; this._boarders = undefined;
+    this.blastFlip = undefined; this._arcKey = undefined; this._arc = undefined; this._arcVer = -1; this._arcY0 = undefined; this._arcJ0 = 0; this._arcJ1 = -1; this._boarders = undefined;
     this.seats = undefined; this.reversing = undefined; this.steerK = undefined; this._planMemo = undefined;
     this._skipHulls = undefined; this._blocker = undefined; this.blockedT = undefined; this.passedExit = undefined;
     this.proxy = undefined; this.offMapOK = undefined; this._routeJob = undefined; this._routeFail = undefined;
@@ -2101,14 +2101,26 @@ export class Vehicle extends Entity {
    * the hull moves. null for guns without a model barrel (no `model.gun`).
    */
   gunArc() {
-    const w = this.world, g = this.model?.gun;
-    if (!w?.grid || !g || this.destroyed) return null;
-    const key = `${w.grid.version}|${this.x.toFixed(1)}|${this.z.toFixed(1)}|${(this.y || 0).toFixed(1)}`;
-    if (this._arcKey !== key) {
-      this._arcKey = key;
-      // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
-      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, back: g.back, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: Math.max(this.y || 0, this._groundAt(this.x, this.z)) }); // y: a hull on a ridge / deck (M11)
+    const w = this.world, g = this.model?.gun, G = w?.grid;
+    if (!G || !g || this.destroyed) return null;
+    const key = `${this.x.toFixed(1)}|${this.z.toFixed(1)}|${(this.y || 0).toFixed(1)}`;
+    if (this._arcKey === key && this._arcVer === G.version) return this._arc;
+    const y0 = Math.max(this.y || 0, this._groundAt(this.x, this.z)); // y: a hull on a ridge / deck (M11)
+    // the grid changed since, the hull did not move: the arc reads the cells within its reach only (barrel, rear,
+    // housing) and the ground under its pivot — when the grid's dirty-row log shows no write in those rows since
+    // (NavGrid.dirtyRowsSince: a blast's stamps across the map, a door elsewhere) and that ground stands, it is the same
+    // arc (a blast at M8's depot recomputed both guns' 72 angles by the bridge, ~2-3 ms of its tick)
+    if (this._arcKey === key && this._arcY0 === y0 && this._arcVer >= 0) {
+      const d = G.dirtyRowsSince?.(this._arcVer);
+      if (d && (d.j1 < this._arcJ0 || d.j0 > this._arcJ1)) { this._arcVer = G.version; return this._arc; }
     }
+    this._arcKey = key; this._arcVer = G.version; this._arcY0 = y0;
+    // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
+    this._arc = turretArc(G, this.x, this.z, { len: g.len, h: g.h, back: g.back, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0 });
+    // (the rows turretArc reads: within the barrel's reach and its 0.2 m sides, the rear's, or the housing's half
+    // diagonal of the pivot; a cell more for the rounding)
+    const R = Math.max((g.len ?? 0) + 0.35, (g.back ?? 0) + 0.22, g.hl ? g.hl + (g.hw ?? 0) : 0) + G.cell;
+    this._arcJ0 = Math.floor((this.z - R) / G.cell); this._arcJ1 = Math.floor((this.z + R) / G.cell);
     return this._arc;
   }
 

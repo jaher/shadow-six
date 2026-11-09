@@ -217,7 +217,8 @@ const BUCKET = 4;
  */
 export function setStaticSolids(world, list) {
   const S = { list: [], buckets: new Map(), version: ((world.bodySolids?.version) || 0) + 1, masks: new Map() };
-  for (const o of list || []) if (o?.R) S.list.push({ owner: o.owner ?? null, R: o.R, gone: false });
+  for (const o of list || []) if (o?.R) { const r = { owner: o.owner ?? null, R: o.R, gone: true }; r.gone = false; S.list.push(r); } // (gone changes: a structure's destroy)
+  S.version++; S.version--; // (and the version: from the start)
   S.list.forEach((o, k) => {
     const r = obsRadius(o.R);
     for (let bj = Math.floor((o.R.z - r) / BUCKET); bj <= Math.floor((o.R.z + r) / BUCKET); bj++) {

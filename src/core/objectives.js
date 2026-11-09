@@ -13,7 +13,9 @@
  * @returns {object[]}
  */
 export function createObjectives(defs = []) {
-  return defs.map((d) => ({ required: true, hidden: false, targets: [], ...d, done: false, failed: false }));
+  // (done / failed change — written twice here, not constants whose first change, often in a blast's tick, throws away
+  // the optimised code that read them: core/shapes.js anyFields)
+  return defs.map((d) => { const o = { required: true, hidden: false, targets: [], ...d, done: true, failed: true }; o.done = false; o.failed = false; return o; });
 }
 
 /** True when an entity counts as destroyed/dead (or no longer exists). */

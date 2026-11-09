@@ -611,10 +611,14 @@ function wire(audio, events, subs, rand, opts) {
   on('flow:state', (e) => { if (e.to !== 'playing' && e.to !== 'paused') setState(e.to); });
   // in-mission score: alert layer on alarm / enemies in combat-search states (music-director.js HOT_STATES)
   const ekey = (u) => u?.id ?? u?.tag ?? u;
-  on('alarm:start', () => audio.musicDir?.setAlarm(true));
+  // (the score's threat tracker only sounds: under a host that draws after its ticks — video mode — it hears of the
+  // alarm, a guard's state and a death with the other sounds at the next draw (EventBus.onLate), in the same order, not
+  // inside the tick: a blast that sets the whole camp searching changed ~20 guards' states in one tick)
+  const onLate = (t, fn) => subs.push(events.onLate ? events.onLate(t, (e = {}) => fn(e)) : events.on(t, (e = {}) => fn(e)));
+  onLate('alarm:start', () => audio.musicDir?.setAlarm(true));
   on('mission:won', (e) => { audio._promoted = !!(e.promoted || e.rankUp); });
-  on('enemy:state', (e) => audio.musicDir?.setEnemyState(ekey(e.enemy), e.to));
-  on('unit:killed', (e) => { if (e.unit?.kind === 'enemy') audio.musicDir?.dropEnemy(ekey(e.unit)); });
+  onLate('enemy:state', (e) => audio.musicDir?.setEnemyState(ekey(e.enemy), e.to));
+  onLate('unit:killed', (e) => { if (e.unit?.kind === 'enemy') audio.musicDir?.dropEnemy(ekey(e.unit)); });
   // STYLE §2.5 "Mission load: fade out" — the front-end bed fades while a mission (or a save) loads; the briefing
   // loop / the start stinger pick up after it. In-mission reloads keep the director's own handling.
   on('mission:loading', () => { if (!audio.inMission()) { audio.track = null; audio._refreshMusic(); } });

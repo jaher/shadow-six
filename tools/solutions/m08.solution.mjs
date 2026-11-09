@@ -18,11 +18,11 @@
  *  X     the Sniper's last round from the far bank into b10: racks, tanks and reservoir go up (the only alarm), the
  *        jeep comes, both climb in when no one looks at their door.
  */
-import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
+import { canSee, coneAt, pointInCone, newCone } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
 import { angleDiff } from '../../src/core/math.js';
-import { mirrorOf, ghostOn, ghost, protoOf } from './ghost.mjs';
+import { mirrorOf, mirrorFor, ghostOn, ghost, protoOf, withMirrors, mirrorScope } from './ghost.mjs';
 
 /** shortest signed angle a→b (rad) */
 const dAng = (a, b) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; };
@@ -89,7 +89,8 @@ export function predict(e, t, depth = 0) {
       if (left * vs <= L) return { x: x + (dx / L) * left * vs, z: z + (dz / L) * left * vs, hs: Math.abs(dAng(h, h2)) > 0.2 ? [h, h2] : [h2], curved: true };
       left -= L / vs; x = p.x; z = p.z; h = h2;
     }
-    const g = Object.create(e), gb = Object.create(b);
+    // (ghosts on mirrors, never on the man and his brain: an object made a prototype takes a map of its own — ghost.mjs)
+    const g = ghost(e), gb = ghostOn(mirrorFor(b));
     for (const [k, v] of Object.entries({ x: home.x, z: home.z, heading: h, path: null, isMoving: false, brain: gb })) Object.defineProperty(g, k, { value: v, writable: true });
     Object.assign(gb, { state: 'IDLE', atWait: false, routeIndex: hi, distractedBy: null, _leader: () => null });
     return predict(g, left, 2);
@@ -235,9 +236,13 @@ export const walker = (e) => !!(e.isMoving || e.path || (e.route?.length > 1 && 
   // (and a man staring at a lure under a dwell cap: he will walk back, predict() knows when)
   || (e.route?.length > 1 && e.brain?.state === 'DECOY' && e.brain.phase === 'stare' && (e.world ?? e.brain.world)?.mission?.rules?.decoyMaxDwell != null));
 
+/** A scratch cone for sees(): coneAt(…, out) fills it with the very values of a fresh one. */
+const SEE_CONE = newCone();
 /** Could enemy `e` (or his predicted self `q` at sim time `tAbs`) see `dummy`? A walker's head is tried across his sweep. */
 export function sees(e, q, dummy, w, tAbs, moving, fan = false) {
-  if (!moving) return canSee(e, dummy, w, { cone: coneAt(e, tAbs) }) !== 'none';
+  // (canSee says 'none' to a point outside the cone whatever else holds — asked first, on the scratch cone: the whole
+  // rule, ghost and all, only for a point inside it. Most of a look's questions are of guards facing elsewhere)
+  if (!moving) return !!pointInCone(coneAt(e, tAbs, SEE_CONE), dummy.x, dummy.z) && canSee(e, dummy, w, { cone: coneAt(e, tAbs) }) !== 'none';
   // (a walker on a leg looks straight ahead; at a halt his head sweeps ±50° every 2.5 s: any offset, CONFIG patrolWatch)
   // (on a leg his heading follows a path planned round things in the way, which may bend from the predicted one: a few
   // degrees either side)
@@ -254,14 +259,50 @@ export function sees(e, q, dummy, w, tAbs, moving, fan = false) {
   const FAN = fan && q.wait ? Array.from({ length: 11 }, (_, i) => ((PW.sweep * Math.PI) / 180) * (i / 5 - 1)) : null;
   // (and on a leg, a path bent round something in the real game: up to 20° either way)
   const LEG = fan ? [0, 0.17, -0.17, 0.35, -0.35] : [0, J, -J];
-  let me = null;
+  let me = null, sc = null;
   // (a man staring at a lure holds his head on it: no sweep, no bend)
-  for (const pos of q.alt ? [q, ...q.alt] : [q]) for (const hd of q.hs) for (const off of q.stare ? [0] : FAN ?? (q.wait ? (q.early ? [0, swAt(-0.4), swAt(0), swAt(0.4)] : [0, swAt(-0.1), swAt(0), swAt(0.1)]) : LEG)) {
-    const g = ghostOn(me ??= mirrorOf(e)); // (his ghosts read him through a mirror: ghost.mjs)
-    g.x = pos.x; g.z = pos.z; g.heading = hd; g.sweepActive = false; g.headOffset = off;
-    if (canSee(g, dummy, w, { cone: coneAt(g, tAbs) }) !== 'none') return true;
+  const offs = q.stare ? [0] : FAN ?? (q.wait ? (q.early ? [0, swAt(-0.4), swAt(0), swAt(0.4)] : [0, swAt(-0.1), swAt(0), swAt(0.1)]) : LEG);
+  for (const pos of q.alt ? [q, ...q.alt] : [q]) for (const hd of q.hs) {
+    // (no head offset of his can hold the point — beyond his longest sight, or off the whole sector his cones sweep
+    // from that heading: fanMisses — then no cone of them does, and canSee says 'none' to each)
+    if (fanMisses(e, pos, hd, offs, dummy.x, dummy.z)) continue;
+    for (const off of offs) {
+      me ??= mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
+      // (the cone first, on one scratch ghost of him: only its pose is written, only coneAt reads it)
+      sc ??= ghostOn(me);
+      sc.x = pos.x; sc.z = pos.z; sc.heading = hd; sc.sweepActive = false; sc.headOffset = off;
+      if (!pointInCone(coneAt(sc, tAbs, SEE_CONE), dummy.x, dummy.z)) continue;
+      const g = ghostOn(me);
+      g.x = pos.x; g.z = pos.z; g.heading = hd; g.sweepActive = false; g.headOffset = off;
+      if (canSee(g, dummy, w, { cone: coneAt(g, tAbs) }) !== 'none') return true;
+    }
   }
   return false;
+}
+
+const TAU = 2 * Math.PI;
+/**
+ * Can no cone of a viewer `e` at `pos` facing `hd` with his head turned by any of `offs` (rad; sweep off) hold the point
+ * (x, z)? True only when coneAt + pointInCone would say null for every one of them: the point is beyond the longest far
+ * reach his vision has (an elliptical cone reaches at most its long axis), or off the sector those cones cover — its
+ * bearing more than half a field of view, plus half the offsets' spread, from their middle (an angle on the circle is
+ * at least that far from each of them), with a margin of 1e-6 rad for the rounding. False when unsure.
+ */
+export function fanMisses(e, pos, hd, offs, x, z) {
+  const v = e.vision;
+  if (!v || !offs.length) return false;
+  const a = v.far ?? v.range;
+  if (!(a >= 0)) return false;
+  const dx = x - pos.x, dz = z - pos.z, d2 = dx * dx + dz * dz;
+  const reach = v.elliptical ? a * Math.max(1, v.ellipseRatio ?? CONFIG.stealth.ellipseRatio) : a;
+  if (d2 > reach * reach * (1 + 1e-9) + 1e-9) return true;
+  if (!(d2 > 1e-10) || !(v.fov > 0)) return false;
+  const hc = e.headCarry || 0;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < offs.length; i++) { const t = (offs[i] || 0) + hc; if (t < lo) lo = t; if (t > hi) hi = t; }
+  let d = Math.atan2(dz, dx) - (hd + (lo + hi) / 2);
+  d -= TAU * Math.round(d / TAU);
+  return Math.abs(d) > v.fov / 2 + (hi - lo) / 2 + 1e-6;
 }
 
 /**
@@ -271,7 +312,11 @@ export function sees(e, q, dummy, w, tAbs, moving, fan = false) {
  * up for the last that many metres and the hold (a knife approach). `except`: tags ignored; `victim`: the man he
  * goes for (his cone counts, but not his nearness). Returns true, or false with the reasons pushed on `why`.
  */
-export function routeSafe(D, role, pts, { speed = 0.9, low = true, delay = 0.2, step = 0.3, pad = 1.5, slack = [-0.6, 1.2], hold = 0, minDist = 5,
+export function routeSafe(D, role, pts, o) { return withMirrors(() => drain(routeSafeG(D, role, pts, o))); }
+/** a generator run to its end at once: its value */
+function drain(it) { for (;;) { const r = it.next(); if (r.done) return r.value; } }
+/** routeSafe as a generator: it may hand the frame back (yield) between two viewers — a look sliced over frames */
+export function* routeSafeG(D, role, pts, { speed = 0.9, low = true, delay = 0.2, step = 0.3, pad = 1.5, slack = [-0.6, 1.2], hold = 0, minDist = 5,
   except = [], victim = null, standLast = 0, from = null, why = null, all = globalThis.process?.env?.WHYALL, body = false, expand = true, lat = 0, fan = false } = {}) {
   const w = D.world, u = D.c(role);
   // (the way his feet will really go: each leg as the path planner lays it)
@@ -293,20 +338,25 @@ export function routeSafe(D, role, pts, { speed = 0.9, low = true, delay = 0.2, 
   let bad = false; // (`all`: debugging, every viewer that fails it is listed in `why`)
   viewers: for (const e of w.enemies) {
     if (!e.alive || e.removed || !e.vision || except.includes(e.tag) || e.incapacitated) continue;
+    yield;
     const moving = walker(e);
     const far = (e.vision.far ?? 36) + 2, isV = e.tag === victim;
     // (a posted man's sweep is a known function of time: only the commando's own timing is uncertain, ±0.3 s; a
     // walker's pace and turns drift from the prediction: the full slack)
     const [s0, s1] = moving ? slack : [Math.max(slack[0], -0.6), Math.min(slack[1], 0.6)];
+    const post = moving ? null : { x: e.x, z: e.z, hs: [e.heading] };
     for (const [sx, sz, st, slow] of samples) {
+      // (a posted man stays where he is: a spot out of his reach is out of it at every moment of the slack)
+      if (post !== null && Math.hypot(post.x - sx, post.z - sz) > far + pad) continue;
+      let y = null; // (the ground's height at the spot: once)
       for (let o = s0; o <= s1 + 1e-6; o += moving ? 0.3 : 0.05) { // (a post's sweep: densely, its cone may touch a spot only for an instant)
         const tt = Math.max(0, st + o);
-        const q = moving ? predict(e, tt) : { x: e.x, z: e.z, hs: [e.heading] };
+        const q = moving ? predict(e, tt) : post;
         const dd = Math.hypot(q.x - sx, q.z - sz);
         if (dd > far + pad) continue;
         // (a man staring at a lure does not walk into anyone)
         if (moving && !isV && dd < minDist && !q.stare) { why?.push(`${e.tag} close@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); if (all) { bad = true; continue viewers; } return false; }
-        const y = w.grid.elevAt?.(sx, sz) ?? 0;
+        y ??= w.grid.elevAt?.(sx, sz) ?? 0;
         const pts2 = [[sx, sz]];
         if (!isV && pad > 0 && dd > pad + 0.5) pts2.push([sx + ((q.x - sx) * pad) / dd, sz + ((q.z - sz) * pad) / dd]);
         // (`lat`: also that far either side across his line of sight — the man's real track may wander off the planned
@@ -371,13 +421,14 @@ async function sneak(D, role, pts, { low = true, speed = null, maxWait = 300, st
   const why = [], whys = [];
   const way = planned(D, role, pts);
   let next = 0;
-  await D.until(() => {
+  await untilLook(D, () => {
     if (D.t < next) return false;
     next = D.t + 0.25;
     if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY) D.log(`  why sneak: ${whys[whys.length - 1]}`); }
     why.length = 0;
     const g = getUp();
-    return (!when || when()) && routeSafe(D, role, g ? [[u.x, u.z, g], ...way] : way, { low, speed: sp, delay, hold: stay, why, minDist, pad, slack, lat });
+    if (when && !when()) return false;
+    return routeSafeG(D, role, g ? [[u.x, u.z, g], ...way] : way, { low, speed: sp, delay, hold: stay, why, minDist, pad, slack, lat });
   }, maxWait, `${role} sneaks to (${pts[pts.length - 1]})`).catch((e) => { throw new Error(`${e.message} [${whys.join(' | ')}]`); });
   if (globalThis.process?.env?.SNEAKLOG) D.log(`  SNEAK ${role} at ${D.t.toFixed(2)} from (${u.x.toFixed(1)},${u.z.toFixed(1)}) to ${JSON.stringify(pts)}`);
   if (!low && u.stance !== 'stand') await D.stance(role, 'stand');
@@ -433,17 +484,19 @@ async function hop(D, pts, { maxWait = 300, pad = 0.5, minDist = 3, when = null,
   const why = [], whys = [];
   const way = planned(D, 'greenberet', pts);
   let next = 0;
-  await D.until(() => {
+  await untilLook(D, () => {
     if (D.t < next) return false;
     next = D.t + 0.25;
     if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY) D.log(`  why hop: ${whys[whys.length - 1]}`); }
     why.length = 0;
     if (when && !when()) return false;
     const up = gb.buried ? UP : 0;
-    // (he is still under the sand for the rise itself, CONFIG.abilities.rise s; then he stands until he drops flat)
-    // (our own timing is exact and the walkers' predictions good to half a metre: a tight slack for the moment he stands)
-    if (up && !routeSafe(D, 'greenberet', [], { from: [gb.x, gb.z], low: false, hold: up - RISE, delay: RISE, pad, minDist, why, slack: [Math.min(-0.5, slack[0]), Math.max(0.9, slack[1])], fan })) return false;
-    return routeSafe(D, 'greenberet', way, { delay: up + 0.2, hold: bury ? DIG : 3, pad, minDist, why, standLast: -1, slack });
+    return (function* () {
+      // (he is still under the sand for the rise itself, CONFIG.abilities.rise s; then he stands until he drops flat)
+      // (our own timing is exact and the walkers' predictions good to half a metre: a tight slack for the moment he stands)
+      if (up && !(yield* routeSafeG(D, 'greenberet', [], { from: [gb.x, gb.z], low: false, hold: up - RISE, delay: RISE, pad, minDist, why, slack: [Math.min(-0.5, slack[0]), Math.max(0.9, slack[1])], fan }))) return false;
+      return yield* routeSafeG(D, 'greenberet', way, { delay: up + 0.2, hold: bury ? DIG : 3, pad, minDist, why, standLast: -1, slack });
+    })();
   }, maxWait, `GB hops to (${pts[pts.length - 1]})`).catch((e) => { throw new Error(`${e.message} [${whys.join(' | ')}]`); });
   const HD = globalThis.process?.env?.HOPDBG;
   if (HD) for (const t of HD.split(',')) { const o = D.get(t); const ps = []; for (let tt = 0.5; tt <= 3.01; tt += 0.5) { const q = predict(o, tt); ps.push(`+${tt}:(${q.x.toFixed(1)},${q.z.toFixed(1)})${q.wait ? 'W' : ''}h${q.hs.map((h) => deg(h).toFixed(0)).join('/')}`); } D.log(`  HOP at ${D.t.toFixed(2)} ${t} now (${o.x.toFixed(1)},${o.z.toFixed(1)}) h${deg(o.heading).toFixed(0)} ${o.brain.state} ri${o.brain.routeIndex} w${o.brain.atWait} ${ps.join(' ')}`); }
@@ -467,7 +520,7 @@ async function pickUpDecoy(D, { maxWait = 120, pad = 1.5, when = () => true } = 
   if (dc?.on) D.ability('greenberet', 'decoyToggle');
   // (he gets up for it, and bends over it: a moment nobody may look there)
   const why = [];
-  await D.until(() => { why.length = 0; return when() && routeSafe(D, 'greenberet', [[gb.x, gb.z, 0.7]], { low: false, hold: 2.5, pad, minDist: 3, why }); }, maxWait, 'window to pick the decoy up')
+  await untilLook(D, () => { why.length = 0; if (!when()) return false; return routeSafeG(D, 'greenberet', [[gb.x, gb.z, 0.7]], { low: false, hold: 2.5, pad, minDist: 3, why }); }, maxWait, 'window to pick the decoy up')
     .catch((err) => { throw new Error(`${err.message} [${why.join(' ')}]`); });
   await D.stance('greenberet', 'stand');
   D.ability('greenberet', 'hand', dc);
@@ -479,13 +532,15 @@ async function pickUpDecoy(D, { maxWait = 120, pad = 1.5, when = () => true } = 
  * Would anyone (but `except`) see enemy `e` drop dead `dt` s from now? A kill is witnessed by every man whose cone
  * holds the falling victim (EnemyBrain.notifyKill: full cone, the raised-edge rule waits until he lies).
  */
-export function killSeen(D, e, dt, { except = [], why = null, slack = [-0.3, 0.6] } = {}) {
+export function killSeen(D, e, dt, o) { return withMirrors(() => drain(killSeenG(D, e, dt, o))); }
+/** killSeen as a generator: it may hand the frame back (yield) between two of the spots where he may fall */
+export function* killSeenG(D, e, dt, { except = [], why = null, slack = [-0.3, 0.6] } = {}) {
   const w = D.world;
   const q0 = walker(e) ? predict(e, dt) : e;
   // (where he will fall, give or take: a halt short of its waypoint, the prediction's drift — a line of sight that
   // grazes an edge flips over a few decimetres)
   const spots = [[q0.x, q0.z], [e.x, e.z], [q0.x + 0.4, q0.z], [q0.x - 0.4, q0.z], [q0.x, q0.z + 0.4], [q0.x, q0.z - 0.4]];
-  for (const [sx, sz] of spots) if (killSeenAt(D, e, dt, sx, sz, { except, why, slack })) return true;
+  for (const [sx, sz] of spots) { if (killSeenAt(D, e, dt, sx, sz, { except, why, slack })) return true; yield; }
   return false;
 }
 function killSeenAt(D, e, dt, sx, sz, { except, why, slack }) {
@@ -505,7 +560,8 @@ function killSeenAt(D, e, dt, sx, sz, { except, why, slack }) {
 }
 
 /** Will enemy `o` see `dummy` (a perception target) at any time from `t0` to `t1` s from now? */
-export function seenBy(D, o, dummy, t0, t1, step = 0.2) {
+export function seenBy(D, o, dummy, t0, t1, step) { return withMirrors(() => seenBy0(D, o, dummy, t0, t1, step)); }
+function seenBy0(D, o, dummy, t0, t1, step = 0.2) {
   if (!o.alive || o.removed || !o.vision) return false;
   const moving = walker(o);
   // (a posted man's sweep may graze a spot for a tick or two only: every 0.025 s, the cheap cone test first)
@@ -527,6 +583,42 @@ export function seenBy(D, o, dummy, t0, t1, step = 0.2) {
 export function spotSafe(D, x, z, dur, { except = [], delay = 0, pad = 1, why = null, body = false } = {}) {
   return routeSafe(D, 'greenberet', [], { from: [x, z], low: false, hold: dur, delay, pad, except, why, minDist: 3, body });
 }
+/** spotSafe as a generator (routeSafeG) */
+export function spotSafeG(D, x, z, dur, { except = [], delay = 0, pad = 1, why = null, body = false } = {}) {
+  return routeSafeG(D, 'greenberet', [], { from: [x, z], low: false, hold: dur, delay, pad, except, why, minDist: 3, body });
+}
+
+/**
+ * A look's work run at once up to this long (ms); past it, the rest sliced over frames (runLook). Most looks take a
+ * few ms: in one go, inside the frame's ticks, they leave AUTO's time-lapse its pace — every look handing its frame
+ * back cost the T-U-W waits their time-lapse (rate ~1-2 instead of 5-15 on a loaded host). A rare long one (the
+ * Sniper's plan for three shots, ~85 ms; stage A's walk-out look, ~40) is cut into frames instead of one long frame.
+ */
+const LOOK_MS = 12;
+/**
+ * Run the look `it` (a generator: its value is the answer) as one look at a world standing still (mirrorScope): at once
+ * while it takes under LOOK_MS — the answer then, no frame handed back — else the rest by the driver's runSliced (in
+ * the live replay the frame is handed back between its checks, no tick meanwhile: the world stands still, the answer
+ * is the same; headless at once). Returns the answer, or a promise of it.
+ */
+function runLook(D, it) {
+  const scope = mirrorScope(), t0 = performance.now();
+  scope.enter();
+  let r;
+  try {
+    do r = it.next(); while (!r.done && performance.now() - t0 < LOOK_MS);
+  } catch (err) { scope.leave(); throw err; }
+  scope.leave();
+  return r.done ? r.value : D.runSliced(it, scope);
+}
+
+/**
+ * D.until for a look written as a generator: `ask()` (once a tick, before it, as an until's predicate) answers true or
+ * false at once, or hands back a generator whose value is the answer (runLook). The same looks at the same ticks.
+ */
+function untilLook(D, ask, maxSec, label) {
+  return D.untilAsync(() => { const r = ask(); return r === true || r === false ? r : runLook(D, r); }, maxSec, label);
+}
 
 /** The GB shoulders the body of `tag`, carries it along `pts` (standing, unseen) and puts it down at the last one. */
 async function carryBody(D, tag, pts, { maxWait = 120, check = true, pad = 1.5, pre = [], slack = undefined, fan = false, when = () => true } = {}) {
@@ -538,12 +630,14 @@ async function carryBody(D, tag, pts, { maxWait = 120, check = true, pad = 1.5, 
     const prePath = pre.length ? planned(D, 'greenberet', pre, [gb.x, gb.z]) : [];
     const tPre = prePath.reduce((a, p) => [a[0] + Math.hypot(p[0] - a[1][0], p[1] - a[1][1]), p], [0, [gb.x, gb.z]])[0] / 0.9;
     const at = pre.length ? pre[pre.length - 1] : [gb.x, gb.z];
-    await D.until(() => { why.length = 0;
+    await untilLook(D, () => { why.length = 0;
       if (!when()) { why.push('when'); return false; }
-      return (!pre.length || routeSafe(D, 'greenberet', pre, { delay: 0.3, hold: 0, pad, minDist: 3, except: [tag], why, slack }))
-        && routeSafe(D, 'greenberet', [[at[0], at[1], 3.0], ...pts], { from: at, low: false, speed: 1.5, delay: 0.3 + tPre, hold: 1, pad, minDist: 3, except: [tag], why, slack, fan })
-        // (he may have the man on his shoulder well inside those 3 s: the walk off from a quick pick-up too)
-        && routeSafe(D, 'greenberet', [[at[0], at[1], 1.0], ...pts], { from: at, low: false, speed: 1.5, delay: 0.3 + tPre, hold: 0, pad, minDist: 3, except: [tag], why, slack, fan }); },
+      return (function* () {
+        return (!pre.length || (yield* routeSafeG(D, 'greenberet', pre, { delay: 0.3, hold: 0, pad, minDist: 3, except: [tag], why, slack })))
+          && (yield* routeSafeG(D, 'greenberet', [[at[0], at[1], 3.0], ...pts], { from: at, low: false, speed: 1.5, delay: 0.3 + tPre, hold: 1, pad, minDist: 3, except: [tag], why, slack, fan }))
+          // (he may have the man on his shoulder well inside those 3 s: the walk off from a quick pick-up too)
+          && (yield* routeSafeG(D, 'greenberet', [[at[0], at[1], 1.0], ...pts], { from: at, low: false, speed: 1.5, delay: 0.3 + tPre, hold: 0, pad, minDist: 3, except: [tag], why, slack, fan }));
+      })(); },
       maxWait, `window to carry ${tag}`).catch((err) => { throw new Error(`${err.message} [${why.join(' ')}]`); });
     for (const p of pre) await D.go('greenberet', p[0], p[1], { tol: 0.35 });
     await D.stance('greenberet', 'stand');
@@ -594,6 +688,9 @@ async function stab(D, tag, { approach = [], low = true, when = () => true, body
     if (!when()) { why.push('when'); return false; }
     approach = apF();
     if (!approach) { why.push('approach'); return false; }
+    return okLookG(); // (one look at a world standing still, sliced over frames in the live replay: untilLook)
+  };
+  const okLookG = function* () {
     // (no approach given and he is not in reach yet: the knife order itself takes him in — crawling, standing up at the
     // last metre — so the check plans that crawl too, to 0.9 m short of the man)
     if (!approach.length) {
@@ -604,8 +701,8 @@ async function stab(D, tag, { approach = [], low = true, when = () => true, body
     // (timed along the way his feet will really go: the planner's path round walls and through gaps)
     const T = (approach.length ? planned(D, 'greenberet', approach).reduce((a, p) => [a[0] + Math.hypot(p[0] - a[1][0], p[1] - a[1][1]), p], [0, [gb.x, gb.z]])[0] / speed + getUp : getUp) + UP;
     lastT = T;
-    if (UP && !routeSafe(D, 'greenberet', [], { from: [gb.x, gb.z], low: false, hold: UP - RISE, delay: RISE, pad: 0.5, minDist: 3, victim: tag, why, slack: [-0.3, 0.6] })) return false;
-    if (!routeSafe(D, 'greenberet', route, { low, speed, victim: tag, standLast: low ? 0.6 : 0, hold: 1.2, why, pad, delay: 0.2 + UP, fan, slack: [-0.6, 1.2 + late] })) return false;
+    if (UP && !(yield* routeSafeG(D, 'greenberet', [], { from: [gb.x, gb.z], low: false, hold: UP - RISE, delay: RISE, pad: 0.5, minDist: 3, victim: tag, why, slack: [-0.3, 0.6] }))) return false;
+    if (!(yield* routeSafeG(D, 'greenberet', route, { low, speed, victim: tag, standLast: low ? 0.6 : 0, hold: 1.2, why, pad, delay: 0.2 + UP, fan, slack: [-0.6, 1.2 + late] }))) return false;
     const q = walker(e) ? predict(e, T + 1) : e;
     // where he will lie: pitched forward (knifed from behind) or pushed back off the blade (from the front / side)
     const last = approach.length ? approach[approach.length - 1] : [gb.x, gb.z];
@@ -613,23 +710,23 @@ async function stab(D, tag, { approach = [], low = true, when = () => true, body
     const fromBehind = -(Math.cos(hq) * (last[0] - q.x) + Math.sin(hq) * (last[1] - q.z)) / (Math.hypot(last[0] - q.x, last[1] - q.z) || 1) >= Math.cos(70 * Math.PI / 180);
     const away = Math.atan2(q.z - last[1], q.x - last[0]);
     const at = bodyAt ?? (fromBehind ? [q.x + Math.cos(hq) * 0.85, q.z + Math.sin(hq) * 0.85] : [q.x + Math.cos(away) * 0.7, q.z + Math.sin(away) * 0.7]);
-    if (!spotSafe(D, q.x, q.z, 1.5 + late, { except: [tag], delay: T, why })) return false;
+    if (!(yield* spotSafeG(D, q.x, q.z, 1.5 + late, { except: [tag], delay: T, why }))) return false;
     // (he stands where the knife reaches the man, not at the end of the approach, and stays up there over the body
     // until he has it on his shoulder)
     { const d = Math.hypot(last[0] - q.x, last[1] - q.z) || 1, kx = q.x + ((last[0] - q.x) / d) * 0.9, kz = q.z + ((last[1] - q.z) / d) * 0.9;
-      if (!spotSafe(D, kx, kz, (carry ? 2.6 : 0) + 1.5 + late, { except: [tag], delay: Math.max(0, T - 0.5), why, pad: 0.5 })) return false; }
+      if (!(yield* spotSafeG(D, kx, kz, (carry ? 2.6 : 0) + 1.5 + late, { except: [tag], delay: Math.max(0, T - 0.5), why, pad: 0.5 }))) return false; }
     // (and nobody sees him drop: a falling man is seen in a full cone, over a raised edge too)
-    if (killSeen(D, e, T + 0.4, { why, slack: [-0.4, 0.8] })) return false;
-    if (!spotSafe(D, at[0], at[1], carry ? 3 : bodyFor, { except: [tag], delay: T, why, body: true })) return false;
+    if (yield* killSeenG(D, e, T + 0.4, { why, slack: [-0.4, 0.8] })) return false;
+    if (!(yield* spotSafeG(D, at[0], at[1], carry ? 3 : bodyFor, { except: [tag], delay: T, why, body: true }))) return false;
     // (and the carry off: shouldered 2.2 s after he gets there, walked off standing)
-    if (carry && !routeSafe(D, 'greenberet', carry, { from: at, low: false, speed: 1.5, delay: T + 2.4, hold: 1, except: [tag], why, fan })) return false;
+    if (carry && !(yield* routeSafeG(D, 'greenberet', carry, { from: at, low: false, speed: 1.5, delay: T + 2.4, hold: 1, except: [tag], why, fan }))) return false;
     // (the knife and the pick-up may go quicker: the walk off a second earlier too)
-    if (carry && !routeSafe(D, 'greenberet', carry, { from: at, low: false, speed: 1.5, delay: T + 1.4, hold: 0, except: [tag], why, fan })) return false;
+    if (carry && !(yield* routeSafeG(D, 'greenberet', carry, { from: at, low: false, speed: 1.5, delay: T + 1.4, hold: 0, except: [tag], why, fan }))) return false;
     // (`also(tEnd, why)`: what comes next must fit too — tEnd: s from now that the body is put down (or he lies by it))
     const tEnd = carry ? T + 2.4 + carry.reduce((a, p) => [a[0] + Math.hypot(p[0] - a[1][0], p[1] - a[1][1]), p], [0, at])[0] / 1.5 + 1.2 : T + 1.5;
     return !also || also(tEnd, why);
   };
-  await D.until(ok, maxWait, `window to knife ${tag}`).catch((err) => { throw new Error(`${err.message} [${whys.join(' | ')}]`); });
+  await untilLook(D, ok, maxWait, `window to knife ${tag}`).catch((err) => { throw new Error(`${err.message} [${whys.join(' | ')}]`); });
   if (globalThis.process?.env?.WHY) D.log(`  window to knife ${tag} at ${D.t.toFixed(2)} T=${lastT.toFixed(2)}`);
   const SD = globalThis.process?.env?.SEESDBG;
   if (SD) { const [t, x, z] = SD.split(','); const o = D.get(t); for (let tt = +(globalThis.process?.env?.SEES0 ?? 5); tt <= +(globalThis.process?.env?.SEES1 ?? 9) + 0.01; tt += 0.25) { const q = walker(o) ? predict(o, tt) : { x: o.x, z: o.z, hs: [o.heading] }; const dm = { x: +x, z: +z, y: 0, isLow: false, isVisibleToEnemies: true };
@@ -676,23 +773,32 @@ async function lureStab(D, tag, opts, { tries = 6, settle = 6, retrigger = null 
   }
 }
 
-async function snipe(D, tag, [x, z], { dur = 2.5, maxWait = 120, when = () => true, body = 0, bodyPad = 1, lat = 0, idle = true } = {}) {
+async function snipe(D, tag, [x, z], { dur = 2.5, maxWait = 120, when = () => true, whenG = null, body = 0, bodyPad = 1, lat = 0, idle = true } = {}) {
   const sn = D.c('sniper'), e = D.get(tag);
   if (sn.stance !== 'crawl') await D.stance('sniper', 'crawl');
   const why = [];
   // (`body`: and where he falls stays out of every cone for that many s)
   const inSights = () => Math.hypot(sn.x - x, sn.z - z) > 0.5 || ABILITIES.sniper.canUse(sn, e, D.world) === true;
   const whys = [];
-  await D.until(() => {
+  await untilLook(D, () => {
     why.length = 0;
     // (§3.4 he kneels to fire: from the aim to the shot, 0.7 s, he counts as a standing man — the victim included)
     const tReach = Math.hypot(sn.x - x, sn.z - z) / 0.9 + 0.3;
-    const ok = (when() || (why.push('when'), false)) && (inSights() || (why.push('sights'), false)) && D.clearAhead(x, z, dur, true, why) && routeSafe(D, 'sniper', [[x, z]], { hold: dur, why, victim: tag, lat })
-      && routeSafe(D, 'sniper', [], { from: [x, z], low: false, delay: tReach, hold: 1.0, pad: 0.5, why, victim: tag, slack: [-0.3, 0.6] })
-      && !killSeen(D, e, 0.8, { why })
-      && (!body || spotSafe(D, e.x, e.z, body, { except: [tag], delay: 0.8, why, body: true, pad: bodyPad }));
-    if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY && why[0] !== 'when') D.log(`  why ${tag}: ${whys[whys.length - 1]}`); }
-    return ok;
+    const done = (ok) => {
+      if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY && why[0] !== 'when') D.log(`  why ${tag}: ${whys[whys.length - 1]}`); }
+      return !!ok;
+    };
+    const ready = (wv) => (wv || (why.push('when'), false)) && (inSights() || (why.push('sights'), false)) && D.clearAhead(x, z, dur, true, why);
+    const rest = function* () {
+      return done((yield* routeSafeG(D, 'sniper', [[x, z]], { hold: dur, why, victim: tag, lat }))
+        && (yield* routeSafeG(D, 'sniper', [], { from: [x, z], low: false, delay: tReach, hold: 1.0, pad: 0.5, why, victim: tag, slack: [-0.3, 0.6] }))
+        && !(yield* killSeenG(D, e, 0.8, { why }))
+        && (!body || (yield* spotSafeG(D, e.x, e.z, body, { except: [tag], delay: 0.8, why, body: true, pad: bodyPad }))));
+    };
+    // (`whenG`: a `when` that is itself a look — a generator, sliced with the rest)
+    if (whenG) return (function* () { const pre = ready(yield* whenG()); return pre ? yield* rest() : done(pre); })();
+    const pre = ready(when());
+    return pre ? rest() : done(pre);
   }, maxWait, `window to snipe ${tag}`)
     .catch((err) => { throw new Error(`${err.message} [${whys.join(' | ')}]`); });
   await D.go('sniper', x, z, { tol: 0.3 });
@@ -726,7 +832,18 @@ async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why
   };
   // (in his sights when the order goes and when the round goes off; a walker either side of that moment too: his line
   // of sight to the spot may come and go as he passes things)
-  const shotOk = (t, at, dead, why) => {
+  // (a look asks the same checks again and again — every later shot's plan after each first one, slots() all over —
+  // of a world standing still: each answer is kept for the look (`memo`), with the reasons it gave)
+  let memo = null;
+  const once = (key, why, fn) => {
+    if (memo === null) return fn(why);
+    let r = memo.get(key);
+    if (r === undefined) { const ws = []; r = [fn(ws), ws]; memo.set(key, r); }
+    if (why) for (let i = 0; i < r[1].length; i++) why.push(r[1][i]);
+    return r[0];
+  };
+  const shotOk = (t, at, dead, why) => once(`s${t}|${at}|${dead.length > 1 ? [...dead].sort() : dead}`, why, (wy) => shotOk0(t, at, dead, wy));
+  const shotOk0 = (t, at, dead, why) => {
     const e = D.get(t), ta = at + AIM + 0.1;
     if (!((at >= 0.3 || ABILITIES.sniper.canUse(sn, e, w) === true) && inSights(e, ta) && (!walker(e) || (inSights(e, ta - 0.4) && inSights(e, ta + 0.4))))) { why?.push(`${t} nosight`); return false; }
     if (killSeen(D, e, ta, { why, except: dead })) return false;
@@ -735,19 +852,21 @@ async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why
   const fallAt = (t, at) => { const e = D.get(t), f = at + AIM + 0.1, q = walker(e) ? predict(e, f) : e; return { kind: 'body', x: q.x, z: q.z, y: e.y || 0, f, tag: t }; };
   // (the bodies down so far unseen until `at`: by the men still alive then, and by everyone not to be shot)
   const bodiesOk = (bodies, alive, at, why) => bodies.every((b) => {
-    const t1 = at + AIM + 0.1;
-    for (const k of alive) if (seenBy(D, D.get(k), b, Math.max(0, b.f), t1, 0.25)) { why?.push(`${k} sees ${b.tag}'s body`); return false; }
-    return spotSafe(D, b.x, b.z, Math.max(0.5, t1 - Math.max(0, b.f) + 2), { except: tags, delay: Math.max(0, b.f), why, body: true, pad: 0.3 });
+    const t1 = at + AIM + 0.1, bk = `${b.tag}|${b.x}|${b.z}|${b.y}|${b.f}`;
+    for (const k of alive) if (once(`v${k}|${bk}|${t1}`, null, () => seenBy(D, D.get(k), b, Math.max(0, b.f), t1, 0.25))) { why?.push(`${k} sees ${b.tag}'s body`); return false; }
+    return once(`p${bk}|${t1}`, why, (wy) => spotSafe(D, b.x, b.z, Math.max(0.5, t1 - Math.max(0, b.f) + 2), { except: tags, delay: Math.max(0, b.f), why: wy, body: true, pad: 0.3 }));
   });
-  // a plan for the men of `left` (the first shot at once): [[tag, at], ...] or null
-  const plan = (left, dead, bodies, why, tMin = 0, first = true) => {
+  // a plan for the men of `left` (the first shot at once): [[tag, at], ...] or null. A generator: the live replay hands
+  // the frame back between its checks (driver runSliced, no tick meanwhile) — the same checks in the same order
+  const planG = function* (left, dead, bodies, why, tMin = 0, first = true) {
     if (!left.length) return [];
     const times = first ? [0] : []; if (!first) for (let t = tMin; t <= H + 1e-6; t += 0.5) times.push(t);
     for (const at of times) for (const v of left) {
       const rest = left.filter((t) => t !== v);
-      if (!shotOk(v, at, dead, why)) continue;
-      if (!bodiesOk(bodies, left, at, why)) continue;
-      const tail = plan(rest, [...dead, v], [...bodies, fallAt(v, at)], why, at + STEP, false);
+      const ok = shotOk(v, at, dead, why) && bodiesOk(bodies, left, at, why);
+      yield;
+      if (!ok) continue;
+      const tail = yield* planG(rest, [...dead, v], [...bodies, fallAt(v, at)], why, at + STEP, false);
       if (tail) return [[v, at], ...tail];
     }
     return null;
@@ -760,12 +879,14 @@ async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why
     await D.until(() => !e.alive, 3, `${t} shot`);
   };
   // (how many half-second slots for the shot after the first of plan `p0`, each with a whole plan after it)
-  const slots = (p0, bs) => {
+  const slotsG = function* (p0, bs) {
     const [v, at0] = p0[0], rest = left.filter((t) => t !== v), bodies2 = [...bs, fallAt(v, at0)];
     let n = 0;
     for (let at = at0 + STEP; at <= H + 1e-6; at += 0.5) for (const u of rest) {
-      if (!shotOk(u, at, [v]) || !bodiesOk(bodies2, rest, at)) continue;
-      if (plan(rest.filter((x) => x !== u), [v, u], [...bodies2, fallAt(u, at)], null, at + STEP, false)) { n++; break; }
+      const ok = shotOk(u, at, [v]) && bodiesOk(bodies2, rest, at);
+      yield;
+      if (!ok) continue;
+      if (yield* planG(rest.filter((x) => x !== u), [v, u], [...bodies2, fallAt(u, at)], null, at + STEP, false)) { n++; break; }
     }
     return n;
   };
@@ -777,20 +898,27 @@ async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why
     // has still to shoot drift from the plan made at the first shot)
     const t0 = D.t, wait = maxWait;
     let doomed = null;
-    await D.until(() => {
+    const ask = async () => {
       tick?.();
       if (D.t < next) return false;
       next = D.t + 0.2; // (a player glances at the cones a few times a second)
+      // (one look at a world standing still — sliced over frames in the live replay: each guard's mirror refreshed once
+      // a slice, the answers kept for the whole look)
+      memo = new Map();
+      try { return await runLook(D, lookG()); } finally { memo = null; }
+    };
+    const lookG = function* () {
       const why = [], bs = bodies.map((b) => ({ ...b, f: b.abs - D.t }));
-      p = plan(left, dead, bs, why);
+      p = yield* planG(left, dead, bs, why);
       // (the first shot commits him: only when the next has room — a second shot possible at `robust` different half
       // seconds at least, not one knife-edge moment the guards' drift from the prediction may close)
-      if (p && !dead.length && robust > 1 && left.length > 1 && slots(p, bs) < robust) { why.push('tight'); p = null; }
+      if (p && !dead.length && robust > 1 && left.length > 1 && (yield* slotsG(p, bs)) < robust) { why.push('tight'); p = null; }
       if (!p && bs.length) { const w2 = []; if (!bodiesOk(bs, left, 0, w2)) { doomed = w2.join(' ') + ` at ${D.t.toFixed(2)}`; return true; } }
       if (!p && why.length) { whys.push(`${D.t.toFixed(1)}:${why.slice(0, 4).join(' ')}`); if (whys.length > 5) whys.shift(); }
       if (globalThis.process?.env?.WHY && D.t > nextLog) { nextLog = D.t + 30; D.log(`  shootSeq ${D.t.toFixed(0)}: ${whys.slice(-2).join(' | ').slice(0, 300)}`); }
       return !!p;
-    }, wait, `a moment to shoot ${left.join(', ')}`).catch((err) => { throw new Error(`${dead.length ? 'FATAL ' : ''}${err.message} [${whys.join(' | ')}]`); });
+    };
+    await D.untilAsync(ask, wait, `a moment to shoot ${left.join(', ')}`).catch((err) => { throw new Error(`${dead.length ? 'FATAL ' : ''}${err.message} [${whys.join(' | ')}]`); });
     if (doomed) throw new Error(`FATAL no moment to shoot ${left.join(', ')} before a body is seen (${doomed}) [${whys.join(' | ')}]`);
     const [v] = p[0];
     if (!dead.length) whyOut?.push(p.map(([t, at]) => `${t}@+${at}`).join(' '));
@@ -816,13 +944,15 @@ async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why
 async function climb(D, to, then, { maxWait = 300, pad = 0.5, CLIMB = 10 } = {}) {
   const gb = D.c('greenberet'), why = [], whys = [];
   let nx = 0;
-  await D.until(() => {
+  await untilLook(D, () => {
     if (D.t < nx) return false;
     nx = D.t + 0.25;
     if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY) D.log(`  why climb: ${whys[whys.length - 1]}`); }
     why.length = 0;
-    return routeSafe(D, 'greenberet', [to], { low: false, speed: Math.hypot(to[0] - gb.x, to[1] - gb.z) / CLIMB, delay: 0.3, pad, minDist: 3, why })
-      && routeSafe(D, 'greenberet', then, { from: to, delay: 0.3 + CLIMB, hold: (CONFIG.abilities.dig ?? 2.0) + 0.6, pad, minDist: 3, why });
+    return (function* () {
+      return (yield* routeSafeG(D, 'greenberet', [to], { low: false, speed: Math.hypot(to[0] - gb.x, to[1] - gb.z) / CLIMB, delay: 0.3, pad, minDist: 3, why }))
+        && (yield* routeSafeG(D, 'greenberet', then, { from: to, delay: 0.3 + CLIMB, hold: (CONFIG.abilities.dig ?? 2.0) + 0.6, pad, minDist: 3, why }));
+    })();
   }, maxWait, `window to climb to (${to})`).catch((err) => { throw new Error(`${err.message} [${whys.join(' | ')}]`); });
   D.ability('greenberet', 'climb', { x: to[0], z: to[1] });
   await D.until(() => Math.hypot(gb.x - to[0], gb.z - to[1]) < 0.6 && !gb.path, 40, 'GB down the climb');
@@ -841,13 +971,13 @@ async function carryBarrel(D, id, to, { pre = [], post = [], bury = true, maxWai
   const b = w.interactables.find((i) => (i.tag ?? i.spawn?.id) === id);
   const why = [], whys = [];
   let nx = 0;
-  await D.until(() => {
+  await untilLook(D, () => {
     if (D.t < nx) return false;
     nx = D.t + 0.25;
     if (why.length) { whys.push(`${D.t.toFixed(1)}:${why.join(' ')}`); if (whys.length > 5) whys.shift(); if (globalThis.process?.env?.WHY) D.log(`  why barrel ${id}: ${whys[whys.length - 1]}`); }
     why.length = 0;
     if (when && !when()) { why.push('when'); return false; }
-    return barrelPlan(D, b, to, { pre, post, bury, pad, why }) != null;
+    return (function* () { return (yield* barrelPlanG(D, b, to, { pre, post, bury, pad, why })) != null; })();
   }, maxWait, `window to move ${id}`).catch((e) => { throw new Error(`${e.message} [${whys.join(' | ')}]`); });
   await doBarrel(D, b, to, { pre, post, bury, onBody });
   return b;
@@ -859,7 +989,9 @@ async function carryBarrel(D, id, to, { pre = [], post = [], bury = true, maxWai
  * the drop, flat again and a crawl along `post`, dug in at its end if `bury`. Returns the time (s from now) it is all
  * done, or null (reasons on `why`). `except`: guards left out (dead by then).
  */
-function barrelPlan(D, b, to, { pre = [], post = [], bury = true, pad = 0.5, why = null, from = null, t0 = 0, buried = null, except = [], walkPre = false, late = 0, lag = 0 } = {}) {
+function barrelPlan(D, b, to, o) { return withMirrors(() => drain(barrelPlanG(D, b, to, o))); }
+/** barrelPlan as a generator (its window checks routeSafeG) */
+function* barrelPlanG(D, b, to, { pre = [], post = [], bury = true, pad = 0.5, why = null, from = null, t0 = 0, buried = null, except = [], walkPre = false, late = 0, lag = 0 } = {}) {
   // (`late`: s he may be behind the plan when it starts; `lag`: s more each move order may add, a player's clicks — the
   // cones are checked that much later too, phase by phase)
   const sl = (k) => [-0.6, 1.2 + late + lag * k];
@@ -871,16 +1003,16 @@ function barrelPlan(D, b, to, { pre = [], post = [], bury = true, pad = 0.5, why
   const start = from ?? [gb.x, gb.z], isBuried = buried ?? gb.buried;
   const up = isBuried ? UP : 0, at = [b.x, b.z];
   const o = { pad, minDist: 3, why, except };
-  if (up && !routeSafe(D, 'greenberet', [], { ...o, from: start, low: false, hold: up - RISE, delay: t0 + RISE, slack: [-0.3, 0.6 + late] })) return null;
+  if (up && !(yield* routeSafeG(D, 'greenberet', [], { ...o, from: start, low: false, hold: up - RISE, delay: t0 + RISE, slack: [-0.3, 0.6 + late] }))) return null;
   const preSp = walkPre ? 2.25 : 0.9;
   const t1 = t0 + up + 0.2 + len(pre, start) / preSp + (walkPre ? (CONFIG.units.stanceUp ?? 0.6) : 0);
-  if (!routeSafe(D, 'greenberet', walkPre ? [[start[0], start[1], CONFIG.units.stanceUp ?? 0.6], ...pre] : pre, { ...o, from: start, delay: t0 + up + 0.2, hold: 0, low: !walkPre, speed: preSp, standLast: walkPre ? 0 : -1, slack: sl(pre.length) })) return null;
+  if (!(yield* routeSafeG(D, 'greenberet', walkPre ? [[start[0], start[1], CONFIG.units.stanceUp ?? 0.6], ...pre] : pre, { ...o, from: start, delay: t0 + up + 0.2, hold: 0, low: !walkPre, speed: preSp, standLast: walkPre ? 0 : -1, slack: sl(pre.length) }))) return null;
   // up, the pick-up, the carry and the drop, standing
   const hold1 = (walkPre ? 0 : (CONFIG.units.stanceUp ?? 0.6)) + C.pick + 0.3 + 0.6; // (+ his turn round with it)
-  if (!routeSafe(D, 'greenberet', [], { ...o, from: at, low: false, delay: t1, hold: hold1, slack: sl(pre.length) })) return null;
-  if (!routeSafe(D, 'greenberet', [to], { ...o, from: at, low: false, speed: SP, delay: t1 + hold1, hold: C.drop + 0.6, slack: sl(pre.length + 1) })) return null;
+  if (!(yield* routeSafeG(D, 'greenberet', [], { ...o, from: at, low: false, delay: t1, hold: hold1, slack: sl(pre.length) }))) return null;
+  if (!(yield* routeSafeG(D, 'greenberet', [to], { ...o, from: at, low: false, speed: SP, delay: t1 + hold1, hold: C.drop + 0.6, slack: sl(pre.length + 1) }))) return null;
   const t2 = t1 + hold1 + Math.hypot(to[0] - at[0], to[1] - at[1]) / SP + C.drop + 0.6;
-  if (!routeSafe(D, 'greenberet', post, { ...o, from: to, delay: t2, hold: bury ? DIG : 2, standLast: -1, slack: sl(pre.length + 1 + post.length) })) return null;
+  if (!(yield* routeSafeG(D, 'greenberet', post, { ...o, from: to, delay: t2, hold: bury ? DIG : 2, standLast: -1, slack: sl(pre.length + 1 + post.length) }))) return null;
   return t2 + len(post, to) / 0.9 + (bury ? DIG : 2);
 }
 
@@ -959,23 +1091,24 @@ export const STAGES = [
     await sneak(D, 'greenberet', [[2.0, 9.0], [1.2, 8.3]], { minDist: 1, stay: 2, pad: 0.5 });
     const OUT = [[0.6, 7.0], [1.2, 3.4], [9.4, 2.6]], CARRY = [[8.6, 2.0], [7.5, 1.4]], PICK = 2.5, LATE = [-0.6, 3.0];
     const len = (from, pts) => pts.reduce((a, p) => [a[0] + Math.hypot(p[0] - a[1][0], p[1] - a[1][1]), p], [0, from])[0];
-    const outOk = (d0, why) => {
+    // (a look: a generator, sliced over frames in the live replay — untilLook, snipe's whenG)
+    const outOkG = function* (d0, why) {
       const up = gb.stance !== 'stand' ? (CONFIG.units.stanceUp ?? 0.6) + 0.1 : 0;
       const tAt = d0 + up + len([gb.x, gb.z], planned(D, 'greenberet', OUT)) / 2.25;
-      return routeSafe(D, 'greenberet', [[gb.x, gb.z, up], ...OUT], { low: false, speed: 2.25, delay: d0, hold: PICK, minDist: 1, pad: 0.5, slack: LATE, except: ['e1'], why })
-        && routeSafe(D, 'greenberet', CARRY, { from: OUT[OUT.length - 1], low: false, speed: 1.5, delay: tAt + PICK, hold: 3, minDist: 1, pad: 0.5, slack: LATE, except: ['e1'], why });
+      return (yield* routeSafeG(D, 'greenberet', [[gb.x, gb.z, up], ...OUT], { low: false, speed: 2.25, delay: d0, hold: PICK, minDist: 1, pad: 0.5, slack: LATE, except: ['e1'], why }))
+        && (yield* routeSafeG(D, 'greenberet', CARRY, { from: OUT[OUT.length - 1], low: false, speed: 1.5, delay: tAt + PICK, hold: 3, minDist: 1, pad: 0.5, slack: LATE, except: ['e1'], why }));
     };
     let nextOut = 0, lastOut = false;
-    const outThrottled = (d0) => { if (D.t >= nextOut) { nextOut = D.t + 0.25; const why = []; lastOut = outOk(d0, why); if (globalThis.process?.env?.ADBG) D.log(`  outOk ${D.t.toFixed(2)} ${lastOut} ${why.join(' ')}`); } return lastOut; };
+    const outThrottledG = function* (d0) { if (D.t >= nextOut) { nextOut = D.t + 0.25; const why = []; lastOut = yield* outOkG(d0, why); if (globalThis.process?.env?.ADBG) D.log(`  outOk ${D.t.toFixed(2)} ${lastOut} ${why.join(' ')}`); } return lastOut; };
     // (the shot: his crawl to the spot, then ~1.2 s from the order to the fall)
     const sn = D.c('sniper'), tShot = () => Math.hypot(sn.x - 8.0, sn.z - 11.0) / 0.9 + 0.3 + 1.2;
-    await snipe(D, 'e1', [8.0, 11.0], { lat: 0.7, maxWait: 900, idle: false, when: () => e9.isMoving && Math.cos(e9.heading) > 0.9 && e9.x < 46.5 && outThrottled(tShot()) }); // (the opening's line of sight is narrow: a margin either side of his crawl)
+    await snipe(D, 'e1', [8.0, 11.0], { lat: 0.7, maxWait: 900, idle: false, whenG: function* () { return e9.isMoving && Math.cos(e9.heading) > 0.9 && e9.x < 46.5 && (yield* outThrottledG(tShot())); } }); // (the opening's line of sight is narrow: a margin either side of his crawl)
     D.checkpoint('A1 e1 sniped');
     if (globalThis.process?.env?.ADBG) D.log(`  e1 down at ${D.t.toFixed(2)}`);
     // the GB walks out through the W gap to the body (nobody looks along the yard's N wall now, e9's back is turned),
     // shoulders it and carries it a few metres W, out of e9's line down the edge
     { const why = [];
-      await D.until(() => { why.length = 0; return outOk(0.3, why); }, 6, 'window to fetch e1')
+      await untilLook(D, () => { why.length = 0; return outOkG(0.3, why); }, 6, 'window to fetch e1')
         .catch((err) => { throw new Error(`${err.message} [${why.join(' ')}]`); }); }
     await D.stance('greenberet', 'stand');
     for (const p of OUT) await D.go('greenberet', p[0], p[1], { tol: 0.35 });

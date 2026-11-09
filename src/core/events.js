@@ -51,6 +51,16 @@ export class EventBus {
   dropLate() { this._lateQ = []; }
 
   /**
+   * A call that only draws (a unit model's clip switch: Unit._setAnim): queued with the late handlers while the bus is
+   * `deferring` — made by flushLate() in order with them, before the next draw — else made at once.
+   * @param {(a: any, b: any, c: any) => void} fn
+   */
+  later(fn, a, b, c) {
+    if (this.deferring) this._lateQ.push(fn, a, b, c);
+    else fn(a, b, c);
+  }
+
+  /**
    * Subscribe to an event type. Use `'*'` to receive every event as `fn(payload, type)`.
    * @param {string} type
    * @param {(payload: any, type: string) => void} fn

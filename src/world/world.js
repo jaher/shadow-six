@@ -14,11 +14,24 @@ import { CONFIG, rulesFor } from '../config.js';
 import { resolveHouseRules } from '../core/house-rules.js';
 import { NULL_PHYSICS } from '../physics/null-physics.js';
 import { WindField } from './wind.js';
-import { doubleFields } from '../core/shapes.js';
+import { doubleFields, anyFields } from '../core/shapes.js';
 import { FireField } from './fires.js';
 
 /** Spatial hash bucket size (m). */
 const HASH_CELL = 4;
+
+/**
+ * The 'noise' event (World.emitNoise). Its `source` is whoever made the noise — a man, a barrel, a vehicle, a structure —
+ * and its numbers are whole or not: two throwaway events here give every field all its kinds before play (core/shapes.js),
+ * where a blast's first structure after a mission of men's shots widened `source` mid-tick and threw away the optimised
+ * hearing code (EnemyBrain.hears, _onNoise). Nothing reads them. (Without `extra`, a plain literal: one shape for this
+ * site from its first run — a spread's cold first runs build their objects another way, another shape.)
+ */
+function noiseEvent(extra, x, z, radius, kind, level, source) {
+  return extra ? { ...extra, x, z, radius, kind, level, source } : { x, z, radius, kind, level, source };
+}
+noiseEvent(null, 0, 0, 0, '', 0, {});
+noiseEvent(null, 0.5, 0.5, 0.5, '', 0.5, []);
 
 /** Nobody near: one shared, frozen empty list (World.entitiesInRadius). */
 const NO_ENTITIES = Object.freeze([]);
@@ -76,6 +89,7 @@ export class World {
     /** Mission objectives with runtime state: {...def, done, failed}. */
     this.objectives = [];
     this.stats = { kills: 0, alarms: 0, shots: 0, shotsHit: 0, startTime: 0, damageTaken: 0, knifeKills: 0 };
+    this.stats.alarms = 1; this.stats.alarms = 0; // (changes — the first alarm came in a blast's tick)
     /** Systems attached by the Game (may be null in unit tests). */
     this.fx = null;
     this.alarm = null;
@@ -100,6 +114,7 @@ export class World {
     this._investBudget = undefined; this._routeBudget = undefined; this.knifeKills = undefined;
     this.raftActs = undefined; this.spyActs = undefined; this.flyovers = undefined; this.setpieces = undefined; this._pathMemos = undefined;
     this._spMeshes = undefined;
+    anyFields(this, undefined, '_investBudget'); // (set by the first investigation — a blast's: known to change)
   }
 
   // ------------------------------------------------------------ events
@@ -405,7 +420,7 @@ export class World {
    */
   emitNoise(x, z, radius, kind, source = null, level, extra = null) {
     const lv = level ?? CONFIG.stealth.noise[kind]?.level ?? (kind === 'explosion' ? 3 : kind === 'shot' ? 2 : 1);
-    this.events.emit('noise', { ...(extra || {}), x, z, radius, kind, level: lv, source });
+    this.events.emit('noise', noiseEvent(extra, x, z, radius, kind, lv, source));
   }
 
   /**

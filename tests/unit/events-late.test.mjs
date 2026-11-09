@@ -33,3 +33,35 @@ test('onLate: in order at once when not deferring; queued with its capture while
   try { bus.deferring = true; bus.emit('y'); bus.deferring = false; bus.flushLate(); } finally { console.error = err; }
   assert.equal(log[log.length - 1], 'y2');
 });
+
+test('later: a drawing call made at once when not deferring, queued in order with the late handlers while deferring', () => {
+  const bus = new EventBus(), log = [];
+  bus.onLate('x', (p) => log.push(`L${p}`));
+  bus.later((a, b, c) => log.push(`c${a}${b}${c}`), 1, 2, 3);
+  assert.deepEqual(log, ['c123'], 'at once');
+  bus.deferring = true;
+  bus.emit('x', 1); bus.later((a, b) => log.push(`d${a}${b}`), 'u', 'walk'); bus.emit('x', 2);
+  bus.deferring = false;
+  assert.deepEqual(log, ['c123'], 'nothing made while deferring');
+  assert.equal(bus.flushLate(), 3);
+  assert.deepEqual(log, ['c123', 'L1', 'duwalk', 'L2'], 'in emit order with the handlers');
+});
+
+test('Unit._setAnim: the model hears the clip switch at the next draw under a deferring bus, in order, the last one standing', async () => {
+  const { Unit } = await import('../../src/entities/unit.js');
+  const calls = [];
+  const model = { root: { userData: {}, position: { set() {} }, rotation: {} }, setAnim: (n, o) => calls.push(`${n}${o?.restart ? '!' : ''}`) };
+  const u = new Unit({ kind: 'enemy', faction: 'enemy', role: 'enemy', x: 1, z: 1, model });
+  assert.deepEqual(calls, ['idle'], 'made at once outside a world (the constructor)');
+  const bus = new EventBus();
+  u.world = { events: bus };
+  u._setAnim('walk');
+  assert.deepEqual(calls, ['idle', 'walk'], 'at once when the bus does not defer');
+  bus.deferring = true;
+  u._setAnim('run'); u.playAction('shoot', 0.3); u._setAnim('walk');
+  assert.equal(u._anim, 'walk', 'the unit itself knows at once');
+  assert.deepEqual(calls, ['idle', 'walk'], 'the model waits');
+  bus.deferring = false;
+  bus.flushLate();
+  assert.deepEqual(calls, ['idle', 'walk', 'run', 'shoot!', 'walk'], 'made in order at the flush');
+});

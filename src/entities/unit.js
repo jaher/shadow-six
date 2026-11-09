@@ -10,7 +10,7 @@ import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
 import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist, hypot2 } from '../core/math.js';
-import { doubleFields } from '../core/shapes.js';
+import { doubleFields, anyFields } from '../core/shapes.js';
 import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay, newPlan } from './avoidance.js';
 
@@ -69,6 +69,8 @@ const PRONE_TURN = (112 * Math.PI) / 180;
 export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden', 'inVehicle', 'carried', 'busy', 'bound', 'held', 'captured', 'jailed', 'downed']);
 /** One-shot actions a man may play while still moving (a shot on the move, §3.2): his legs keep stepping. */
 const MOVE_ACTIONS = new Set(['shoot', 'aim']);
+/** Unit._setAnim's model call, made later (EventBus.later) under a deferring host. */
+const applyAnim = (u, name, opts) => u.model.setAnim?.(name, opts || { loop: name !== 'die' });
 /** A man stopped in place: not walking, not carried along on a conveyor belt (moved at the 20 Hz BEL tick: 3 sim steps). */
 const stopped = (n, A, w) => hypot2(n.vx || 0, n.vz || 0) < A.moving && !(n._beltTick >= w.tick - 3);
 const _LF = { clearance: 0.3, dynamic: true, elevRef: 0.5, fire: null };
@@ -192,6 +194,8 @@ export class Unit extends Entity {
     this.pendingLift = undefined; this._preCarryState = undefined; this._rdCarried = undefined;
     this.carryDrop = undefined; this.helmetOff = undefined; this.lastHurtBy = undefined;
     this.blastDoomed = undefined; this._blastKill = undefined; // (blast flags: cleared after, never deleted — explosions.js, world-physics)
+    // (the blast flags change, first in a blast's tick: known to from the start — core/shapes.js anyFields)
+    anyFields(this, undefined, 'blastReact', 'blastDoomed', '_blastKill', 'helmetOff');
     this.model = opts.model || createUnitModel({ faction: this.faction, role: this.role, ...(opts.modelOpts || {}) });
     if (this.model && typeof this.model === 'object') this.model.unit = this; // real characters read stance/action/speed
     this.object3d = this.model.root;
@@ -728,7 +732,13 @@ export class Unit extends Entity {
   _setAnim(name, opts) {
     if (this._anim === name) return;
     this._anim = name;
-    this.model.setAnim?.(name, opts || { loop: name !== 'die' });
+    // (the model's clip switch only draws — nothing in the simulation reads it back: under a host that draws after its
+    // ticks (EventBus.deferring, video mode) it waits for the next draw with the other visual handlers, in order, not
+    // inside the tick: a blast that set the camp running switched ~20 clips in its tick, the first of their kind for a
+    // while — actions made, ground curves, ~4 ms of first-run code)
+    const ev = this.world?.events;
+    if (ev?.deferring && ev.later) ev.later(applyAnim, this, name, opts);
+    else this.model.setAnim?.(name, opts || { loop: name !== 'die' });
   }
 
   /**

@@ -549,7 +549,8 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
       return copyPath(L.path);
     }
   }
-  const info = { endBlocked: false, moved: false, box: null, expanded: 0 };
+  const info = { endBlocked: true, moved: false, box: null, expanded: 0 };
+  info.endBlocked = false; // (a field that changes — a search giving back its cells writes it: not a constant, core/shapes.js)
   const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
   if (p && plain && info.box && !info.moved && info.expanded < AREAS_AT && maskClear(grid, opts.avoid, info.box)) {
     _lastFound.set(grid, { version: grid.version, fireV: grid.fireVersion, sx, sz, tx, tz, avoid: opts.avoid || null, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
@@ -660,7 +661,9 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
   const memoKey = memo ? failKey(walkOpts, opts) + (ends ? '|ends' : '') : null;
   if (memo) {
-    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (!areasDone && apart()) return null; if (info && reach.endBlocked) info.endBlocked = true; return null; }
+    // (null either way: the areas asked only where they decide whether the reach's ladder-end note passes on — a
+    // labelling flooded for nothing else was ~2-5 ms of M8's blast tick, a guard who heard it from a pocket's reach)
+    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (info && reach.endBlocked) { if (!areasDone && apart()) return null; info.endBlocked = true; } return null; }
     // (or this goal's pocket — every cell that can reach it — was enumerated this epoch, without this start)
     const pocket = memo.pockets.get(`${memoKey}|${goalK}`);
     if (pocket && !pocket.has(startK)) return null;

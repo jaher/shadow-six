@@ -1010,3 +1010,6 @@ Claude-Session: https://claude.ai/code/session_01J8AeHrBrbUrVcpvL5ZEEwr
 
 ## 2026-11-09 — M19 headless wins from tick 0 (fix/headless-walkthroughs, follow-up)
 - Merged (see git log): the stage-H climb's window check uses 1 s slack (was 0.4): the window chosen on e25's predicted head turn at his halt missed by a few ticks at start delays 0/1 and no later window opened. Headless M19 now wins from delays 0, 1, 2, 3, 5 at 2015.43 s; browser 2019.55 s (was 2023.32), GPU m19-solution 0/0. docs/ARCHITECTURE.md: regenerate the nav caches after any map/art change (`CHROME=... node tools/solutions/navcache.mjs <id>`). All 21 headless missions now win.
+
+## 2026-11-09 — M8 perf (perf/m08)
+- Merged 9b8d7b6f4: no deopts in M8's blast ticks and fuel blasts. Final 4x run: no tick over 16 ms of own work, no frame over 60 ms, 0 programs compiled in play. Unit 2656/0, m08-solution won at t=6688.2.

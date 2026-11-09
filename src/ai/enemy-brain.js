@@ -21,7 +21,7 @@ import { CONFIG, velToSpeed } from '../config.js';
 import { searchStats } from '../world/pathfinding.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle, hypot2 } from '../core/math.js';
-import { doubleFields } from '../core/shapes.js';
+import { doubleFields, anyFields } from '../core/shapes.js';
 import { perceive, canSee, hears, coneAt, headTheta, newCone } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
 import { ensureAI } from './director.js';
@@ -42,6 +42,8 @@ const WP_NEAR = 1.0;
 /** An empty seen list, shared (the brain's _seen is only read: iterated, counted, searched). */
 const SEEN_NONE = Object.freeze([]);
 const _STEER = { clearance: 0.3, elevRef: 0.5, fire: null };
+_STEER.elevRef = 0.25; _STEER.elevRef = 0.5; // (refilled at every use: a field that changes, from the start)
+anyFields(_STEER, null, 'fire'); // (null, or the grid's fire layer while something burns — a mission's first fire is a blast's)
 /** A squad's members (a Set: they only ever join, EnemyBrain.attach) as an array in the Set's order, kept beside it. */
 function squadList(sq) {
   if (!sq._list || sq._listN !== sq.members.size) { sq._list = [...sq.members]; sq._listN = sq.members.size; }
@@ -112,8 +114,8 @@ export class EnemyBrain {
     this.turn = null;
     this._turnSeq = 0; // smooth turns started / re-aimed (the head carry is taken around them: _smoothHead)
     this._headDepth = 0;
-    this.alertT = 0; // holdsPost: alertLevel raised by a noise
-    this.alertBoost = 0;
+    doubleFields(this, 0, 'alertT'); // holdsPost: alertLevel raised by a noise (a double that changes: it counts down by dt)
+    this.alertBoost = 1; this.alertBoost = 0; // (a field that changes: core/shapes.js anyFields)
     // SHADOW SIX runningNoise: suspicion from heard running steps (+1 per step heard, decays stealth.runNoise.susp.decay/s)
     this.stepSusp = 0;
     this.stepT = null; // sim time of the last step heard
@@ -133,6 +135,15 @@ export class EnemyBrain {
     this._homeGoal = undefined; this._wayPt = undefined; this._preNoise = undefined; this._stepNoise = undefined;
     this.combatReady = undefined; this._shockT = undefined; this._lastPrint = undefined; this._matesN = undefined;
     this._goT = undefined; this._fv = undefined;
+    // (the ones a blast's first noise, a released squad or its file first write: known to change from the start, not
+    // constants whose first write throws away the AI's optimised code — core/shapes.js anyFields)
+    anyFields(this, undefined, '_routeType', '_loopStart', '_committedRun', '_wayPt', '_matesN', '_goT', '_fv');
+    // (the counts and timers among them hold numbers once set: a number written here as well, so each holds either kind
+    // from the start — anyFields' kinds alone left them object-only fields, and the first number, a blast's released
+    // squad in its tick (_loopStart), threw away the optimised code of every reader: predict, _advanceWaypoint)
+    this._loopStart = 0; this._matesN = 0; this._goT = 0.5; this._fv = 0.5;
+    this._loopStart = undefined; this._matesN = undefined; this._goT = undefined; this._fv = undefined;
+    anyFields(this, this.idleState, 'idleState');
   }
 
   /** Called when the enemy is added to the world. */

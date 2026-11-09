@@ -10,6 +10,7 @@ import { CONFIG, visionProfileFor } from '../config.js';
 import { createBrain } from '../ai/enemy-brain.js';
 import { bcdModelOpts, bcdEnemyInit, bcdSerialize, bcdDeserialize } from '../ai/bcd-enemy.js';
 import { ANIMAL_TYPES } from '../ai/bcd-ranks.js';
+import { anyFields } from '../core/shapes.js';
 
 export class Enemy extends Unit {
   /**
@@ -58,6 +59,8 @@ export class Enemy extends Unit {
     this.route = pts && pts.length ? pts.map((p) => ({ ...p })) : null;
     /** 'loop' | 'pingpong' (§4.1 LOOP / PINGPONG; mission route.type is upper-case). */
     this.routeMode = (spawn.route?.type || spawn.routeMode || 'pingpong').toLowerCase();
+    // (a released squad's or an alarmed patrol's new route: fields that change — core/shapes.js anyFields)
+    anyFields(this, this.route, 'route'); anyFields(this, this.routeMode, 'routeMode');
     /** Static post for guards (also the "home" a patroller returns to is its route). */
     this.post = this.route
       ? null
@@ -91,7 +94,9 @@ export class Enemy extends Unit {
     this.hiddenUnderBarrel = undefined; this._reacted = undefined; this._distractedBy = undefined;
     this._claimedBy = undefined; this.discovered = undefined; this.muffledCry = undefined;
     this.stepAside = undefined;
-    this.brain = createBrain(this);
+    // (any brain: a squad's man built in a blast's tick brought a brain shaped by its own short life, and the field's
+    // type for the old one threw away the code that read it — core/shapes.js anyFields)
+    anyFields(this, createBrain(this), 'brain');
   }
 
   /** BCD: unconscious, cuffed or puppeted — no cone, no reactions (always false under BEL). */

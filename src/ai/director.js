@@ -14,6 +14,7 @@
  */
 
 import { CONFIG } from '../config.js';
+import { anyFields } from '../core/shapes.js';
 import { Footprints } from './footprints.js';
 import { canSee, hears } from './perception.js';
 import { ABILITIES } from '../abilities/registry.js';
@@ -130,7 +131,12 @@ export class AIDirector {
   /** Squad record for a squad id (created on demand). */
   squad(id) {
     let s = this.squads.get(id);
-    if (!s) this.squads.set(id, (s = { id, leader: null, trail: [], members: new Set() }));
+    // (the fields squad code sets later — the file's flip, its member list kept beside the Set — declared here, as when
+    // absent: one shape for every squad; a squad released by a blast took them first in that tick, reshaping every one)
+    if (!s) {
+      this.squads.set(id, (s = { id, leader: null, trail: [], members: new Set(), flip: false, _list: null, _listN: -1, halt: null, cols: undefined, colsN: undefined }));
+      anyFields(s, null, 'leader', 'halt'); anyFields(s, undefined, 'cols', 'colsN');
+    }
     return s;
   }
 
@@ -220,7 +226,7 @@ export class AIDirector {
       s._leaderId = q.leader; // resolved on first use (the leader may be respawned after this runs)
       s.halt = q.halt ? JSON.parse(JSON.stringify(q.halt)) : null;
       s.flip = !!q.flip;
-      if (q.cols) { s.cols = new Map(q.cols); s.colsN = q.colsN; } else { delete s.cols; delete s.colsN; }
+      if (q.cols) { s.cols = new Map(q.cols); s.colsN = q.colsN; } else { s.cols = undefined; s.colsN = undefined; } // (declared fields: kept, not deleted)
     }
   }
 

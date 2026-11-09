@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { wreckBunker } from '../art/bunker-ruin.js';
 import { Entity } from './entity.js';
+import { doubleFields, anyFields } from '../core/shapes.js';
 import { B, T } from '../world/grid.js';
 import { CONFIG } from '../config.js';
 import { canPickUp } from '../items.js';
@@ -91,9 +92,10 @@ export class Interactable extends Entity {
     this.barrier = !!(o.barrier || S.barrier || S.rammable || S.variant === 'barrier_boom' || S.type === 'barrier');
     this.bunker = !!(o.bunker || S.bunker || S.type === 'bunker');
     this.indestructible = !!(o.indestructible || S.indestructible);
-    this.hp = o.hp ?? 100;
+    doubleFields(this, o.hp ?? 100, 'hp'); // (a double that changes: an explosion's fractional damage, then 0 when destroyed)
     this.maxHp = this.hp;
-    this.destroyed = false;
+    this.destroyed = true; this.destroyed = false; // (changes — the first structure destroyed was in a blast's tick)
+    anyFields(this, undefined, 'blastDoomed'); // (explosions.js marks it, then clears it: declared, never added in play)
     this.radius = o.radius ?? (this.barrier && o.w ? o.w / 2 : 1);
     /** Grid owner id whose cells are cleared when destroyed / opened. */
     this.owner = o.owner ?? 0;
@@ -340,8 +342,14 @@ export class Interactable extends Entity {
 
   /** Destroyed fuel structure: keep its footprint blocked; a deck's raised cells fall to the ground (§7). */
   _stampWreck(g, nav) {
-    const S = this.params.structure, cls = B[nav.block] ?? B.HIGH;
-    for (let k = 0; k < g.size; k++) if (g.owner[k] === this.owner && g.block[k] > cls) g.block[k] = cls;
+    const S = this.params.structure, cls = B[nav.block] ?? B.HIGH, O = g.owner, own = this.owner;
+    // (the owner's cells by TypedArray indexOf, as grid.clearOwner: not a test of every cell of the map in the blast's
+    // tick; the same cells lowered. Their rows go with the version bump below — NavGrid.dirtyRowsSince — so the caches
+    // kept per grid version (pathfinding's static layers, the gun arcs) redo those rows only)
+    let j0 = Infinity, j1 = -Infinity;
+    for (let k = O.indexOf(own); k >= 0 && k < g.size; k = O.indexOf(own, k + 1)) {
+      if (g.block[k] > cls) { g.block[k] = cls; const j = (k / g.cols) | 0; if (j < j0) j0 = j; if (j > j1) j1 = j; }
+    }
     const deck = this._wreckDeck;
     if (deck?.cells.length) {
       this._deckFell = true; // anyone on the deck goes down with it (destroy → _killOnCrest)
@@ -355,8 +363,10 @@ export class Interactable extends Entity {
       }
       // the ladders up to the deck (mission or library) lead nowhere now
       for (const l of g.links || []) if (l.enabled && (set.has(l.ka) || set.has(l.kb))) g.setLinkEnabled(l.id, false);
+      g.version++; // (the deck's ground, bridge cells and ladders change too: a plain bump, every per-version cache redone)
+      return;
     }
-    g.version++;
+    if (g._bumpRows) g._bumpRows(j0, j1); else g.version++; // (no cell lowered: an empty range, still a new version)
   }
 
   _killOnCrest(source) {
@@ -658,9 +668,10 @@ export class Interactable extends Entity {
 export class Barrel extends Interactable {
   constructor(o = {}) {
     super({ ...o, interactKind: 'barrel', radius: o.radius ?? 0.4, dynamic: true });
-    this.exploded = false;
-    this.fuse = -1;
-    this.igniter = null;
+    // (fields that change, first in a blast's chain: from the start — core/shapes.js)
+    this.exploded = true; this.exploded = false;
+    doubleFields(this, -1, 'fuse');
+    anyFields(this, null, 'igniter');
     this.hidesBody = null;
     /** Its turn about its own axis in the carrier's hands: its heading less his when he took it (rad). */
     this.carrySpin = 0;

@@ -31,8 +31,11 @@ export class Entity {
     this.world = null;
     // (place and heading: double-valued fields from the start, whatever the spawn's numbers — core/shapes.js)
     doubleFields(this, x, 'x'); doubleFields(this, z, 'z'); doubleFields(this, y, 'y'); doubleFields(this, heading, 'heading');
-    this.alive = true;
-    this.removed = false;
+    // (both written to from the start — false / true, then their values: a field's first change in play, the first man
+    // killed, the first prop removed — M14's barrel — widened it for every object of the class's shape and threw away the
+    // optimised code that read it: core/shapes)
+    this.alive = false; this.alive = true;
+    this.removed = true; this.removed = false;
     /** @type {import('three').Object3D|null} */
     this.object3d = null;
     doubleFields(this, x, 'prevX'); doubleFields(this, z, 'prevZ'); doubleFields(this, y, 'prevY'); doubleFields(this, heading, 'prevHeading');

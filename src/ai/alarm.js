@@ -23,6 +23,7 @@
 import { CONFIG } from '../config.js';
 import { ensureAI } from './director.js';
 import { Enemy } from '../entities/enemy.js';
+import { anyFields } from '../core/shapes.js';
 
 /** Even-odd point-in-polygon test for [[x,z],...]. */
 export function pointInPoly(x, z, poly) {
@@ -102,6 +103,9 @@ export class Alarm {
     this.alert = { on: false, t: 0, since: 0, event: null };
     this.origin = null;
     this.cause = null;
+    // (the alarm's state is replaced by its first event — a blast's, often: fields that change from the start, any object —
+    // not constants whose first write throws away the optimised code that read them: core/shapes.js anyFields)
+    anyFields(this, this.siren, 'siren'); anyFields(this, this.alert, 'alert'); anyFields(this, null, 'origin', 'cause');
     this._lastFire = new Map(); // `${zone}|${event}` → time (dedupe: one event per zone per step)
     /** §4.9 barracks: structure id → {pool, destroyed, squads} */
     this.barracks = {};
@@ -110,6 +114,9 @@ export class Alarm {
         id, pool: b.pool ?? 5, destroyed: false,
         squads: (b.squads || []).map((s, k) => ({ k, event: 'RINT', size: 2, exitRoute: [], loop: [], ...s, released: false, members: [], regenT: null })),
       };
+      // (a release writes them first: fields that change, from the start)
+      const bk = this.barracks[id]; bk.pool++; bk.pool--;
+      for (const s of bk.squads) { s.released = true; s.released = false; anyFields(s, s.members, 'members'); anyFields(s, null, 'regenT'); }
     }
     world.listen('explosion', (e) => {
       if (e.accident) return; // §4.9 per-mission accident exception

@@ -19,6 +19,17 @@
  */
 
 const MIRRORS = new WeakMap(), UNIT_OF = new WeakMap();
+/** mutable()'s stand-in value: an object no field keeps. */
+const PROBE = Object.freeze({ probe: true });
+/**
+ * A new mirror's fields known to change from the start (V8): a mirror refreshed with the same value keeps a field a
+ * constant — a unit's blast flags, a destroyed structure's state — and the first refresh after it changed (a blast) threw
+ * away every optimised function that read a ghost of him (M8's final blast: ~130 at once for blastReact alone). Each field
+ * written once more with another value of its kind, then its own: the same values, only how V8 tracks them differs.
+ */
+function mutable(m) {
+  for (const k of Object.keys(m)) { const v = m[k]; m[k] = typeof v === 'number' ? v + 1 : PROBE; m[k] = v; }
+}
 
 /** A live entity of its world (not a ghost, a vehicle's eye or a plain viewer record)? */
 const isLive = (e) => e.world != null && e.world.byId?.(e.id) === e;
@@ -30,9 +41,49 @@ const isLive = (e) => e.world != null && e.world.byId?.(e.id) === e;
  */
 export function mirrorOf(e) {
   if (!isLive(e)) return e;
+  return mirrorFor(e);
+}
+
+/**
+ * The mirror of any long-lived object — a unit (mirrorOf), or a unit's brain — refreshed as mirrorOf refreshes a unit's.
+ * (a brain made a prototype — M8's prediction of a man staring at a lure did `Object.create(brain)` — took a map of its
+ * own, its fields constants again: the blast's first noise threw away the AI's optimised code, ~60 functions at once)
+ */
+export function mirrorFor(e) {
   let m = MIRRORS.get(e);
-  if (m === undefined) { m = Object.create(Object.getPrototypeOf(e)); MIRRORS.set(e, m); UNIT_OF.set(m, e); }
-  return Object.assign(m, e);
+  if (m === undefined) { m = Object.create(Object.getPrototypeOf(e)); MIRRORS.set(e, m); UNIT_OF.set(m, e); Object.assign(m, e); mutable(m); }
+  else if (fresh !== null && fresh.has(e)) return m; // (refreshed already in this look: withMirrors)
+  else Object.assign(m, e);
+  if (fresh !== null) fresh.add(e);
+  return m;
+}
+
+/** The units whose mirrors were refreshed in the open withMirrors look (null: none open). */
+let fresh = null;
+
+/**
+ * Run `fn` (synchronous) as one look at a world that stands still: each unit's mirror is refreshed by the first mirrorOf
+ * of him in it and read as it is by the later ones (the refresh copies all his fields — half the time of a look-ahead
+ * that asks a guard's ghosts some thousand questions: M8's shootSeq). Nothing in `fn` may change a unit (no tick, no
+ * order): what it reads through his ghosts is then what a refresh per ghost read. A look inside another is part of it.
+ */
+export function withMirrors(fn) {
+  if (fresh !== null) return fn();
+  fresh = new Set();
+  try { return fn(); } finally { fresh = null; }
+}
+
+/**
+ * withMirrors for a look sliced over frames (driver runSliced's `around`): {enter, leave} open the look for each slice
+ * and close it between them — the mirrors are refreshed again in the next slice (the world stood still: the same
+ * fields). A look already open when it enters is left to its owner.
+ */
+export function mirrorScope() {
+  let mine = false;
+  return {
+    enter() { if (fresh === null) { fresh = new Set(); mine = true; } },
+    leave() { if (mine) { fresh = null; mine = false; } },
+  };
 }
 
 /** A ghost on a mirror already refreshed (mirrorOf): several ghosts of one man in one call or one plan. */
