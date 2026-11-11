@@ -860,6 +860,7 @@ export class Vehicle extends Entity {
     if (this.isBoat) {
       if (!(t === T.WATER || t === T.SHALLOW)) return false;
       if (g.block[k] === B.HIGH && !g.bridge[k]) return false;
+      if (g.boatBlock && g.boatBlock[k]) return false; // BCD: a lowered drawbridge span (entities/bcd-interactables.js)
     } else {
       if (g.block[k] !== B.NONE && !this._rammable(x, z)) return false;
       // what the visuals occupy (steps, woodpiles, tower legs; placement rule e) — in a `hullDrawn` mission not the

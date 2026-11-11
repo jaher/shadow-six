@@ -30,10 +30,10 @@ test('BCD review: an officer who sees through a private\'s uniform raises the al
   }
 });
 
-test('BCD review: dogs see through uniforms but not Natasha\'s civilian cover', async () => {
+test('BCD review: dogs see through uniforms but not Grethe\'s civilian cover', async () => {
   const { recognises } = await import('../../src/ai/bcd-ranks.js');
-  const s = bcdSim({ commandos: [{ role: 'natasha', x: 26, z: 20 }, { role: 'spy', x: 30, z: 30 }], enemies: [{ id: 'd', soldierType: 'dog', x: 20, z: 20, heading: 0 }] });
-  const dog = s.get('d'), nat = s.cmd('natasha'), spy = s.cmd('spy');
+  const s = bcdSim({ commandos: [{ role: 'grethe', x: 26, z: 20 }, { role: 'spy', x: 30, z: 30 }], enemies: [{ id: 'd', soldierType: 'dog', x: 20, z: 20, heading: 0 }] });
+  const dog = s.get('d'), nat = s.cmd('grethe'), spy = s.cmd('spy');
   spy.setDisguise(true); spy.uniformType = 'officer';
   assert.equal(nat.uniformType, 'civilian');
   assert.equal(recognises(dog, nat, s.world), false);
@@ -141,7 +141,7 @@ test('BCD review: ruleset data guards (BEL mission warnings, BEL set untouched, 
   const { validateMission } = await import('../../src/missions/schema.js');
   const { ACTIVATABLE } = await import('../../src/entities/interactables.js');
   await import('../../src/entities/bcd-interactables.js');
-  const v = validateMission({ id: 'x', size: [50, 50], campaign: 'BEL', commandos: [{ role: 'natasha', x: 1, z: 1 }],
+  const v = validateMission({ id: 'x', size: [50, 50], campaign: 'BEL', commandos: [{ role: 'grethe', x: 1, z: 1 }],
     enemies: [{ soldierType: 'gestapo', x: 2, z: 2 }, { soldierType: 'lion', x: 3, z: 3 }], interactables: [{ kind: 'seaMine', x: 4, z: 4 }] });
   assert.equal(v.warnings.filter((m) => /only in campaign BCD/.test(m)).length, 4, v.warnings.join('\n'));
   assert.ok(!ACTIVATABLE.has('pushable') && !ACTIVATABLE.has('lift'), 'BEL ACTIVATABLE untouched');

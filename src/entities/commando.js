@@ -48,7 +48,9 @@ export function targetPoint(target, from = null) {
 
 export class Commando extends Unit {
   /**
-   * @param {object} spawn mission commando entry: {role, x, z, heading, inventory?, id?, disguised?, jailed?}
+   * @param {object} spawn mission commando entry: {role, x, z, heading, inventory?, id?, disguised?, jailed?, jailId?}
+   *   `jailed: true` + `jailId`, or `jailed: '<jail id>'` (the shorthand): he starts locked in that cell, out of play
+   *   until a commando opens its `jail` door (§4.10)
    */
   constructor(spawn) {
     const role = spawn.role;
@@ -104,8 +106,8 @@ export class Commando extends Unit {
     this.hideout = null;
     /** Enemies that saw him dig in / dive (witness rule §3.4, read by perception). */
     this.witnesses = null;
-    /** Jail id when captured (§4.10). */
-    this.jailId = spawn.jailId ?? null;
+    /** Jail id when captured (§4.10); a spawn may name it with `jailed: '<jail id>'`. */
+    this.jailId = spawn.jailId ?? (typeof spawn.jailed === 'string' ? spawn.jailed : null);
     /** Right-click on a climb: hang until the next order (§3.4). */
     this.hanging = false;
     /** Marine wearing the diving gear (§3.4): stance 'dive', water cells only. */
@@ -137,8 +139,8 @@ export class Commando extends Unit {
     const sd = world.mission?.startDisguised || [];
     if (this._startDisguised || sd.includes(this.role) || sd.includes(this.tag)) this.setDisguise(true);
     if (this.state === 'jailed' && this.object3d) this.object3d.visible = false;
-    // BCD §1.8: Natasha passes as a civilian (a "disguise" only the Gestapo see through) until she acts
-    if (world.rules?.guests && this.role === 'natasha') { this.disguised = true; this.uniformType = 'civilian'; }
+    // BCD §1.8: Grethe passes as a civilian (a "disguise" only the Gestapo see through) until she acts
+    if (world.rules?.guests && this.role === 'grethe') { this.disguised = true; this.uniformType = 'civilian'; }
     if (world.rules?.id === 'BCD') installBcdSystems(world);
   }
 
@@ -359,7 +361,7 @@ export class Commando extends Unit {
    */
   rightClick() {
     if (this.armed) { this.armed = null; return true; }
-    if (this._lipstickTarget) { this._lipstickTarget = null; return true; } // BCD §1.8: end Natasha's lipstick
+    if (this._lipstickTarget) { this._lipstickTarget = null; return true; } // BCD §1.8: end Grethe's lipstick
     if (this.puppet) return releasePuppet(this); // BCD §1.3: the puppet sits down again
     const wp = this.path?.[this.pathIndex];
     if (wp?.link && wp.link.kind === 'climb') { this.hanging = true; return true; }
@@ -611,9 +613,9 @@ export class Commando extends Unit {
     super.renderUpdate(dt);
   }
 
-  /** §3.5 single file: keep 1.0 m behind the unit ahead, running when it runs. */
+  /** §3.5 single file: keep 1.0 m behind the unit ahead, running when it runs (`follow: 'team'`: the nearest of the team). */
   _updateFollow(dt) {
-    const lead = this.world?.byId(this.follow);
+    const lead = this.follow === 'team' ? this._teamLead() : this.world?.byId(this.follow);
     if (!lead || !lead.alive || this.state !== 'active' || this.currentAction || this.pendingAbility) return;
     this._followT -= dt;
     const gap = CONFIG.abilities.guestSpacing;
@@ -624,6 +626,17 @@ export class Commando extends Unit {
     const ux = (this.x - lead.x) / d, uz = (this.z - lead.z) / d;
     // an unreachable leader (in a raft on the river …): hold here, don't march on along a stale path
     if (!super.moveTo(lead.x + ux * gap, lead.z + uz * gap, { run: lead.moveMode === 'run' && !!lead.path }) && this.path) this.stop();
+  }
+
+  /** `follow: 'team'` (an escorted guest): the nearest man of the team on his feet, not a guest who follows himself. */
+  _teamLead() {
+    let best = null, bd = Infinity;
+    for (const c of this.world?.commandos || []) {
+      if (c === this || !c.alive || c.removed || c.follow || c.state === 'jailed' || c.state === 'captured') continue;
+      const d = Math.hypot(c.x - this.x, c.z - this.z);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
   }
 
   /**

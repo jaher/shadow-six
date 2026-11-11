@@ -1,6 +1,6 @@
 /**
  * BCD throwables (docs/bcd-plan.md §1.4, §1.5) — `campaigns: ['BCD']`, never under BEL:
- *   stone       Y  all six + Skopje (not Natasha): 12 m arc, 0.6 s flight, a small click soldiers within 4 m
+ *   stone       Y  all six + Tonino (not Grethe): 12 m arc, 0.6 s flight, a small click soldiers within 4 m
  *                  look at; the 3rd stone in 20 s makes a walker investigate (ai/bcd-reactions). Hidden count 50.
  *   cigarettes  V  all six + both guests: 10 m arc; the pack lands as a pickup and lures the nearest soldier
  *                  whose NEAR band holds it (walk over, kneel 3 s, pocket it, walk back).
@@ -67,7 +67,7 @@ function throwCanUse(c, t, world, flag, range) {
 }
 
 registerAbility({
-  id: 'stone', label: 'Stones', icon: '🪨', hotkey: null, roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'skopje'],
+  id: 'stone', label: 'Stones', icon: '🪨', hotkey: null, roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'tonino'],
   item: 'stones', targeting: 'point', cursor: 'grenade', order: 60, campaigns: BCD, ranged: true,
   range: CONFIG.bcd.stones.range, noiseRadius: CONFIG.bcd.stones.noiseRadius, visibleToEnemies: false, group: 'stone',
   canUse(c, t, world) { return throwCanUse(c, t, world, 'stones', CONFIG.bcd.stones.range); },
@@ -88,7 +88,7 @@ registerAbility({
 
 registerAbility({
   id: 'cigarettes', label: 'Cigarettes', icon: '🚬', hotkey: null,
-  roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'natasha', 'skopje'],
+  roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe', 'tonino'],
   item: 'cigarettes', targeting: 'point', cursor: 'grenade', order: 61, campaigns: BCD, ranged: true,
   range: CONFIG.bcd.cigarettes.range, visibleToEnemies: false, group: 'cigarettes',
   canUse(c, t, world) { return throwCanUse(c, t, world, 'cigarettes', CONFIG.bcd.cigarettes.range); },

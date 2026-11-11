@@ -51,7 +51,7 @@ export function knapsackKits({ pairs = true } = {}) {
   for (const role of Object.keys(FIXED_KIT)) {
     add({ name: `BCD ${role} full`, campaign: 'BCD', units: [{ role, inv: spawnInventory(role, { ...FIXED_KIT[role], ...BCD_KIT[role], ...bcd }, 'BCD') }] });
   }
-  add({ name: 'BCD natasha', campaign: 'BCD', units: [{ role: 'natasha', inv: spawnInventory('natasha', { ...BCD_KIT.natasha }, 'BCD') }] });
+  add({ name: 'BCD grethe', campaign: 'BCD', units: [{ role: 'grethe', inv: spawnInventory('grethe', { ...BCD_KIT.grethe }, 'BCD') }] });
   add({ name: 'sniper 12 rounds + first aid', campaign: 'BEL', units: [{ role: 'sniper', inv: { pistol: 1, sniperRifle: 12, firstAid: 6 } }] });
   add({ name: 'sapper 8 grenades 8 charges', campaign: 'BEL', units: [{ role: 'sapper', inv: { pistol: 1, bearTrap: 1, grenade: 8, timeBomb: 8, wireCutters: 1 } }] });
   add({ name: 'sapper 8 remote', campaign: 'BEL', units: [{ role: 'sapper', inv: { pistol: 1, bearTrap: 1, grenade: 8, remoteBomb: 8, detonator: 1 } }] });

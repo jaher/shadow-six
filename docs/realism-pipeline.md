@@ -704,7 +704,7 @@ Each asset gets an entry in `assets/registry.json` with: id, route, source URLs,
 | Afrika Korps (tan) | rifleman, MP40, sergeant, officer, MG gunner, tank crew | 6 (material variants of the Heer meshes) |
 | Winter | rifleman and sergeant in white smocks, greatcoat sentries | 3 (material variants) |
 | Kriegsmarine / Luftwaffe (optional) | harbour guard (M7, M13), airfield crew (M10, B6) | 2 |
-| Specials | General "Butcher" (M15), POW prisoners (M17, B7), civilian tram driver (M15), Alsatian dog (M19 only: **BL** body with a keyframed trot and bark. No photoreal CC0 rigged dog was found; the Quaternius animals are stylised. Low priority.), B-campaign NPCs (Maj. Skopje, Natasha, SS Col. von Below, pilots, zookeeper) | about 8, later |
+| Specials | General "Butcher" (M15), POW prisoners (M17, B7), civilian tram driver (M15), Alsatian dog (M19 only: **BL** body with a keyframed trot and bark. No photoreal CC0 rigged dog was found; the Quaternius animals are stylised. Low priority.), expansion characters (the guests Grethe Holm and Tonino Esposito, the zookeeper, the Gestapo, each mission's own NPCs: docs/expansion/) | about 8, later |
 | Briefing | Col. Montague Smith: **voice only** (the original never shows him) | 0 meshes |
 
 **Total:** about 6 commando bodies and about 14 enemy mesh variants, with theater changes as material swaps (§1.3 climate rule). The commandos also get close-up portrait renders (§1.8 talking portraits).

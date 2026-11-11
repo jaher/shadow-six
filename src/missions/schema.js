@@ -21,12 +21,12 @@ export const SOLDIER_TYPES = Object.freeze(['sentry', 'soldier', 'sergeant', 'tr
   'courier', 'crew', 'gunner', 'engineer', 'general', 'dog', 'tutorial',
   'gestapo', 'lieutenant', 'zookeeper', 'snitch', 'pow', 'lion', 'ostrich', 'chicken']); // BCD types (bcd-plan §1.9)
 export const ROUTE_TYPES = Object.freeze(['LOOP', 'PINGPONG', 'STOPPED', 'EXIT']);
-export const COMMANDO_ROLES = Object.freeze(['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'guest', 'natasha', 'skopje']);
+export const COMMANDO_ROLES = Object.freeze(['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'guest', 'grethe', 'tonino']);
 /** Data that only exists under the BCD ruleset (validateMission warns when a non-BCD mission uses it). */
 export const BCD_ONLY = Object.freeze({
   soldierTypes: ['gestapo', 'lieutenant', 'zookeeper', 'snitch', 'pow', 'lion', 'ostrich', 'chicken'],
-  roles: ['natasha', 'skopje'],
-  interactables: ['seaMine', 'pushable', 'lift', 'drawbridge', 'drawbridgeSwitch', 'knapsack', 'penGate'],
+  roles: ['grethe', 'tonino'],
+  interactables: ['seaMine', 'pushable', 'lift', 'drawbridge', 'drawbridgeSwitch', 'winch', 'knapsack', 'penGate'],
 });
 
 /** §4.1 per-type behaviour flag defaults (per-spawn `flags` override). */

@@ -6,11 +6,20 @@
  *   pushable         VAGEMPUJ wagon on a rail polyline (`rail`) / DEPOSEMP fuel tank (free); GB and Driver push
  *                    (use): 0.8 / 0.6 m/s, level-1 noise (6 m); moving cover (dynamic LOS occluder); the tank
  *                    blows up (1.5× barrel) on an explosion or 3 bullets
- *   lift             ASCENSOR: `use` at either stop carries up to 4 men to the other stop in 6 s (creaks)
- *   drawbridge       PUENTE: a span (`rect` {x, z, w, d, rot}) that is a walkable deck when lowered;
- *   drawbridgeSwitch INTERRUPTOR: raises / lowers its `targets` drawbridges (5 s)
+ *   lift             ASCENSOR: `use` at either stop carries up to 4 men to the other stop in 6 s (creaks); each stop
+ *                    has its own height (`a: [x, z, y]`, `aY` / `bY`, else the ground there): two levels at different
+ *                    heights (a cliff top and the beach, a pithead and its gallery) are two places on the map
+ *   drawbridge       PUENTE: a span (`rect` {x, z, w, d, rot}) that is a walkable deck when lowered and closes the
+ *                    channel to boats; raised, walkers cannot cross (a patrol whose route crosses waits at its edge:
+ *                    ai/bcd-brain BRIDGE) and boats pass
+ *   drawbridgeSwitch INTERRUPTOR: raises / lowers its `targets` drawbridges (5 s); a lift among its targets is sent to
+ *                    its other stop
+ *   winch            the same machine for a lift (a pithead winch, a hoist): `use` sends each target cage to its other
+ *                    stop with whoever stands in it (a drawbridge target is raised / lowered)
  *   knapsack         MOCHILA_*: the owner's H/use restores his BCD kit
- *   penGate          PUERTAAVESTRUCES: a gate door; open, the pen's ostriches roam (ai/animal-brain)
+ *   penGate          PUERTAAVESTRUCES: a gate door in the gap world/placement cuts for it in its fence run (`rot`
+ *                    along the run, `w` 3.2 m): shut, its leaf blocks the gap like the fence; open, the gap is clear
+ *                    and the pen's ostriches roam (ai/animal-brain)
  * @module entities/bcd-interactables
  */
 
@@ -23,7 +32,7 @@ import { bodyRectGap, bodyReach, unitStance } from '../world/body-clearance.js';
 import { FIXED_KIT, BCD_KIT } from '../items.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
 import { paintedMaterial } from '../art/kit-props.js';
-import { T } from '../world/grid.js';
+import { T, B } from '../world/grid.js';
 
 /**
  * Placeholder device: a Group at (x, 0, z) holding a w × h × d box standing ON the ground (`g.userData.inner` = the
@@ -220,11 +229,17 @@ export class Pushable extends Interactable {
 
 export class Lift extends Interactable {
   constructor(o) {
-    super({ ...o, interactKind: 'lift', label: 'Lift' });
-    const P = (p) => ({ x: p.x ?? p[0], z: p.z ?? p[1], y: p.y ?? p[2] ?? 0 });
-    this.stops = [P(o.a ?? [o.x, o.z]), P(o.b)];
+    super({ ...o, interactKind: 'lift', label: o.label ?? 'Lift' });
+    const P = (p, y) => ({ x: p.x ?? p[0], z: p.z ?? p[1], y: y ?? p.y ?? p[2] ?? null });
+    this.stops = [P(o.a ?? [o.x, o.z], o.aY), P(o.b, o.bY)];
     this.at = o.at ?? 0; // index of the stop the cage is at
     this.ride = null;
+  }
+  onAdded(world) {
+    super.onAdded?.(world);
+    // a stop with no authored height stands on the ground there (riders arrive on the cliff top, the gallery floor)
+    const g = world?.grid;
+    for (const s of this.stops) if (s.y == null) s.y = g?.surfaceY ? g.surfaceY(s.x, s.z) : g?.elevAt ? g.elevAt(s.x, s.z) : 0;
   }
   canUse(c) {
     if (!this.world?.rules?.lifts) return "Can't use that.";
@@ -232,14 +247,22 @@ export class Lift extends Interactable {
   }
   /** Call the cage to the user's stop, or ride it (everyone within 1.5 m of the stop, up to 4). */
   interact(c) {
-    const w = this.world;
+    if (this.ride) return false; // (a puppet's order reaches here without canUse)
     const near = (s) => Math.hypot(c.x - s.x, c.z - s.z);
     const from = near(this.stops[0]) <= near(this.stops[1]) ? 0 : 1;
-    const to = 1 - from;
+    return this._start(from, this.at === from ? CONFIG.bcd.lift.travel : CONFIG.bcd.lift.travel * 2);
+  }
+  /** Worked from a winch / switch away from the stops: the cage goes from where it is to the other stop with whoever stands in it. */
+  send() {
+    if (this.ride || !this.world?.rules?.lifts) return false;
+    return this._start(this.at, CONFIG.bcd.lift.travel);
+  }
+  _start(from, t) {
+    const w = this.world, s = this.stops[from];
     const riders = [...w.commandos, ...w.enemies.filter((e) => e.puppetOf)]
-      .filter((u) => u.alive && Math.hypot(u.x - this.stops[from].x, u.z - this.stops[from].z) <= 1.5)
+      .filter((u) => u.alive && u.state !== 'inVehicle' && u.state !== 'jailed' && Math.hypot(u.x - s.x, u.z - s.z) <= 1.5)
       .slice(0, CONFIG.bcd.lift.capacity);
-    this.ride = { t: this.at === from ? CONFIG.bcd.lift.travel : CONFIG.bcd.lift.travel * 2, riders, to };
+    this.ride = { t, riders, to: 1 - from };
     for (const u of riders) u.stop?.();
     w.emitNoise(this.x, this.z, 8, 'push', this); // creak: level 1
     w.events.emit('device', { id: this.tag ?? this.id, sfx: 'lift', x: this.x, z: this.z, on: true });
@@ -247,6 +270,11 @@ export class Lift extends Interactable {
   }
   update(dt) {
     super.update?.(dt);
+    if (this._rideLoad) { // a ride saved mid-way: its riders are restored by now
+      const d = this._rideLoad;
+      this._rideLoad = null;
+      this.ride = { t: d.t, to: d.to, riders: (d.riders || []).map((id) => this.world?.byId(id)).filter(Boolean) };
+    }
     const r = this.ride;
     if (!r || (r.t -= dt) > 0) return;
     const s = this.stops[r.to];
@@ -254,6 +282,16 @@ export class Lift extends Interactable {
     this.at = r.to;
     this.ride = null;
     this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'lift', x: s.x, z: s.z, on: false });
+  }
+  serialize() {
+    const r = this.ride;
+    return { ...super.serialize(), at: this.at, ride: r ? { t: r.t, to: r.to, riders: r.riders.map((u) => u.id) } : null };
+  }
+  deserialize(d) {
+    super.deserialize(d);
+    this.at = d.at ?? this.at;
+    this.ride = null;
+    this._rideLoad = d.ride ?? null;
   }
 }
 
@@ -268,6 +306,7 @@ export class Drawbridge extends Interactable {
   onAdded(world) {
     super.onAdded?.(world);
     (world.surfaces ||= []).push(this); // walkers' feet on its boards (world.groundY, map-builder)
+    (world._drawbridges ||= []).push(this); // patrols wait at a raised span (ai/bcd-brain bridgeCheck)
     this._apply();
   }
   /** Walking height on the lowered span (its boards' top), null off it or while raised. */
@@ -280,6 +319,10 @@ export class Drawbridge extends Interactable {
     const g = this.world?.grid, R = this.rect;
     if (!g) return;
     g.fillOrientedRect(R.x, R.z, R.w, R.d, R.rot ?? 0, 'bridge', this.raised ? 0 : 1);
+    // lowered, the span closes the channel to boats; raised, it opens (grid.boatBlock: read by Vehicle.passableAt for
+    // boats, created by the first drawbridge, never in a BEL world)
+    const bb = g.boatBlock || (g.boatBlock = new Uint8Array(g.cols * g.rows));
+    for (const k of g.rectCells(R.x, R.z, R.w, R.d, R.rot ?? 0)) bb[k] = this.raised ? 0 : 1;
     // lowered: swimmers keep off its sides (a 0.35 m band of water cells along the span; placement rule e)
     if (g.navStamp) {
       const band = [];
@@ -308,17 +351,41 @@ export class Drawbridge extends Interactable {
     this.raised = this._target;
     this._apply();
   }
-  serialize() { return { ...super.serialize(), raised: this.raised, moving: this.moving }; }
+  /** Fully down (a walkable deck, the channel closed to boats)? */
+  get down() { return !this.raised && !(this.moving > 0); }
+  serialize() { return { ...super.serialize(), raised: this.raised, moving: this.moving, target: this._target ?? null }; }
+  deserialize(d) {
+    super.deserialize(d);
+    this.raised = !!d.raised;
+    this.moving = d.moving ?? 0;
+    this._target = d.target ?? this._target;
+    this._apply();
+  }
 }
 
+/**
+ * A machine worked with `use` (by a commando, or by a puppet: bcd-puppet DEVICES): its `targets` drawbridges are raised /
+ * lowered, its target lifts sent to their other stop. Kinds `drawbridgeSwitch` ("Bridge switch") and `winch` ("Winch").
+ */
 export class DrawbridgeSwitch extends Interactable {
-  constructor(o) { super({ ...o, interactKind: 'drawbridgeSwitch', label: 'Bridge switch' }); }
+  constructor(o) {
+    const winch = (o.interactKind || o.kind) === 'winch';
+    super({ ...o, interactKind: winch ? 'winch' : 'drawbridgeSwitch', label: o.label ?? (winch ? 'Winch' : 'Bridge switch') });
+  }
   onAdded(world) { super.onAdded?.(world); stampSolid(this, 0.4, 0.3); } // the post is solid (placement rule e)
   approachFrom(u) { return edgeApproach(this, u, 0.4, 0.3); }
-  canUse() { return this.world?.rules?.drawbridges ? true : "Can't use that."; }
+  canUse() {
+    const R = this.world?.rules;
+    return (this.interactKind === 'winch' ? R?.lifts : R?.drawbridges) ? true : "Can't use that.";
+  }
   interact() {
     let ok = false;
-    for (const it of this.world?.interactables || []) if (it instanceof Drawbridge && this.targets.includes(it.tag ?? it.id)) ok = it.toggle() || ok;
+    for (const it of this.world?.interactables || []) {
+      if (!this.targets.includes(it.tag ?? it.id)) continue;
+      if (it instanceof Drawbridge) ok = it.toggle() || ok;
+      else if (it instanceof Lift) ok = it.send() || ok;
+    }
+    if (ok) this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'switch_throw', x: this.x, z: this.z, on: true });
     return ok;
   }
 }
@@ -380,17 +447,38 @@ const MESH = {
   // boards flush with the banks (walkers' feet stay on top)
   drawbridge: (s) => { const m = box((s.rect?.w ?? 3), 0.3, (s.rect?.d ?? 8), dressingMaterial('planks'), s.rect?.x ?? s.x, s.rect?.z ?? s.z, -0.27); m.rotation.y = -(s.rect?.rot ?? 0); return m; },
   drawbridgeSwitch: (s) => box(0.4, 0.9, 0.3, paintedMaterial('steel', 0x8a7a30), s.x, s.z),
+  winch: (s) => box(0.4, 0.9, 0.3, paintedMaterial('steel', 0x5a5f52), s.x, s.z),
   knapsack: (s) => box(0.5, 0.35, 0.35, paintedMaterial('canvas', 0x4f5a34), s.x, s.z),
 };
-const CLASS = { seaMine: SeaMine, pushable: Pushable, lift: Lift, drawbridge: Drawbridge, drawbridgeSwitch: DrawbridgeSwitch, knapsack: Knapsack };
+const CLASS = { seaMine: SeaMine, pushable: Pushable, lift: Lift, drawbridge: Drawbridge, drawbridgeSwitch: DrawbridgeSwitch, winch: DrawbridgeSwitch, knapsack: Knapsack };
 
 for (const [kind, C] of Object.entries(CLASS)) {
   INTERACTABLE_KINDS[kind] = (spec, opts = {}) => new C({ ...spec, object3d: opts.meshes === false ? null : MESH[kind]?.(spec) ?? null });
+}
+/** A pen gate: a door whose leaf fills the gap of its fence run (blocked like the fence while shut, clear while open). */
+export class PenGate extends Interactable {
+  constructor(o) { super({ ...o, interactKind: 'door', label: o.label ?? 'Pen gate' }); }
+  onAdded(world) { super.onAdded?.(world); this._leaf(); }
+  _leaf() {
+    const g = this.world?.grid;
+    if (!g) return;
+    if (!this._cells) {
+      this._cells = g.rectCells(this.x, this.z, this.params.w ?? 3.2, 1.0, this.params.rot ?? 0); // (1 m across: both cells of the fence line)
+      this._was = this._cells.map((k) => g.block[k]);
+    }
+    this._cells.forEach((k, q) => { g.block[k] = this.open ? B.NONE : (this._was[q] || B.FENCE); });
+    g.version++;
+  }
+  setOpen(open, quiet = false) {
+    const ok = super.setOpen(open, quiet);
+    if (ok) this._leaf();
+    return ok;
+  }
 }
 INTERACTABLE_KINDS.penGate = (spec, opts = {}) => {
   // the leaf lies along its fence line (`rot`, set by world/placement.js from the nearest run when not authored)
   const leaf = opts.meshes === false ? null : box(3, 1.6, 0.2, dressingMaterial('planks'), spec.x, spec.z);
   if (leaf) leaf.rotation.y = -(spec.rot ?? 0);
-  return new Interactable({ ...spec, interactKind: 'door', label: 'Pen gate', object3d: leaf });
+  return new PenGate({ ...spec, object3d: leaf });
 };
-for (const k of ['pushable', 'lift', 'drawbridgeSwitch', 'knapsack']) BCD_ACTIVATABLE.add(k); // the BEL set stays untouched
+for (const k of ['pushable', 'lift', 'drawbridgeSwitch', 'winch', 'knapsack']) BCD_ACTIVATABLE.add(k); // the BEL set stays untouched

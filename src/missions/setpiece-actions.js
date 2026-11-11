@@ -3,6 +3,8 @@
  * @module missions/setpiece-actions
  */
 
+import { startFlee } from '../ai/bcd-brain.js';
+
 const pt = (p) => (Array.isArray(p) ? { x: p[0], z: p[1] } : { x: p.x, z: p.z });
 const ids = (v) => [].concat(v ?? []);
 
@@ -54,9 +56,17 @@ export function runAction(dir, a, payload) {
   if (a.noise !== undefined) return w.emitNoise(a.noise.x, a.noise.z, a.noise.radius ?? 20, a.noise.kind || 'horn', null, a.noise.level);
   if (a.kill !== undefined) return ids(a.kill).forEach((id) => { const u = w.byId(id); if (u?.alive) u.die?.(a.cause || 'script', null); });
   if (a.taint !== undefined) return w.byId(a.taint)?.taint?.(null);
+  // BCD: non-combatants run to `to` (default: their spawn `flee.to`) and, unless `leave: false`, leave the map there
+  if (a.flee !== undefined) {
+    for (const id of ids(a.flee)) {
+      const e = w.byId(id), to = a.to ?? e?.spawn?.flee?.to;
+      if (e?.alive && to && e.brain?.bcd) startFlee(e.brain, to, { leave: a.leave ?? e.spawn?.flee?.leave ?? true });
+    }
+    return;
+  }
   if (typeof a.run === 'function') return a.run(w, dir, payload);
   throw new Error(`[setpieces] unknown action ${JSON.stringify(Object.keys(a))}`);
 }
 
 /** Verbs understood by runAction (schema validation). */
-export const ACTION_VERBS = ['fail', 'message', 'alarm', 'event', 'objective', 'door', 'drive', 'send', 'hunt', 'spawnVehicle', 'setpiece', 'noise', 'kill', 'taint', 'run'];
+export const ACTION_VERBS = ['fail', 'message', 'alarm', 'event', 'objective', 'door', 'drive', 'send', 'hunt', 'spawnVehicle', 'setpiece', 'noise', 'kill', 'taint', 'flee', 'run'];

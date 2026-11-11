@@ -17,7 +17,7 @@ const DEG = Math.PI / 180;
 const DEAF = new Set(['dog', 'lion', 'ostrich', 'chicken', 'pow', 'zookeeper', 'snitch']);
 const NO_PACKS = new Set(['mg', 'crew', 'gunner', 'gestapo', 'dog', 'lion', 'ostrich', 'chicken', 'pow', 'zookeeper', 'snitch', 'officer', 'general', 'truckDriver']);
 /** Brain states from which a stone / pack may take over. */
-const OPEN = new Set(['IDLE', 'RETURN', 'STONE', 'INVESTIGATE', 'DECOY']);
+const OPEN = new Set(['IDLE', 'RETURN', 'STONE', 'INVESTIGATE', 'DECOY', 'BRIDGE']);
 
 /** Awake, unaware, reacting enemy that may be lured at all. */
 function lurable(e) {
@@ -129,17 +129,17 @@ export function cigsAbort(b) {
   if (g?.pack && g.far != null && b.enemy.vision) { b.enemy.vision.far = g.far; g.far = null; }
 }
 
-/** Natasha's lipstick (§1.8): any rank but Gestapo; his cone follows her until it ends. */
-export function startLipstick(e, natasha, world) {
+/** Grethe's lipstick (§1.8): any rank but Gestapo; his cone follows her until it ends. */
+export function startLipstick(e, guest, world) {
   if (!world.rules?.guests) return false;
   if (!e?.alive || e.incapacitated || e.soldierType === 'gestapo' || isAnimal(e) || e.soldierType === 'dog') return false;
   const b = e.brain;
   if (!b || AWARE_KO.has(b.state)) return false;
-  b.lipstickBy = natasha;
+  b.lipstickBy = guest;
   b.bcdEnter('LIPSTICK');
   e.stop();
-  natasha._lipstickTarget = e;
-  world.events.emit('enemy:distracted', { enemy: e, spy: natasha, on: true, lipstick: true });
+  guest._lipstickTarget = e;
+  world.events.emit('enemy:distracted', { enemy: e, spy: guest, on: true, lipstick: true });
   return true;
 }
 

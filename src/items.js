@@ -54,7 +54,7 @@ export const BCD_ITEMS = {
   hanger: { label: 'Hanger', key: 'T', stack: false, unlimited: true, campaigns: ['BCD'] },
   leeEnfield: { label: 'Lee-Enfield rifle', key: 'E', stack: true, hiddenCount: true, weapon: 'leeEnfield', campaigns: ['BCD'] },
   lipstick: { label: 'Lipstick', key: 'D', stack: false, unlimited: true, campaigns: ['BCD'] },
-  beretta: { label: 'Pistol (Beretta 1935)', key: 'Q', stack: false, unlimited: true, weapon: 'pistol', campaigns: ['BCD'] },
+  beretta: { label: 'Pocket pistol', key: 'Q', stack: false, unlimited: true, weapon: 'pistol', campaigns: ['BCD'] },
 };
 
 /** Item definition from the BEL table or the BCD table (null when unknown). */
@@ -64,8 +64,8 @@ export function itemDef(id) {
 
 /**
  * BCD fixed kit per role, merged under the mission inventory when the campaign is BCD (bcd-plan §1.1–§1.8):
- * stones (hidden count 50) for all six and Skopje, handcuffs for GB and Spy, the Spy's hanger, the Driver's
- * Lee-Enfield (hidden count 50), Natasha's Beretta and lipstick. Knock-outs and the puppet need no item.
+ * stones (hidden count 50) for all six and Tonino, handcuffs for GB and Spy, the Spy's hanger, the Driver's
+ * Lee-Enfield (hidden count 50), Grethe's pocket pistol and lipstick. Knock-outs and the puppet need no item.
  */
 export const BCD_KIT = {
   greenberet: { stones: 50, handcuffs: 1 },
@@ -74,8 +74,8 @@ export const BCD_KIT = {
   sapper: { stones: 50 },
   driver: { stones: 50, leeEnfield: 50 },
   spy: { stones: 50, handcuffs: 1, hanger: 1 },
-  natasha: { beretta: 1, lipstick: 1 },
-  skopje: { stones: 50 },
+  grethe: { beretta: 1, lipstick: 1 },
+  tonino: { stones: 50 },
 };
 
 /**
@@ -135,7 +135,7 @@ export function spawnInventory(role, missionInv, campaign = 'BEL') {
   let inv = missionInv ? { ...base, ...missionInv } : defaultInventory(role);
   if (campaign === 'BCD' && BCD_KIT[role]) {
     inv = { ...BCD_KIT[role], ...inv };
-    if (role === 'natasha' || role === 'skopje') delete inv.pistol; // guests: Beretta / no weapon (§1.8)
+    if (role === 'grethe' || role === 'tonino') delete inv.pistol; // guests: pocket pistol / no weapon (§1.8)
   }
   for (const k of Object.keys(inv)) if (!(inv[k] > 0) || !itemInCampaign(k, campaign)) delete inv[k];
   if (role === 'sapper') normalizeSapperInventory(inv);
@@ -196,7 +196,7 @@ export const PICKUP_ROLES = Object.freeze({
   firstAid: ['driver', 'spy', 'sniper'],
   knife: ['greenberet', 'diver'], shovel: ['greenberet'], wireCutters: ['sapper'],
   // BCD (bcd-plan §1.5, §1.10): packs are looted by everyone incl. both guests; knapsacks by their owner
-  cigarettes: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'natasha', 'skopje'],
+  cigarettes: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe', 'tonino'],
   leeEnfield: ['driver'], handcuffs: ['greenberet', 'spy'],
 });
 

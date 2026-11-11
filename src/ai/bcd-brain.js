@@ -6,7 +6,12 @@
  *   bcdScan(brain)      after perception: a comrade seen stunned/bound → REVIVE (alarm for a stunned man;
  *                       a bound man is freed first, then both raise the alarm)
  *   bcdOnSeen(brain, c) commando seen: zookeeper flees + alarm, snitch walks to a guard (REPORT)
- *   bcdState(brain, dt) awake BCD states: STONE, CIGS, LIPSTICK, REVIVE, FLEE, REPORT
+ *   bcdState(brain, dt) awake BCD states: STONE, CIGS, LIPSTICK, REVIVE, FLEE, REPORT, BRIDGE
+ *   startFlee(brain, …) a non-combatant (a prisoner, a rounded-up civilian) runs to a point and may leave the map
+ *                       (spawn `flee: {to, when?, leave?}`, trigger action `flee`); a soldier kicked by a loose
+ *                       animal runs clear of it and goes back to his post (fleeFrom)
+ *   bridgeCheck(brain)  a route walker whose next leg crosses a raised drawbridge walks to its edge and waits
+ *                       (BRIDGE) until it is down again
  * @module ai/bcd-brain
  */
 
@@ -18,7 +23,7 @@ import { stoneStep, cigsStep, lipstickStep, cigsAbort } from './bcd-reactions.js
 import { isAnimal, recognises } from './bcd-ranks.js';
 
 /** States in which a comrade on the ground is noticed. */
-const NOTICE = new Set(['IDLE', 'RETURN', 'INVESTIGATE', 'DECOY', 'SEARCH', 'STONE', 'CIGS', 'REINFORCE']);
+const NOTICE = new Set(['IDLE', 'RETURN', 'INVESTIGATE', 'DECOY', 'SEARCH', 'STONE', 'CIGS', 'REINFORCE', 'BRIDGE']);
 const NON_SOLDIERS = new Set(['zookeeper', 'snitch', 'pow', 'dog', 'officer', 'general', 'truckDriver']);
 
 /**
@@ -126,12 +131,127 @@ export function bcdPre(b, dt) {
     return true;
   }
   if (e._rearm) rearmStep(e, dt, b.world);
+  if (e.spawn?.flee?.when != null && !b._fled && b.state !== 'FLEE') fleeWhen(b);
   return false;
+}
+
+// ------------------------------------------------------------ non-combatants who run (escort NPCs, loose animals)
+
+const P2 = (p) => (p ? { x: p.x ?? p[0], z: p.z ?? p[1] } : null);
+
+/**
+ * Run to `to` (FLEE). `leave`: on arrival he leaves the map (removed; 'unit:fled' — a `deliver` objective counts him as
+ * delivered there); `back`: on arrival he goes back to his post / route (RETURN). Plain FLEE (the zookeeper) stays put.
+ */
+export function startFlee(b, to, o = {}) {
+  const e = b.enemy, w = b.world, p = P2(to);
+  if (!e.alive || e.removed || e.incapacitated || !p) return false;
+  b._fled = true;
+  b.goal = { x: p.x, z: p.z, leave: !!o.leave, back: !!o.back, ...(o.from ? { fromAt: { x: o.from.x, z: o.from.z } } : null) };
+  b.bcdEnter('FLEE', 'run');
+  e.stop?.();
+  b._go(p.x, p.z, o.walk ? CONFIG.ai.investigate.speed : CONFIG.ai.chaseSpeed);
+  w.events.emit('enemy:flee', { enemy: e, from: o.from ?? null, to: p });
+  return true;
+}
+
+/** Spawn `flee: {to, when, leave = true}`: he runs once the interactable `when` is open (a door, a gate), on or destroyed. */
+function fleeWhen(b) {
+  const e = b.enemy, f = e.spawn.flee, w = b.world;
+  const it = w.byId?.(f.when) ?? (w.interactables || []).find((i) => (i.tag ?? i.id) === f.when);
+  if (!it || !(it.open || it.on || it.destroyed)) return;
+  startFlee(b, f.to, { leave: f.leave !== false, walk: !!f.walk });
+}
+
+/** A soldier kicked / clawed by a loose animal: he runs 7 m clear of it (no alarm: it is not the enemy), then goes back. */
+export function fleeFrom(b, src) {
+  const e = b.enemy, w = b.world;
+  if (!e.alive || e.incapacitated || !src || AWARE_FLEE.has(b.state) || isAnimal(e) || e.soldierType === 'dog') return false;
+  const dx = e.x - src.x, dz = e.z - src.z, n = Math.hypot(dx, dz) || 1;
+  const to = w.grid.nearestWalkable?.(e.x + (dx / n) * 7, e.z + (dz / n) * 7, 3) || { x: e.x + (dx / n) * 7, z: e.z + (dz / n) * 7 };
+  return startFlee(b, to, { back: true, from: src });
+}
+/** States a loose animal's kick does not interrupt (he is already fighting or raising the alarm). */
+const AWARE_FLEE = new Set(['COMBAT', 'ALARM_RUN', 'CHALLENGE', 'HOLD', 'ARREST', 'STUNNED', 'BOUND', 'PUPPET', 'DEAD']);
+
+function fleeStep(b, dt) {
+  const e = b.enemy, g = b.goal, w = b.world;
+  if (e.isMoving) return undefined;
+  const there = g && Math.hypot(g.x - e.x, g.z - e.z) <= 2;
+  if (g?.leave && there && !e.removed) {
+    e.fled = true;
+    if (w.ai) (w.ai.fled ||= new Set()).add(e.tag ?? e.id);
+    w.events.emit('unit:fled', { unit: e, x: e.x, z: e.z });
+    w.removeLater(e);
+    return undefined;
+  }
+  if (g?.back) { // clear of the animal: he watches it a few seconds before he goes back
+    if (g.waitT == null) { g.waitT = CONFIG.bcd.animals.scare ?? 4; if (g.fromAt) b._turnTo(angleTo(e.x, e.z, g.fromAt.x, g.fromAt.z)); }
+    if ((g.waitT -= dt) > 0) return undefined;
+    b._fled = false;
+    return b._set('RETURN');
+  }
+  b._look(0);
+  return undefined;
+}
+
+// ------------------------------------------------------------ drawbridges in a patrol's way
+
+/** Where the walk (x0, z0) → (x1, z1) enters span rect R {x, z, w, d, rot} (Liang–Barsky): t in (0, 1], else null. */
+export function spanEntry(R, x0, z0, x1, z1) {
+  const c = Math.cos(R.rot ?? 0), s = Math.sin(R.rot ?? 0);
+  const u0 = (x0 - R.x) * c + (z0 - R.z) * s, v0 = -(x0 - R.x) * s + (z0 - R.z) * c;
+  const du = (x1 - R.x) * c + (z1 - R.z) * s - u0, dv = -(x1 - R.x) * s + (z1 - R.z) * c - v0;
+  let t0 = 0, t1 = 1;
+  for (const [pp, q] of [[-du, u0 + R.w / 2], [du, R.w / 2 - u0], [-dv, v0 + R.d / 2], [dv, R.d / 2 - v0]]) {
+    if (Math.abs(pp) < 1e-9) { if (q < 0) return null; continue; }
+    const r = q / pp;
+    if (pp < 0) { if (r > t1) return null; if (r > t0) t0 = r; } else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  return t0 > 0 ? t0 : null; // (already on the span: no wait)
+}
+
+/**
+ * A route walker (IDLE) whose leg to his current waypoint crosses a drawbridge that is up (or moving) walks to the near
+ * edge of the span and waits there (BRIDGE), watching, until it is down; then his route goes on. @returns {boolean}
+ */
+export function bridgeCheck(b) {
+  const e = b.enemy, w = b.world, L = w._drawbridges;
+  if (!L?.length || b.state !== 'IDLE' || b.atWait || !e.route?.length || e.squad && b._leader?.() !== e) return false;
+  const wp = e.route[b.routeIndex];
+  if (!wp) return false;
+  for (const br of L) {
+    if (br.down || br.removed) continue;
+    const t0 = spanEntry(br.rect, e.x, e.z, wp.x, wp.z);
+    if (t0 == null) continue;
+    const dx = wp.x - e.x, dz = wp.z - e.z, len = Math.hypot(dx, dz) || 1, k = Math.max(0, t0 - 0.8 / len);
+    b.goal = { x: e.x + dx * k, z: e.z + dz * k, bridge: br.tag ?? br.id, wp: { x: wp.x, z: wp.z } };
+    b.bcdEnter('BRIDGE', 'go');
+    e.vel = wp.speed ?? b.routeVel;
+    if (Math.hypot(b.goal.x - e.x, b.goal.z - e.z) > 0.3) e.moveTo(b.goal.x, b.goal.z); else e.stop();
+    w.events.emit('enemy:bridge-wait', { enemy: e, bridge: br });
+    return true;
+  }
+  return false;
+}
+
+function bridgeStep(b) {
+  const e = b.enemy, g = b.goal, w = b.world;
+  const br = g && (w._drawbridges || []).find((q) => (q.tag ?? q.id) === g.bridge);
+  if (!br || br.down || br.removed) return b._set('IDLE'); // down again: his route goes on
+  if (b.phase === 'go' && !e.isMoving) {
+    b.phase = 'wait';
+    b._turnTo(angleTo(e.x, e.z, g.wp.x, g.wp.z));
+    const PW = CONFIG.stealth.vision.patrolWatch;
+    b._sweep(true, PW.sweep * Math.PI / 180, PW.period);
+  }
+  return undefined;
 }
 
 /** A comrade on the ground (stunned / bound, not carried, not a puppet) seen by this enemy → REVIVE. */
 export function bcdScan(b) {
   const e = b.enemy, w = b.world;
+  if (b.state === 'IDLE' && w._drawbridges?.length && bridgeCheck(b)) return;
   if (!NOTICE.has(b.state) || NON_SOLDIERS.has(e.soldierType) || isAnimal(e) || !b.arch.reacts) return;
   for (const q of w.enemies) {
     if (q === e || !q.alive || !q.ko || q.puppetOf || q.carriedBy || q.state === 'carried' || q._reviver) continue;
@@ -174,8 +294,8 @@ function reviveStep(b) {
 /** Commando seen by a BCD civilian type. @returns {boolean} handled */
 export function bcdOnSeen(b, c) {
   const e = b.enemy, w = b.world;
-  // §1.8: a Gestapo man sees through Natasha's civilian cover — from then on she is a commando to everyone
-  if (e.soldierType === 'gestapo' && c.role === 'natasha' && c.disguised) {
+  // §1.8: a Gestapo man sees through Grethe's civilian cover — from then on she is a commando to everyone
+  if (e.soldierType === 'gestapo' && c.role === 'grethe' && c.disguised) {
     c.disguised = false;
     c.uniformType = null;
     w.events.emit('message', { text: `${c.nickname}'s cover is blown!`, kind: 'warn', unit: c });
@@ -250,7 +370,8 @@ export function bcdState(b, dt) {
     case 'LIPSTICK': return lipstickStep(b, dt);
     case 'REVIVE': return reviveStep(b, dt);
     case 'REPORT': return reportStep(b, dt);
-    case 'FLEE': if (!b.enemy.isMoving) b._look(0); return undefined;
+    case 'FLEE': return fleeStep(b, dt);
+    case 'BRIDGE': return bridgeStep(b, dt);
     default: return undefined;
   }
 }

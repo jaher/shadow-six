@@ -1,7 +1,11 @@
 /**
  * Mission objective evaluator (pure, no three.js). Mission defs (docs/ARCHITECTURE.md § Missions):
- *   {id, text, type:'destroy'|'kill'|'reach'|'escape'|'rescue'|'steal'|'survive', targets?:[ids],
+ *   {id, text, type:'destroy'|'kill'|'reach'|'escape'|'rescue'|'steal'|'survive'|'deliver', targets?:[ids],
  *    zone?:{x,z,r}, required:true, hidden?:false, duration?:s (survive), roles?:[role] (reach/escape)}
+ *   deliver (BCD capture alive / escort): every target alive and brought into `zone` (default: the extraction zone, or
+ *   aboard the extraction vehicle once it has left) — an enemy only as a captive (knocked out, cuffed, carried, on puppet
+ *   strings), anyone else in any state; a non-combatant who fled the map at his flee point counts (world.ai.fled).
+ *   Failed when a target dies.
  * Runtime state adds {done, failed}. `checkObjectives(world)` runs once per tick (mission.checkObjectives
  * in the tick order), emits 'objective:update' on every change and reports win/loss.
  * @module core/objectives
@@ -78,6 +82,23 @@ function escaped(c, obj, world) {
   return inZone(pos, zone);
 }
 
+/** Where a `deliver` target is: on his carrier's shoulder, in his vehicle, or where he stands. */
+function deliverPos(t) {
+  const h = t.carriedBy || t;
+  return h.vehicle && h.state === 'inVehicle' ? h.vehicle : h;
+}
+/** A `deliver` enemy counts only as a captive (BCD knock-out / cuffs / puppet / carried); anyone else in any state. */
+const captive = (t) => t.kind !== 'enemy' || !!(t.ko || t.puppetOf || t.carriedBy || t.state === 'carried');
+
+function delivered(t, obj, world) {
+  const ex = world.mission?.extraction;
+  if (!obj.zone && ex?.vehicleId != null) {
+    const v = world.byId(ex.vehicleId);
+    return !!v && aboard(t.carriedBy || t, v) && vehicleLeft(v, ex, world);
+  }
+  return inZone(deliverPos(t), extractionZone(obj, world));
+}
+
 /**
  * Evaluate one objective against the world.
  * @returns {'done'|'failed'|null} new terminal status, or null while still open
@@ -106,6 +127,19 @@ export function evaluateObjective(obj, world, objectives = world.objectives) {
     }
     case 'survive':
       return world.time >= (obj.duration ?? 0) ? 'done' : null;
+    case 'deliver': {
+      const ids = obj.targets || [];
+      if (!ids.length) return null;
+      const fled = world.ai?.fled;
+      let all = true;
+      for (const id of ids) {
+        if (fled?.has(id)) continue; // left the map at his flee point
+        const t = world.byId(id);
+        if (!t || t.alive === false) return 'failed';
+        if (!captive(t) || !delivered(t, obj, world)) all = false;
+      }
+      return all ? 'done' : null;
+    }
     case 'escape': {
       // BEL: extraction only counts once every other required objective is complete.
       const othersDone = objectives.every((o) => o === obj || !o.required || o.type === 'escape' || o.done);

@@ -147,8 +147,9 @@ check still scored both clips perfect because its normaliser turned the transcri
 A second recogniser (faster-whisper medium.en) heard "vituests". The hint `"V2s": "vˈiː tˈuːz"` fixed it, and
 medium.en now hears "V-2s" and "two V2s" in m19/p0 and m20/p0. So confirm a pronunciation fix by listening or with a
 second recogniser, not with the build's own check. Hints added after the batch render are "after", "marked",
-"store(s)", "Informer", "airman", "D-Day", "V2s", "guard" and "oil-barrel". They affect only the clips that were
-re-rendered; a full rebuild applies them everywhere.
+"store(s)", "Informer", "airman", "D-Day", "V2s", "guard", "oil-barrel", and the guests' names "Grethe" (GRAY-tuh)
+and "Tonino" (toh-NEE-noh) for b00/p0 (re-rendered 2026-11-10: WER 0.08, "Grethe" heard as "grater", "Spy's" as
+"spies'"). They affect only the clips that were re-rendered; a full rebuild applies them everywhere.
 
 ## Licences
 

@@ -5,7 +5,7 @@
  *
  *   levels: private 0, sergeant 1, officer 2, Gestapo 3 (CONFIG.bcd.rankOfViewer / rankOfUniform)
  *   recognises(viewer, target): viewerLevel > uniformLevel, or the viewer is Gestapo (always)
- *   Natasha's civilian cover is a "disguise" of level ∞: only the Gestapo see through it.
+ *   Grethe's civilian cover is a "disguise" of level ∞: only the Gestapo see through it.
  * @module ai/bcd-ranks
  */
 
@@ -28,7 +28,7 @@ export function viewerRank(e) {
   return r;
 }
 
-/** Rank level of the uniform a disguised unit wears ('civilian' = Natasha's cover: Gestapo only). */
+/** Rank level of the uniform a disguised unit wears ('civilian' = Grethe's cover: Gestapo only). */
 export function uniformRank(target) {
   const u = target?.uniformType || target?.disguise || 'soldier';
   if (u === 'civilian') return Infinity;
@@ -42,7 +42,7 @@ export function uniformRank(target) {
 export function recognises(viewer, target, world = viewer?.world) {
   if (!world?.rules?.disguiseRanks || !target?.disguised || !viewer) return false;
   if (viewer.soldierType === 'gestapo') return true;
-  if (viewer.soldierType === 'dog') return uniformRank(target) !== Infinity; // dogs see through uniforms, not Natasha's civilian cover (§1.8)
+  if (viewer.soldierType === 'dog') return uniformRank(target) !== Infinity; // dogs see through uniforms, not Grethe's civilian cover (§1.8)
   return viewerRank(viewer) > uniformRank(target);
 }
 
@@ -56,7 +56,7 @@ export function puppetCanDistract(puppet, target) {
   return tr === 0 && !patrol;
 }
 
-/** Can the Spy's distract (D) / Natasha's lipstick work on `target` at all? Gestapo never (§1.6, §1.8). */
+/** Can the Spy's distract (D) / Grethe's lipstick work on `target` at all? Gestapo never (§1.6, §1.8). */
 export function distractable(target, world = target?.world) {
   if (!world?.rules?.disguiseRanks) return true;
   return target?.soldierType !== 'gestapo' && !isAnimal(target);

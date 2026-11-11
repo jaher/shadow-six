@@ -63,14 +63,14 @@ export default async function bcdSandbox(page, t) {
     out.rifle = use(d, 'rifle', E('range_25'));
     g.advance(1);
     out.rifleKill = E('range_25').alive === false;
-    // Natasha's lipstick on the lieutenant
-    out.lipstick = use(C('natasha'), 'lipstick', E('lieut1'));
+    // Grethe's lipstick on the lieutenant
+    out.lipstick = use(C('grethe'), 'lipstick', E('lieut1'));
     g.advance(1);
     out.lipState = E('lieut1').brainState;
     await g.loadMission('b00'); g.start();
     w = G.world;
     const d2 = C('driver');
-    // machines: drawbridge switch, sea mine by boat, wagon push, lift, knapsack, Skopje joins
+    // machines: drawbridge switch, sea mine by boat, wagon push, lift, knapsack, Tonino joins
     const dv = C('diver');
     dv.x = 27.5; dv.z = 74; dv.stop();
     out.bridge = use(dv, 'use', w.interactables.find((i) => i.tag === 'bridge_switch'));
@@ -86,7 +86,7 @@ export default async function bcdSandbox(page, t) {
     g.advance(1.5);
     d2.x = 103; d2.z = 86; d2.stop();
     g.advance(0.5);
-    out.skopje = C('skopje').state;
+    out.tonino = C('tonino').state;
     // last (the blast is heard map-wide): a boat hull sets off a sea mine
     const boat = w.vehicles.find((v) => v.tag === 'boat1') || w.vehicles[0];
     boat.x = 15; boat.z = 69;
@@ -116,7 +116,7 @@ export default async function bcdSandbox(page, t) {
   t(r.bridgeRaised, 'drawbridge raised');
   t(r.mine, 'the boat set off the sea mine');
   t(r.wagonMoved, 'the wagon rolled');
-  t.equal(r.skopje, 'active', 'Skopje joined');
+  t.equal(r.tonino, 'active', 'Tonino joined');
   await t.shot('bcd-sandbox');
 
   // BEL regression in the real game: m00 has no BCD ability and X is the knife

@@ -12,7 +12,7 @@ import { isAnimal, ANIMAL_TYPES } from './bcd-ranks.js';
 import { createAnimal } from '../art/animal-placeholder.js';
 
 /** Brain states added by BCD (EnemyBrain.deserialize accepts them). */
-export const BCD_BRAIN_STATES = Object.freeze(['STUNNED', 'BOUND', 'PUPPET', 'STONE', 'CIGS', 'REVIVE', 'LIPSTICK', 'FLEE', 'REPORT']);
+export const BCD_BRAIN_STATES = Object.freeze(['STUNNED', 'BOUND', 'PUPPET', 'STONE', 'CIGS', 'REVIVE', 'LIPSTICK', 'FLEE', 'REPORT', 'BRIDGE']);
 /** §1.1 "aware" states: a knock-out on a man in one of these has no effect. */
 export const AWARE_KO = new Set(['COMBAT', 'SEARCH', 'CHALLENGE', 'HOLD', 'ARREST', 'REINFORCE', 'BODY', 'TRACKS', 'ALARM_RUN', 'REVIVE', 'FLEE']);
 
@@ -71,7 +71,7 @@ export function bcdDeserialize(e, d) {
 /**
  * Second pass after save.restore has respawned / restored every entity (BCD worlds only): links that point at
  * entities restored later than their owner — the puppet ↔ controller pair, brain goal refs (cigarette pack,
- * victim, guard), Natasha's lipstick target, a reviver's claim on the man on the ground.
+ * victim, guard), Grethe's lipstick target, a reviver's claim on the man on the ground.
  */
 export function bcdPostRestore(world) {
   const byId = (id) => (id != null ? world.byId(id) ?? null : null);
@@ -233,7 +233,7 @@ export function installBcdSystems(world) {
       c._puppetSel = !!c.selected;
     }
   });
-  // §1.8 guests join when a commando reaches them (Skopje in the zoo, Natasha in her house)
+  // §1.8 a guest spawned with `joinsAt {x, z, r}` joins the team when a commando comes that close
   world.onBelTick(() => {
     for (const g of world.commandos) {
       const J = g._joinsAt;

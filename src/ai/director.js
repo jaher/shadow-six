@@ -34,6 +34,8 @@ export class AIDirector {
     this._prev = new Map();
     /** commando id → displacement (m) during the last 20 Hz tick */
     this.disp = new Map();
+    /** BCD: tags of non-combatants who fled the map (ai/bcd-brain flee `leave`); null until one does. */
+    this.fled = null;
     const L = (t, fn) => world.listen(t, fn);
     L('noise', (n) => this._onNoise(n));
     L('unit:killed', (p) => this._onKilled(p));
@@ -215,11 +217,12 @@ export class AIDirector {
     const squads = [...this.squads.values()].map((s) => ({ id: s.id, leader: s.leader?.id ?? null, trail: s.trail.map((p) => ({ x: p.x, z: p.z })),
       ...(s.halt ? { halt: JSON.parse(JSON.stringify(s.halt)) } : null), ...(s.flip ? { flip: true } : null),
       ...(s.cols ? { cols: [...s.cols], colsN: s.colsN } : null) }));
-    return { footprints: this.footprints.serialize(), squads };
+    return { footprints: this.footprints.serialize(), squads, ...(this.fled?.size ? { fled: [...this.fled] } : null) };
   }
 
   deserialize(d) {
     if (d?.footprints) this.footprints.deserialize(d.footprints);
+    if (d?.fled) this.fled = new Set(d.fled); // BCD: non-combatants who left the map (a `deliver` objective counts them)
     for (const q of d?.squads || []) {
       const s = this.squad(q.id);
       s.trail = (q.trail || []).map((p) => ({ x: p.x, z: p.z }));

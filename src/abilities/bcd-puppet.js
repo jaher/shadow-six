@@ -2,7 +2,7 @@
  * BCD puppet (docs/bcd-plan.md §1.3) — R, every commando (not the guests), `campaigns: ['BCD']`:
  *   R + click a CUFFED soldier within 13.5 m and in sight: he stands and obeys. While he is active, R + click:
  *     ground        → he walks there (plain move orders of the controller go to him too: Commando.issue)
- *     a door/device → he walks over and works it (doors, switches, levers, the drawbridge switch, lifts)
+ *     a door/device → he walks over and works it (doors, switches, levers, the drawbridge switch, a winch, lifts)
  *     a vehicle     → he walks over and gets in (the Driver boards after him to drive)
  *     a soldier     → he talks to him (the soldier freezes and faces him) if his rank allows (bcd-ranks)
  *     the puppet    → release: he sits down again, still cuffed (right-click does the same)
@@ -16,7 +16,7 @@ import { instantTask, freeToAct, inReach, say } from './common.js';
 import { takePuppet, releasePuppet } from '../ai/bcd-enemy.js';
 import { puppetCanDistract } from '../ai/bcd-ranks.js';
 
-const DEVICES = new Set(['door', 'switch', 'lever', 'valve', 'lift', 'drawbridgeSwitch', 'gate', 'penGate']);
+const DEVICES = new Set(['door', 'switch', 'lever', 'valve', 'lift', 'drawbridgeSwitch', 'winch', 'gate', 'penGate']);
 
 /** Route one order to the puppet `p` of controller `c`. @returns {boolean} */
 export function puppetOrder(c, p, t, world) {

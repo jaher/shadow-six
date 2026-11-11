@@ -158,3 +158,77 @@ Before you merge:
   - A video-perf run in AUTO (`tests/video-perf-mission.test.mjs`): own tick ≤ 16 ms and 0 new programs mid-run.
   - The art standard of the base missions: `tools/audit/clipping.mjs` is clean, 3D trees, and the alignment and
     enclosure checks pass.
+
+## Foundation audit: bcd-plan §3 NOW (N1–N13)
+
+Audited on `feat/expansion-mechanics` (from master db856afba), 2026-11-10. Status: **done**, **partial** (what is
+missing is said), **shell lane** (the running-game flow wiring, built on `feat/expansion-shell`). Unit tests are
+`tests/unit/<name>.test.mjs`; GPU tests are `tests/<name>.test.mjs`. "caps" = `tests/unit/bcd-capabilities.test.mjs`.
+
+| Step | Item | Status | Evidence |
+|---|---|---|---|
+| N1 | §1.0 flags in `CONFIG.rulesets.BCD`, all false under BEL; `disguiseRanks` (alias `sergeantsSeeThroughDisguise` kept) | done | `src/config.js` rulesets; bel-lock "every BEL ruleset flag is off"; rulesets "BEL flags off, BCD flags on" |
+| N1 | `CONFIG.bcd` (§1.14) | done | `src/config.js` `bcd` (+ `ostrich.chase/calm`, `animals.scare` added) |
+| N1 | `campaigns` filtering in the ability registry and loadouts | done | `abilities/registry.js` abilitiesForRole/abilityInCampaign; `items.js` spawnInventory/itemInCampaign; rulesets "abilities and items are campaign-scoped" |
+| N1 | BEL lock test (hotkey map, ability ids per role, loadouts, flags) | done | bel-lock (5 cases) |
+| N2 | `rules.hotkeys` map + `hotkeyFor()` | done | `engine/hotkeys.js` hotkeyFor / keyLabel / abilitiesForCode; bcd-hotkeys "the §2 table", "each BCD key arms the right def" |
+| N2 | HUD key labels, help screen | done | `ui/knapsack-model.js` keyLabel; `ui/help.js` → `ui/bcd-ui.js` bcdHelpRows; bcd-hotkeys "reach the knapsack labels and the help screen" |
+| N2 | tour reads the layout | done (n/a) | the Colonel's tour (`ui/tour.js`) shows no keys |
+| N2 | per-role key uniqueness under BCD; BEL map unchanged | done | bcd-hotkeys "never repeated inside one role's kit"; bel-lock "BEL hotkey map … pinned" |
+| N3 | STUNNED, BOUND, PUPPET brain states | done | `ai/bcd-brain.js` bcdPre (called from enemy-brain update); BCD_BRAIN_STATES in `ai/bcd-enemy.js` |
+| N3 | enemy fields (`koT` = stunnedT, `ko: 'bound'`, `puppetOf`, `cigs`, `uniformTaken`) + save/load | done | `ai/bcd-enemy.js` bcdSerialize / bcdDeserialize / bcdPostRestore; bcd-ko "save/load round-trips a stunned man mid-KO"; GPU bcd-saveload |
+| N3 | wake → alarm; comrade frees → both alarm; stunned man found = body alarm + revive | done | bcd-brain wake / reviveStep / bcdScan; bcd-ko (wake, freed, revive); bcd-review "one ko-found … no livelock", "runs to his alarm point" |
+| N4 | `knockout` X (Fist / Blackjack / Chloroform), `handcuff` J | done | `abilities/bcd-melee.js`; bcd-ko (9 cases) |
+| N4 | aware-target rule, patrol immunity, timer reset, cuff only when stunned, pack moves on cuffing | done | bcd-enemy koLands / koImmune / cuff; bcd-ko "aware target", "patrol members… immune", "resets the timer", "cuffs: only on a stunned man" |
+| N5 | `stone` Y, `cigarettes` V, arcs, look → investigate after 3 in 20 s | done | `abilities/bcd-throw.js`; `ai/bcd-reactions.js` stoneLanded; bcd-lures (3 stone cases) |
+| N5 | near-band pack pickup with the 3 s kneel; nearest only; aware / Gestapo ignore; H loots packs | done | bcd-reactions cigsStep; bcd-lures (3 pack cases) |
+| N6 | `puppet` R, order routing (plain moves go to the puppet), release | done | `abilities/bcd-puppet.js`; `entities/commando.js` issue; bcd-spy-driver puppet cases; bcd-review "selecting another man releases the puppet" |
+| N6 | blue range disc | done | `render/bcd-overlay.js`; GPU bcd-sandbox "puppet disc / knock-out arcs drawn" |
+| N6 | doors and `use` machines | done | bcd-spy-driver "walk him through a door"; caps "puppet works machines" (switch, lever, bridge switch, lift), "winch" |
+| N6 | Driver + puppet vehicle | partial | the puppet walks to an empty vehicle and boards it, and the Driver can board and drive; but the link breaks when the Driver boards (the puppet raises the alarm) and the "enemies ignore the vehicle" rule is not built. No mission needs it now |
+| N6 | rank-based distract; loss rules (range, LOS, controller seen / shot, house) | done | `ai/bcd-ranks.js` puppetCanDistract; bcd-brain puppetStep; bcd-spy-driver "loss rules", "rank decides"; bcd-review "walks up to a soldier before talking" |
+| N7 | `hanger` T, wardrobe + U cycle | done | bcd-melee hanger; `entities/wardrobe.js`; bcd-spy-driver "hanger + wardrobe" |
+| N7 | `disguiseRanks` recognition matrix; Gestapo never distracted; BEL path unchanged | done | bcd-ranks recognises / distractable; bcd-spy-driver (rank table, perception, distract); bel-lock "BEL rules ignore stones and ranks" |
+| N8 | `rifle` E (Lee-Enfield), SMG on W, `driverClub` | done | `abilities/bcd-guns.js`; config hotkeys; bcd-spy-driver "Lee-Enfield (E)" (27 m kill, 28 m refused, 2.5 s, pistol noise) |
+| N9 | guest roles with their kits and civilian cover | done | renamed: `grethe` (pocket pistol `beretta`, lipstick, packs) and `tonino` (stones, packs); bcd-units (5 guest cases) |
+| N9 | keys 7 / 8; join triggers | done | `engine/input.js` commandoForKey; `joinsAt` (bcd-enemy installBcdSystems); bcd-mechanics "guests join when a commando reaches them"; caps "jail start" |
+| N10 | `gestapo`, `lieutenant`, `zookeeper`, `snitch`, `pow` | done | `ai/archetypes.js`, bcd-enemy LOOK / BCD_WEAPON, bcd-brain bcdOnSeen; bcd-units (zookeeper, snitch); caps "pins" (lieutenant fights, Gestapo 1.25× per hit) |
+| N10 | `animal-brain.js`: lion, ostrich, chicken; dog BCD tuning | done | `ai/animal-brain.js`; bcd-units (lion, ostrich, chickens, dog) |
+| N11 | `seaMine`, `pushable` (wagon on rails, free tank) | done | `entities/bcd-interactables.js`; bcd-mechanics (sea mine, wagon, fuel tank) |
+| N11 | `lift` | done | bcd-mechanics "lift"; caps "lift between levels" (stop heights), "winch" |
+| N11 | `drawbridge` + switch | done | bcd-mechanics "drawbridge"; caps "boats and patrols", "save / load" |
+| N11 | `jail`, `knapsack`, `animalZone` (`pen`), pen gate | done | BEL jail door + caps "jail start"; bcd-mechanics "knapsack"; caps "pen gate" |
+| N12 | Commando Warnings (blue / red portraits) and its option | done | `ui/bcd-ui.js` CommandoWarnings; `ui/topbar.js`; bcd-flow "Commando Warnings"; caps "pins". The option is the GAME PREFERENCES "COMMANDOS WARNING" toggle (shared with BEL, default on), not a separate BCD-only row |
+| N12 | Skill screen | done (module) / shell lane (flow) | `ui/menus.js` showSkill, `core/flow.js` setDifficulty; bcd-flow "Skill screen choices". New Game → expansion → Skill → campaign: **shell lane** |
+| N12 | `variants` merge in `schema.js` | done | applyVariant; bcd-hotkeys "Easy/Hard: variant merge"; bcd-sandbox (unit) "b00 … variants" |
+| N12 | BCD career (Major 36, cap 24, separate key) | done (module) / shell lane (live game) | `core/flow.js` (careerStartGold, maxGold cap, key `shadowsix.career.v1.BCD`); bcd-flow "career". The career in the running game: **shell lane** |
+| N12 | BCD passwords (difficulty bit; replays one mission) | done (module) / shell lane (menu) | `core/passwords.js` encode/decodePassword; bcd-flow "password". Passwords from the menu: **shell lane** |
+| N13 | BCD sandbox b00 (`campaign: 'BCD'`, dev only, every commando, both guests, every unit, animal and mechanic, Easy/Hard) | done | `src/missions/m00_bcd_sandbox.js`; bcd-sandbox (unit, 2 cases); GPU bcd-sandbox, bcd-saveload. The foundation's new capabilities (jail start, winch, deliver, escort / flee, alarm-fail zones) have unit tests, not stations |
+| N13 | BEL missions still load with no BCD ability | done | GPU bcd-sandbox (m00: no BCD ability, X = knife); bel-lock; bcd-mechanics "inert under BEL" |
+
+## Finished by the foundation
+
+Commits on `feat/expansion-mechanics`; every new behaviour is behind the BCD ruleset or BCD-only data, and the BEL
+suites pass unedited. Tests: `tests/unit/bcd-capabilities.test.mjs` (15 cases).
+
+- **Guests renamed** to our own characters, ability sets unchanged: `natasha` → `grethe` (Grethe Holm, "Lark"),
+  `skopje` → `tonino` (Tonino Esposito); the pistol label is "Pocket pistol" (id `beretta`). The b00 briefing clip was
+  re-rendered with the narration pipeline.
+- **Jail start**: `jailed: '<jail id>'` on any commando spawn (shorthand for `jailed` + `jailId`).
+- **Puppet on machines** proven (switch, lever, bridge switch, lift); a guard who sees a machine work raises nothing.
+- **Winch** (`kind: 'winch'`): sends its target lifts to their other stop; the bridge switch can target a lift too.
+- **Lift between heights**: per-stop height (`a: [x, z, y]`, `aY`/`bY`, default the ground); save/load of the cage
+  and a ride in progress.
+- **Drawbridge**: a lowered span blocks boats (`grid.boatBlock`, read by `Vehicle.passableAt` for boats); a patrol
+  whose route crosses a raised span waits at its edge (brain state `BRIDGE`); save/load restores the span.
+- **Pen gate** (`PenGate`): its leaf blocks and clears its gap in the fence (before, an open gate let nothing out);
+  loose ostriches roam (`roam`), walk up to people, kick soldiers as well as commandos, give up 10 m from the start
+  of a chase and leave a kicked soldier alone for 8 s; the soldier runs clear, watches 4 s, goes back (no alarm).
+- **Alarm-fail zones**: `alarmFail.zones`, `onFail`, and the `mission:alarmFail` event for a scripted volley.
+- **`deliver` objective** (capture alive / escort to a point; `world.ai.fled` remembers those who left the map).
+- **Escort / flee**: guest `follow: 'team'`; `flee: {to, when, leave}` spawn field and the `flee` trigger action.
+- **Pins**: Commando Warnings option row and default, the lieutenant fights, the Gestapo Luger's 1.25× per hit.
+- Docs: `docs/expansion/MECHANICS.md` (builder's table), bcd-plan boundary note, §1.8 rewrite, §1.10 rows, LATER
+  steps pointing to docs/expansion/; guest mentions in design-spec, bodies-design, realism-pipeline, clipping-audit.
+
+**Not built (not needed by the mechanics list):** the Driver + puppet vehicle rule (N6, partial above).

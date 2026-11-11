@@ -18,7 +18,7 @@ export const SKILL_CHOICES = Object.freeze([
 /** Help-screen rows `[key, text]` for the BCD layout (empty under BEL). */
 export function bcdHelpRows(rules) {
   if (!rules?.hotkeys) return [];
-  const rows = [['7 / 8', 'Select Skopje / Natasha']];
+  const rows = [['7 / 8', 'Select Tonino / Grethe']];
   const seen = new Set();
   for (const id of Object.keys(rules.hotkeys)) {
     const def = ABILITIES[id];

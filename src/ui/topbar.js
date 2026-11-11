@@ -18,6 +18,9 @@ import { UI } from './ui-config.js';
 import { ROLE_NAMES } from './catalogue.js';
 import { CommandoWarnings } from './bcd-ui.js';
 
+/** BCD guests' selection keys (bcd-plan §2; engine/input.js commandoForKey). */
+const BCD_GUEST_KEY = Object.freeze({ tonino: 7, grethe: 8 });
+
 /** Portrait state glyph for a commando (§6.1 table). */
 export function portraitGlyph(c) {
   // bodies-design §C.5 / §C.7: a downed man shows how he is moved; a transporter how he moves a man
@@ -85,10 +88,10 @@ export class TopBar {
     this.warn.clear();
     this.cardUnit = null; // (the last speaker of the previous mission: a unit holds its whole world)
     const order = CONFIG.units.selectOrder || [];
-    const list = [...(world?.commandos || [])].sort((a, b) => {
-      const ga = a.role === 'guest' || a.guest ? 1 : 0, gb = b.role === 'guest' || b.guest ? 1 : 0;
-      return ga - gb || (order.indexOf(a.role) - order.indexOf(b.role));
-    });
+    // guests after the six: the BEL `guest` role and the BCD guests (bcd-plan §1.8: Tonino on key 7, Grethe on 8)
+    const isGuest = (c) => (c.role === 'guest' || c.guest || order.indexOf(c.role) < 0 ? 1 : 0);
+    const list = [...(world?.commandos || [])].sort((a, b) => isGuest(a) - isGuest(b) || (order.indexOf(a.role) - order.indexOf(b.role))
+      || ((BCD_GUEST_KEY[a.role] ?? 9) - (BCD_GUEST_KEY[b.role] ?? 9)));
     for (const c of list) {
       const p = el('div', 'hud-portrait', this.row);
       p.dataset.unitId = String(c.id);
@@ -109,7 +112,7 @@ export class TopBar {
       const hp = el('div', 'hp', p);
       const fill = el('i', null, hp);
       const key = order.indexOf(c.role);
-      el('span', 'key', p, key >= 0 ? String(key + 1) : '7');
+      el('span', 'key', p, key >= 0 ? String(key + 1) : String((world?.rules?.guests && BCD_GUEST_KEY[c.role]) || 7));
       p.addEventListener('click', (e) => this.hud.selectFromPortrait(c, e));
       this.cards.set(c, { p, img, fill, skull, glyph, slot, mouth, ring, secs, sig: '', glyphKey: '' });
     }

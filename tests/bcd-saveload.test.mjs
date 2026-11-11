@@ -1,6 +1,6 @@
 /**
  * BCD quick save / load round trips (GPU headless, b00 under the BCD ruleset): mid-puppet, the Spy in an
- * officer's uniform, a knocked-out man being carried, a cigarette-pack lure and Natasha's lipstick.
+ * officer's uniform, a knocked-out man being carried, a cigarette-pack lure and Grethe's lipstick.
  */
 export default async function bcdSaveload(page, t) {
   const r = await page.evaluate(async () => {
@@ -47,10 +47,10 @@ export default async function bcdSaveload(page, t) {
     await rt();
     out.cigsAfter = { st: E('pack_guard').brain.state, pack: !!E('pack_guard').brain.goal?.pack };
     await g.loadMission('b00'); g.start();
-    use(C('natasha'), 'lipstick', E('lieut1')); g.advance(1);
+    use(C('grethe'), 'lipstick', E('lieut1')); g.advance(1);
     out.lipBefore = E('lieut1').brain.state;
     await rt(); g.advance(0.2);
-    out.lipAfter = { st: E('lieut1').brain.state, tgt: C('natasha')._lipstickTarget?.tag ?? null };
+    out.lipAfter = { st: E('lieut1').brain.state, tgt: C('grethe')._lipstickTarget?.tag ?? null };
     return out;
   });
   t.log(JSON.stringify(r));

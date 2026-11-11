@@ -582,7 +582,7 @@ Tests: `tests/unit/blood-model|blood-system.test.mjs`, browser `tests/bodies-blo
 |---|---|---|---|---|
 | **SHOULDER CARRY** (fireman's carry) | Green Beret, Spy, as in the original (§3.2 table, `items.canPickUp(role,'body')`) | **1.6 m/s** (`CONFIG.units.carry`), can't run | always | yes |
 | **DRAG** (by the collar or under the arms, walking backwards) | all six commandos | **0.8 m/s** [rec] (`CONFIG.bodies.drag.speed`), can't run | `dragBodies` | **no**, labelled "not in the 1998 original" |
-| Guests (McRae, the Informer, Gilbert; BCD Natasha and Skopje) | cannot transport anyone | — | — | — |
+| Guests (McRae, the Informer, Gilbert; BCD Grethe and Tonino) | cannot transport anyone | — | — | — |
 
 What can be moved:
 - enemy bodies (dead);

@@ -36,9 +36,9 @@ export function witnessesOf(world, unit, { near = false } = {}) {
 export function unmaskSpy(world, spy, witness = null, why = 'seen') {
   if (!spy?.disguised) return false;
   spy.setDisguise ? spy.setDisguise(false) : (spy.disguised = false);
-  if (spy.role === 'natasha') spy.uniformType = null; // BCD §1.8: Natasha's civilian cover is no uniform
+  if (spy.role === 'grethe') spy.uniformType = null; // BCD §1.8: Grethe's civilian cover is no uniform
   else if (spy.gainItem) spy.gainItem('uniform', 1); else spy.inventory?.set('uniform', 1);
-  if (world.rules?.spyUniformFromCaptives && spy.role !== 'natasha') spy.uniformType = null; // BCD: no stale rank after an unmask
+  if (world.rules?.spyUniformFromCaptives && spy.role !== 'grethe') spy.uniformType = null; // BCD: no stale rank after an unmask
   const N = CONFIG.stealth.noise.spyUnmask;
   world.emitNoise(spy.x, spy.z, N.radius, 'spyUnmask', spy, N.level);
   if (witness) {

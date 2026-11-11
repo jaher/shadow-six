@@ -1072,3 +1072,18 @@ Claude-Session: https://claude.ai/code/session_01J8AeHrBrbUrVcpvL5ZEEwr
 - Menus: SINGLE PLAYER → BEHIND ENEMY LINES | LIGHTS OUT | EXIT, with LIGHTS OUT's original night print (inline SVG, src/ui/lights-out-art.js) and typed card (8 MISSIONS · 1943–1945 · CAREER STARTS AT MAJOR · n OF 8 READY); the LIGHTS OUT card (CONTINUE, START CAMPAIGN → SKILL → mission 1, IN PREPARATION until e01 is registered, MISSION SELECT, EXIT); the map table's BEL | LIGHTS OUT tabs switch in place ([ ] or a click), LIGHTS OUT pins the registered missions and slips the empty slots; the ?debug "Lights Out" group. No mission is registered yet: the shell shows 0 OF 8 READY.
 - Tests: new unit lights-out (11 cases: contract, registry → MISSIONS / CAMPAIGNS.BCD / debug grouping / menu slots / flow, empty slots stay IN PREPARATION, career, flow switch) and GPU lights-out-shell (the menu path with none registered, then fake e01/e02 registered in the page: Skill → briefing → 20 s of play under BCD Easy data, the win unlocks mission 2, passwords). Only the expansion assertions of ui-flow / unit ui changed; tests/touch-flow.mjs taps BEHIND ENEMY LINES on the new campaign choice. Unit 2736/0 after merging master df08659d0. GPU after that merge: ui-flow, lights-out-shell, bcd-sandbox, smoke + smoke-missions + chimney-smoke, touch-* (8), sniper-scope-touch and debug-* (16) passed (host load ~40); before it also ui-* (10), narration and briefing-steady. Master had moved to 7ba72089e (round roofs, no shared files) and merged clean.
 - Media: commandos-shots/expansion/menu-campaign-choice.jpg, menu-lights-out-card.jpg, menu-skill.jpg, menu-maptable-lights-out.jpg.
+
+## 2026-11-10 — Expansion mechanics foundation (feat/expansion-mechanics)
+- Merged 1b9f44f49 (user: "Start work on all expansion missions"; "Work on as much in parallel as possible if it means pausing perf improvements"). The two guests are our own characters: Grethe Holm, code name "Lark" (role `grethe`), and Tonino Esposito (`tonino`), with the same ability sets (the pocket pistol keeps the id `beretta`). The b00 briefing clip was re-rendered (WER 0.08). The BCD guests' portraits sit after the six, on keys 7 and 8.
+- Generic capabilities for the mission builders, all behind the BCD ruleset or BCD-only data (BEL unchanged):
+  - `jailed: '<jail id>'` start;
+  - the puppet on switches, levers, the bridge switch, lifts and the new `winch`;
+  - lift stops with their own heights;
+  - drawbridge: lowered, it blocks boats; raised, a patrol whose route crosses waits at its edge;
+  - pen gate: shut, it closes its gap; open, the ostriches roam, kick soldiers too, and a kicked soldier runs clear (no alarm);
+  - `alarmFail.zones` / `onFail` and the `mission:alarmFail` event;
+  - the `deliver` objective (capture alive);
+  - escort `follow: 'team'`, and `flee: {to, when, leave}` with the `flee` trigger action.
+- Docs: docs/expansion/MECHANICS.md (the builders' table: what each mechanic does, its key and flag, its data, its b00 station); the bcd-plan §3 N1–N13 audit is in docs/expansion/STATUS.md under the registration contract; bcd-plan has a boundary note, the guests rewritten in §1.8, and LATER steps pointing to docs/expansion/.
+- Tests: unit 2769/0 (new: bcd-capabilities, 15 cases); bel-lock 5/0. GPU: bcd-sandbox, bcd-saveload, knapsack (2), narration, ui-hotkeys, debug-options pass. Headless M17 wins 0/0 (BEL guests follow and board as before).
+- Media: commandos-shots/expansion/sandbox-grethe.jpg, sandbox-tonino.jpg, sandbox-pen-gate.jpg, sandbox-drawbridge.jpg.

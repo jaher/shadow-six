@@ -8,7 +8,7 @@ import { bcdHelpRows } from '../../src/ui/bcd-ui.js';
 import { bcdSim } from './bcd-sim.mjs';
 
 const BCD = CONFIG.rulesets.BCD;
-const ROLES = ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'natasha', 'skopje'];
+const ROLES = ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe', 'tonino'];
 
 test('BCD keys: never repeated inside one role’s kit (time/remote bomb share B as in BEL)', () => {
   for (const r of ROLES) {
@@ -29,8 +29,8 @@ test('BCD keys: the §2 table (moved and new keys)', () => {
     sapper: { pistol: 'Q', trap: 'W', timeBomb: 'B', remoteBomb: 'B', detonate: 'A', grenade: 'E', cutters: 'J', stone: 'Y', cigarettes: 'V', puppet: 'R', hand: 'H' },
     driver: { knockoutClub: 'X', smg: 'W', pistol: 'Q', rifle: 'E', stone: 'Y', cigarettes: 'V', puppet: 'R', firstAid: 'K', hand: 'H' },
     spy: { knockoutChloroform: 'X', syringe: 'W', uniform: 'U', distract: 'D', handcuff: 'J', hanger: 'T', pistol: 'Q', stone: 'Y', cigarettes: 'V', puppet: 'R', firstAid: 'K', hand: 'H' },
-    natasha: { lipstick: 'D', beretta: 'Q', cigarettes: 'V', handGuest: 'H' },
-    skopje: { stone: 'Y', cigarettes: 'V', handGuest: 'H' },
+    grethe: { lipstick: 'D', beretta: 'Q', cigarettes: 'V', handGuest: 'H' },
+    tonino: { stone: 'Y', cigarettes: 'V', handGuest: 'H' },
   };
   for (const r of ROLES) assert.deepEqual(roleKeyMap(r, BCD), want[r], r);
   assert.equal(hotkeyFor('smg', BCD), 'w', 'the SMG moves to W');

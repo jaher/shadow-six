@@ -1,6 +1,10 @@
-# SHADOW SIX: *Beyond the Call of Duty* (BCD) plan
+# SHADOW SIX: the BCD ruleset plan (expansion mechanics)
 
-The expansion *Commandos: Beyond the Call of Duty* (1999) runs as campaign `'BCD'`. This file lists every BCD weapon, gadget, ability, unit and mechanic. For each one it gives the exact behaviour and numbers, how it plugs into the ruleset architecture (ARCHITECTURE.md "Campaigns & rulesets"), and a phased build plan.
+> **Boundary.** The expansion campaign is original: docs/expansion/ (README.md: the campaign; MECHANICS.md: what a mission
+> builder can use; STATUS.md: what is built). The M1–M8 / [MIS] tags below are research notes on where the 1999 expansion
+> used a mechanic, never a build plan. Its levels, mission data, briefings and named characters are not rebuilt.
+
+The ruleset `'BCD'` (campaign id) carries the expansion-style mechanics, modelled on the 1999 expansion to *Commandos*; SHADOW SIX's own expansion missions run on it. This file lists every BCD weapon, gadget, ability, unit and mechanic. For each one it gives the exact behaviour and numbers, how it plugs into the ruleset architecture (ARCHITECTURE.md "Campaigns & rulesets"), and a phased build plan.
 
 **Hard rule.** Under the `BEL` ruleset, behaviour stays **100% unchanged**. Every item below is gated by a `world.rules.*` flag, an ability's `campaigns: ['BCD']`, or BCD-only mission data. The BEL test suites must stay green without being edited. A new BEL regression test pins the BEL hotkey map, ability list and loadouts (§3, N1).
 
@@ -79,14 +83,14 @@ The existing `enemyAccuracyMul` and `enemyHearingMul` stay at 1. BCD has **no** 
 
 ### 1.3 Puppet: R (`puppet`; every commando; `campaigns: ['BCD']`)
 
-- **Who:** any commando, including the Driver [MAN, EP, GamePro]. Guests (Natasha, Skopje) cannot [rec].
+- **Who:** any commando, including the Driver [MAN, EP, GamePro]. Guests (Grethe, Tonino) cannot [rec].
 - **Start:** press R, then click a **bound** soldier. The target must be within `CONFIG.bcd.puppet.range = 13.5 m` [rec: the pistol's range, after GameSpot's "within range of the commando's sidearm"] and in the commando's line of sight.
 - **Display:** a translucent **blue disc** of radius 13.5 m around the controller, clipped by the LOS grid [MAN: "blue area"; EP: "blue circle"]. The puppet gets a blue selection ring.
 - **Control:** while the puppet is active, right-click orders go to the puppet, not the commando. The commando stays where he is; press R again, Esc or select another man to release him. A released puppet sits down again, still bound [rec].
   - The puppet walks with his hands apparently free. Enemies read him as an ordinary soldier of his rank. He carries no weapon and cannot attack.
 - **Uses [MAN]:**
   - **Doors:** he opens doors and walks through them (enemy door rules).
-  - **Machines:** he can work any `use` interactable (switches, levers, the M8 drawbridge switch, lifts).
+  - **Machines:** he can work any `use` interactable (switches, levers, the drawbridge switch, a winch, lifts). A soldier who sees a machine work raises nothing unless he sees who worked it (a puppet reads as one of his own).
   - **Vehicles:** he can drive an **empty** vehicle, but only with the Driver aboard as well: click the vehicle with the puppet, then board it with the Driver. The vehicle is ignored by enemies unless it does something suspicious (runs a man over, fires, drives into a restricted zone) [MAN].
   - **Distract (D while the puppet is active):** he talks to a soldier, who freezes and faces him like the Spy's distract. Who can be distracted depends on the puppet's rank [HQ]:
 
@@ -104,7 +108,7 @@ The existing `enemyAccuracyMul` and `enemyHearingMul` stay at 1. BCD has **no** 
   - Only one puppet per commando at a time; each commando can run one [rec].
 - **Implementation:** a new brain state `PUPPET` in `enemy-brain.js` that consumes a move queue instead of its route. Perception keeps running, so other enemies see him normally. Save/load stores `puppetOf`.
 
-### 1.4 Stones: Y (`stone`; every commando and Skopje, **not** Natasha; `campaigns: ['BCD']`)
+### 1.4 Stones: Y (`stone`; every commando and Tonino, **not** Grethe; `campaigns: ['BCD']`)
 
 - **Count:** 50 per man in the mission data [DEMO, MIS]. The HUD shows no count; `CONFIG.bcd.stones.hiddenCount = 50` still decrements, so a runaway script cannot spam them [rec].
 - **Throw:** targeting `point`, range `12 m` [rec], an arc with a 0.6 s flight [rec]. The stone lands with a small click (a level-1 noise of radius `4 m` [rec]); it is **not** a suspicious act.
@@ -172,25 +176,23 @@ Each disguise and each viewer has a rank level: private 0, sergeant 1, officer 2
 
 **SMG to W** (`smg` keeps its id; only its key changes, through `rules.hotkeys`, §2). Ammo 100 [DEMO, MIS]; M7 gives 50. Behaviour is unchanged from BEL.
 
-### 1.8 Guests: Natasha and Skopje
+### 1.8 Guests: Grethe and Tonino
 
-Both are `guest` commandos (slot 7 = Skopje, slot 8 = Natasha [MAN]). A guest has 100 HP (`CONFIG.hp.guest`) and the ordinary selection, move, crouch and hand controls.
+Two guests of our own (the 1999 expansion's guests are not used; the two ability sets are kept): roles `grethe` and `tonino`, keys 8 = Grethe and 7 = Tonino. A guest has 100 HP (`CONFIG.units.hp`) and the ordinary selection, move, crouch and hand controls. A mission places a guest like any commando: playable from the start, jailed until a commando opens the cell (`jailed: '<jail id>'`, §1.10), or joining when a commando comes close (`joinsAt: {x, z, r}`).
 
-**Natasha "Lips" van de Zand** (M8 only)
-- **Joins:** when any commando enters her house [VFAQ]. Until then she is an NPC inside.
-- **Kit:** a Beretta 1935 pistol (Q; BEL pistol stats) and cigarette packs (V). No stones, knock-out or cuffs [MAN].
-- **Lipstick** (`lipstick`, D, "from her handbag"): targeting `enemy`, range 6 m [rec; the Spy's distract range].
-  - It works on **any rank**, officers included, but **not Gestapo** [MAN: Gestapo recognise her].
-  - The soldier stares at her until the player right-clicks to end it. His **cone follows her as she moves** [MAN, EP]: his facing tracks her position every tick, and his sweep stops.
+**Grethe Holm**, code name *Lark* (role `grethe`, nickname "Lark")
+- 27. A switchboard operator at the Copenhagen telephone exchange and a courier for the resistance since 1942. She grew up in Flensburg and speaks German like a native. Soldiers see a pretty civilian; the Gestapo know her face.
+- **Kit:** a pocket pistol from her handbag (Q; ability and item id `beretta`, the BEL pistol's stats) and cigarette packs (V). No stones, knock-out or cuffs.
+- **Lipstick** (`lipstick`, D): targeting `enemy`, range 6 m [rec; the Spy's distract range].
+  - It works on **any rank**, officers included, but **not the Gestapo**.
+  - The soldier stares at her until the player right-clicks to end it. His **cone follows her as she moves**: his facing tracks her position every tick, and his sweep stops.
   - She can lead him: while he stares, she can walk and he turns (he does not walk after her) [rec].
   - It ends when she leaves his far band, when she is attacked, or when a suspicious act happens in his sight [rec].
-- **Cover:** enemies treat her as a civilian (not a threat, no cone reaction) unless she does something suspicious, or a **Gestapo** sees her; then she is a commando to everyone who sees her [MAN].
-- **Scripted:** in M8 she leads Gen. Rauter into a meeting house (300-tick meeting) as a mission script, not a player ability.
+- **Cover:** soldiers treat her as a civilian (not a threat, no cone reaction) unless she does something suspicious, or a **Gestapo** man sees her; then she is a commando to everyone who sees her. Dogs do not see through her cover.
 
-**Maj. Dragiša Skopje** (M2 only)
-- Held in the NE of the zoo; he becomes playable when a commando reaches him [rec: mission trigger].
-- **Kit:** stones (Y) and cigarette packs (V) only [MAN, MIS]. No weapon.
-- **Alarm rule:** an alarm in the linked zones makes the firing squad shoot him, which fails the mission (§1.9).
+**Tonino Esposito** (role `tonino`)
+- 15. A *scugnizzo*, a street boy of the Quartieri Spagnoli in Naples. His father was killed in the summer raids. He sells contraband cigarettes to the soldiers, can hit a tin can at twenty paces with a stone, and knows every roof and stair of the quarter.
+- **Kit:** stones (Y), cigarette packs (V) and the hand (H). No weapon, no knock-out, no cuffs.
 
 ### 1.9 New units and wild animals
 
@@ -198,10 +200,10 @@ All new types are `soldierType` values in `src/ai/archetypes.js` and `CONFIG.ste
 
 | Type | Missions | Vision | Weapon | Behaviour |
 |---|---|---|---|---|
-| `gestapo` | M8 (5 men: Rauter's guard) | `soldier` profile | Luger, **accuracy 1.25×** the BEL pistol [rec: "crack shots"] | Black leather coat and cap. **Always** sees through the Spy's disguise and Natasha's cover (§1.6, §1.8). Cannot be distracted (D, lipstick, puppet). Ignores cigarette packs. Can be knocked out when unaware. Rank level 3. |
+| `gestapo` | M8 (5 men) | `soldier` profile | Luger, **accuracy 1.25×** the BEL pistol [rec: "crack shots"]: BEL enemy fire never misses, so it is 1.25× the damage per hit (`gestapoLuger` 100 vs the Luger's 80) | Black leather coat and cap. **Always** sees through the Spy's disguise and Grethe's cover (§1.6, §1.8). Cannot be distracted (D, lipstick, puppet). Ignores cigarette packs. Can be knocked out when unaware. Rank level 3. |
 | `lieutenant` | M5, M8 [rec: armed officers in the files] | `soldier` | Luger | An armed officer (rank level 2). Behaves as a BEL officer (reinforces, leads searches) but fights. |
 | `zookeeper` | M2 (1) | `soldier` | none | Unarmed civilian of rank level 1. Walks among the lions unharmed. If he sees a commando he **raises the alarm and flees into the barracks** [gap-5 §7]. Knock-out and hanger work on him; his uniform has level 1 (§1.6). |
-| `firingSquad` | M2 (2 riflemen + a corporal) | `soldier` | Kar98k | Stands at the execution post. An alarm in its linked zones (garden, north, pit) makes it **shoot Skopje: mission lost** [MIS]. Implemented as mission script `onZoneAlarm → fail`, not a new brain. |
+| `firingSquad` | M2 (2 riflemen + a corporal) | `soldier` | Kar98k | Stands at the execution post. An alarm in its linked zones makes it **shoot the hostages: mission lost**. Built as the mission's `alarmFail: {zones, message, onFail}` (§1.10), not a new brain. |
 | `snitch` | M7 (1 POW; position differs Easy/Hard) | `soldier` profile, **near band only** [rec] | none | A POW in prisoner clothes who walks a yard route. If he sees a **suspicious act** or a commando in a restricted spot, he walks to the nearest guard (6 s [rec]) and the guard raises the alarm. Commandos can knock him out, cuff him or knife him; other POWs ignore it [rec]. |
 | `pow` | M7 (9) | none | none | Ambient prisoners (BEL civilian rules). At the objective they run north. GB and the Driver start as scripted prisoners walking yard routes, and become playable when freed [MIS]. |
 | `dog` (German shepherd) | M3 (1) | existing `dog` profile | bite: 35 HP per bite, 1 s [rec] | Uses the BEL dog type. On sight **barks** (a level-3 noise of radius 36 m = an alarm) and **attacks** [gap-6]. Ignores disguises, stones and packs. Cannot be knocked out; can be shot or knifed. |
@@ -210,7 +212,7 @@ All new types are `soldierType` values in `src/ai/archetypes.js` and `CONFIG.ste
 | `chicken` | M6 (4) | – | – | Ambient; flee from anyone within 3 m and cluck (a level-1 noise of radius 6 m [rec]). |
 
 - **Animal AI:** a small `animal-brain.js` with states `IDLE` (wander inside `animalZone`), `CHARGE`, `ATTACK`, `RETURN`. It does not use the soldier alarm system, zones or disguise checks. Gated by `rules.animals`.
-- **Named NPCs:** SS Col. von Below (M5; Luger; flees in the Kübelwagen on an interior/rooftop alarm, or on foot to the east edge if the car is blocked), the pilot (M6; pistol; flies off on alarm), Gen. Rauter (M8; scripted meeting), the tugboat captain (M8). They are mission scripts built on BEL's kidnap and escort rules, and belong to the LATER phase.
+- **Named NPCs:** the 1999 missions' named characters are not built. Our missions bring their own; the generic tools they need are the `deliver` objective (capture alive), escort / flee and zone-linked alarm-fail (§1.10, docs/expansion/MECHANICS.md).
 
 ### 1.10 World mechanics
 
@@ -219,17 +221,20 @@ Object tokens are from the retail mission data [MIS] (summarised in `research-ra
 | Mechanic | Where [MIS] | Behaviour |
 |---|---|---|
 | **Sea mines** (`MINASUB`, `seaMines`) | M1: 22 | Floating contact mines on chains. A **boat** (dinghy, launch) whose hull comes within 1.5 m [rec] sets one off: bomb explosion (`CONFIG.weapons.explosions.bomb`), everyone aboard dies, a level-3 noise. A **swimming or diving** Marine passes safely [rec: the M1 route relies on it]. A bullet or grenade detonates a mine from a distance (noise alarm) [rec]. Mines show a hover tooltip "Sea mine". |
-| **Lift** (`ASCENSOR`, `lifts`) | M1: cliff to the beach | A cage between two stops. `use` at either stop calls or rides it: 6 s travel [rec], room for 4 men or 1 carried body plus 2 [rec]. It creaks (level-1 noise, 8 m [rec]). Enemies do not use it unless a route says so. A puppet can ride it. |
-| **Drawbridge** (`PUENTE` + `INTERRUPTOR`, `drawbridges`) | M8: west canal | The switch raises or lowers the span in 5 s [rec]. Raised: boats pass, walkers cannot cross, and the `PAT_PUENTE` patrol stops at the edge and waits. Lowered: the reverse. Any commando or a puppet can work the switch; an enemy who sees it move raises no alarm unless he sees who did it [rec]. |
+| **Lift** (`ASCENSOR`, `lifts`) | M1: cliff to the beach | A cage between two stops. `use` at either stop calls or rides it: 6 s travel [rec], room for 4 men or 1 carried body plus 2 [rec]. It creaks (level-1 noise, 8 m [rec]). Enemies do not use it unless a route says so. A puppet can ride it. Each stop has its own height (`a: [x, z, y]` / `aY`, `bY`; default the ground there): two levels are two places on the map (one walking surface per grid cell). A `winch` (or the bridge switch) whose `targets` name the lift sends the cage from where it is to its other stop. |
+| **Drawbridge** (`PUENTE` + `INTERRUPTOR`, `drawbridges`) | M8: west canal | The switch raises or lowers the span in 5 s [rec]. Raised: boats pass, walkers cannot cross, and a patrol whose route crosses walks to the edge and waits (`BRIDGE`). Lowered: the reverse (a lowered span closes the channel to boats). Any commando or a puppet can work the switch; an enemy who sees it move raises no alarm unless he sees who did it [rec]. Save / load keeps the span's state. |
 | **Pushable wagons** (`VAGEMPUJ`, `pushables`) | M4: 2 | Railway wagons on the track graph. The **GB and the Driver** push [rec: the strong men]; 0.8 m/s [rec], one man. `use` on the wagon's end, then right-click a point along the track. Pushing is a suspicious act if seen, and a level-1 noise of radius 6 m. They are **moving cover** [spec §7.2]: a man walking beside a wagon, on the side away from a cone, is hidden from it (the wagon blocks LOS like a crate) [rec]. |
 | **Pushable fuel tanks** (`DEPOSEMP`, `pushables`) | M6: 4 | Wheeled fuel bowsers. Same push rules, but free movement on the navgrid (no rails), 0.6 m/s [rec]. Blow up with an explosion, a grenade or 3 bullets [rec], as a big barrel (radius 1.5× the barrel's [rec]); used to destroy the prototype planes. |
 | **Footprints on paths** | M6 [spec §7.2] | Soft paths (`surface: 'mud'`) leave tracks like BEL snow; an enemy who sees them enters the existing `TRACKS` state. No new code beyond a surface flag [rec]. |
 | **`PEMPUJE`** | M2 2, M3 2, M4 4, M5 2, M6 8, M7 2 | Unknown token; read as "push door" (a door opened by pushing, **no** key or lock) [rec]; built as ordinary doors. §5 open point. |
-| **Ostrich gate** (`PUERTAAVESTRUCES`) | M2 | A pen gate. Opened by anyone, it lets the ostriches roam the zoo; they then attack soldiers as well as commandos [rec]: a legitimate distraction. |
+| **Ostrich gate** (`PUERTAAVESTRUCES`) | M2 | A pen gate (`penGate`): shut, its leaf blocks its gap in the fence; opened by anyone, it lets the ostriches out to roam (`roam` area, default 3× the pen radius round the gate). Loose, they walk up to whoever is near (10 m) and kick soldiers as well as commandos within 3 m [rec]; a kicked soldier runs clear and watches the bird (no alarm), so it is a legitimate distraction. A chase ends 10 m from where it began. |
 | **Knapsacks** (`MOCHILA_COMANDO`, `MOCHILA_CONDUCTOR`) | M7 | GB and the Driver start with an empty kit. Picking up his own knapsack (H) restores his BCD loadout [MIS, inferred]. |
 | **Ammo box** (`CAJABALA`) | M5 | +4 sniper rounds on pickup [MIS]. BEL item; no change. |
 | **Uniform pickup** (`UNIFORME`) | M5: officer uniform on a roof | Adds `officer` to the Spy's wardrobe (§1.6). |
-| **Jails** (`CARCEL`) | M5 (Spy jailed), M7 | A locked cell; the prisoner becomes playable when a commando opens it with `use` [rec]. |
+| **Jails** (`CARCEL`) | M5 (Spy jailed), M7 | A locked cell; the prisoner becomes playable when a commando opens it with `use` [rec]. Any commando or guest can start in one: `jailed: '<jail id>'` on his spawn (the BEL `jail` door, §4.10). |
+| **Capture alive** | M5 | Objective `type: 'deliver'`, `targets: [ids]`, `zone?`: every target alive and brought into the zone (default the extraction zone, or aboard the extraction vehicle once it has left); an enemy counts only as a captive (knocked out, cuffed, carried, on puppet strings). |
+| **Escort / flee** | M7 | A guest with `follow: '<tag>'` (BEL single file) or `follow: 'team'` (the nearest commando) follows once freed. Non-combatants (`pow` and other unarmed types) with `flee: {to, when?, leave?}` run to `to` when the `when` door / gate opens (or a trigger's `flee` action) and leave the map there (`unit:fled`; `deliver` counts them). |
+| **Hostage set piece** | M2 | `alarmFail: {zones: [...], message, onFail?}`: an alarm event raised in a linked zone fails the mission; 'mission:alarmFail' lets a trigger dress it (a volley) during the end grace. |
 | **Escape vehicles** | van (M2), lorry (M3, M7), locomotive `TREN_HUIDA` (M4, rail, Driver), Panzer II (M5), jet `AVION_HUIDA` (M6, flown by the kidnapped pilot), launch `LANCHA_HUIDA` (M8, drives itself east under fire), dinghy to the buoy (M1) | BEL vehicle system; new models (§4). Rail and aircraft movement are LATER. |
 | **Animal pens** (`animalZone`) | M2 | Polygons that bound animal AI (§1.9). |
 
@@ -271,7 +276,7 @@ bcd: {
   lipstick: { range: 6 },
   rifle: { hiddenCount: 50 },            // stats in CONFIG.weapons.leeEnfield (§1.7)
   gestapoAccuracy: 1.25,
-  animals: { lion: { radius: 8, speed: 6, hits: 2, cadence: 1.5 }, ostrich: { radius: 5, provoke: 3, dmg: 40, cadence: 1 }, dog: { bite: 35, cadence: 1 } },
+  animals: { lion: { radius: 8, speed: 6, hits: 2, cadence: 1.5 }, ostrich: { radius: 5, provoke: 3, dmg: 40, cadence: 1, chase: 10, calm: 8 }, dog: { bite: 35, cadence: 1 }, scare: 4 },
   push: { wagon: 0.8, tank: 0.6, noiseRadius: 6 },
   seaMine: { trigger: 1.5 }, lift: { travel: 6, capacity: 4 }, drawbridge: { time: 5 },
   easy: { routeSpeedMul: 0.8, pauseMul: 2.5 }, // reference values; the missions carry their own data
@@ -296,7 +301,7 @@ BCD moved the most-used keys to the left of the keyboard, with **no remapping** 
 | Crawl / stand | all | C / S | **C / S** | same |
 | Diving gear (`dive`) | Marine | D | **D** | same |
 | Distract (`distract`) | Spy | D | **D** | same; not on Gestapo |
-| Lipstick (`lipstick`) | Natasha | – | **D** | new |
+| Lipstick (`lipstick`) | Grethe | – | **D** | new |
 | Grenade (`grenade`) | Sapper | E | **E** | same |
 | Harpoon (`harpoon`) | Marine | J | **E** | moved |
 | Sniper rifle (`sniper`) | Sniper | R | **E** | moved |
@@ -309,7 +314,7 @@ BCD moved the most-used keys to the left of the keyboard, with **no remapping** 
 | Wire cutters (`cutters`) | Sapper | W | **J** | moved |
 | First aid (`firstAid`) | Sniper, Driver, Spy | K | **K** | same |
 | Inflatable boat (`raft`) | Marine | T | **N** | moved |
-| Pistol (`pistol`) | all six, Natasha | G | **Q** | moved |
+| Pistol (`pistol`; Grethe's pocket pistol is `beretta`) | all six, Grethe | G | **Q** | moved |
 | Puppet (`puppet`) | all six | – | **R** | new |
 | Hanger (`hanger`) | Spy | – | **T** | new |
 | Reuse / cycle uniform (`uniform`) | Spy | U | **U** | same key, now cycles the wardrobe |
@@ -319,9 +324,9 @@ BCD moved the most-used keys to the left of the keyboard, with **no remapping** 
 | Bear trap (`trap`) | Sapper | J | **W** | moved |
 | Lethal injection (`syringe`) | Spy | L | **W** | moved |
 | Knock-out (`knockout`: Fist / Blackjack / Chloroform) | GB / Driver / Spy | – | **X** | new; BEL X was the knife |
-| Stone (`stone`) | all six, Skopje | – | **Y** | new |
+| Stone (`stone`) | all six, Tonino | – | **Y** | new |
 
-- **Unchanged in both:** 1–8 select (7 = Skopje, 8 = Natasha under BCD [MAN]), 0 deselects, Tab knapsack, arrows scroll, numpad +/−/* zoom, F2–F7 views, Alt/Shift/Ctrl-click, Ctrl+S / Ctrl+L, Esc menu, P pause, F1 help [inferred].
+- **Unchanged in both:** 1–8 select (7 = Tonino, 8 = Grethe under BCD), 0 deselects, Tab knapsack, arrows scroll, numpad +/−/* zoom, F2–F7 views, Alt/Shift/Ctrl-click, Ctrl+S / Ctrl+L, Esc menu, P pause, F1 help [inferred].
 - **Keyboard help screen and tour** read `hotkeyFor()`, so they show the right layout per campaign.
 - **Freed keys:** under BCD, L and M do nothing. Global UI keys (Ctrl+B, the HUD's H handler, P) keep their current behaviour in both layouts.
 
@@ -343,7 +348,7 @@ Each step keeps `node tests/unit/run.mjs` and `node tests/run.mjs` green, **with
 | **N6** Puppet | `puppet` (R); blue range disc; order routing; doors, `use` interactables, Driver + puppet vehicle; rank-based distract; loss rules (range, LOS, controller seen or shot, house rule). | Each loss rule raises the alarm; rank distract table; puppet opens a door. |
 | **N7** Spy | `hanger` (T); wardrobe and U cycling; `disguiseRanks` recognition table; Gestapo never distracted. | The full recognition matrix; U cycle order; BEL disguise path unchanged. |
 | **N8** Driver | `rifle` (E, `CONFIG.weapons.leeEnfield`); SMG on W; `driverClub`. | One-shot kill at 27 m, none at 28 m; 2.5 s reload; pistol-class noise. |
-| **N9** Guests | `guest` role variants `natasha` (Beretta, lipstick, packs; civilian cover) and `skopje` (stones, packs); selection keys 7/8; join triggers. | Lipstick cone tracks her; any rank but Gestapo; Gestapo blows her cover. |
+| **N9** Guests | guest roles `grethe` (pocket pistol, lipstick, packs; civilian cover) and `tonino` (stones, packs); selection keys 7/8; join triggers. | Lipstick cone tracks her; any rank but Gestapo; Gestapo blows her cover. |
 | **N10** Units | `gestapo`, `lieutenant`, `zookeeper`, `snitch`, `pow`; `animal-brain.js` with `lion`, `ostrich`, `chicken`; the dog's BCD tuning. | Zookeeper flees and alarms; snitch reports; lion stays in its pen; ostrich provoke radius; dog barks an alarm. |
 | **N11** World mechanics | Generic interactables: `seaMine`, `lift`, `drawbridge` (+ switch), `pushable` (rail wagon, free tank), `jail`, `knapsack`, `animalZone`, pen gate. | Boat hits a mine; swimmer passes; lift ride; drawbridge blocks the patrol; wagon moves along rails; fuel tank explodes. |
 | **N12** UI and flow | Commando Warnings (blue/red portraits, option); Skill screen; `variants` merge in `schema.js`; the BCD career (start Major, max 24, separate key); BCD passwords. | Portrait states from perception and damage; Easy/Hard merge; rank arithmetic 36 → 60; a password replays one mission. |
@@ -351,15 +356,19 @@ Each step keeps `node tests/unit/run.mjs` and `node tests/run.mjs` green, **with
 
 Order: N1 → N2 → N3 → (N4, N5, N7, N8 in parallel) → N6 → N9 → N10 → N11 → N12 → N13; the sandbox grows with each step so every step lands with a scenario.
 
-### LATER: the 8 missions and their content
+### LATER: the expansion missions and their content
+
+The missions are SHADOW SIX's own, designed and built from docs/expansion/README.md (the campaign) with
+docs/expansion/MECHANICS.md (the mechanics and their mission data). The 1999 levels are not rebuilt: no retail mission
+data, layouts or briefings are used.
 
 | Step | Work |
 |---|---|
-| **L1** Buildings | Building batches **12–16** (building-inventory.md §3.1) through the existing building pipeline: 12 Guernsey and Crete (`lift_tower_cliff`, `sea_mine_chain`, Greek houses, church and ruins; B1, B3), 13 Belgrade Zoo (`zoo_animal_pit`, cages, glasshouse, gate and paddocks, villas; B2), 14 Bonn railway works (`railway_gun_karl`, `armoured_train`, station hall, roundhouse; B4), 15 Wolf's Lair, airfield and Stalag (`fuel_tank_pushable`, control tower, blockhouse; B5–B7), 16 Dutch canal town (canal houses, quays, `windmill_post`; B8). |
-| **L2** Characters and props | The models in §4, including Gestapo, Natasha, Skopje, the zookeeper, the animals and the gadget props; they replace the NOW placeholders one for one. |
-| **L3** Missions | M1 *Dying Light* → M8, in campaign order, each with Easy and Hard data from `gap-6-bcd-missions.json` (enemies, routes, zones, alarm links, par times, loadouts, objectives, extraction) and the verbatim briefings in `gap-6-briefings.txt`. Mission scripts: the M2 firing squad, M5 colonel escape, M6 pilot, M7 escorts and punishment cells, M8 Rauter's meeting and the self-driving launch. |
-| **L4** Vehicles | Locomotive on rails (M4), Panzer II (M5), the jet (M6), the launch and tugboat (M8), the van (M2). |
-| **L5** Voices and audio | Guest voice sets (Natasha, Skopje), the Gestapo's German barks, the zookeeper, animal sounds (lion roar, ostrich, dog bark, chickens), gadget SFX (punch, club, chloroform, cuffs click, stone, pack, bolt-action rifle). |
+| **L1** Buildings | The buildings each mission's own design calls for, through the existing building pipeline (docs/expansion/). |
+| **L2** Characters and props | The models in §4, including Gestapo, Grethe, Tonino, the zookeeper, the animals and the gadget props; they replace the NOW placeholders one for one. |
+| **L3** Missions | The original missions of docs/expansion/README.md, each with its own design, Easy and Hard data, solution and briefing in our own words. |
+| **L4** Vehicles | The escape and set-piece vehicles each mission's design needs. |
+| **L5** Voices and audio | Guest voice sets (Grethe, Tonino), the Gestapo's German barks, the zookeeper, animal sounds (lion roar, ostrich, dog bark, chickens), gadget SFX (punch, club, chloroform, cuffs click, stone, pack, bolt-action rifle). |
 | **L6** Campaign UI | The BCD main-menu entry, scrapbook/briefing art, and the debrief with BCD ranks. |
 
 ---
@@ -377,11 +386,11 @@ All new people follow the character bible's likeness rules (§0.2) and insignia 
 | **Zookeeper** | M2 | Grey-green work coat, flat cap, rubber boots, bucket prop; also a **Spy uniform** (the Spy wearing it). | BEL civilian |
 | **Underclothes texture** | any KO'd man stripped by the hanger | Vest and trousers swap for each enemy body. | tint swap |
 | **Spy uniform set** | Spy | Private, sergeant, officer, zookeeper (all but the last exist from BEL). | BEL |
-| **Natasha "Lips" van de Zand** | M8 | Original face; 1940s civilian dress, coat, handbag; red lipstick. Voice: Dutch-accented English. **Not** the C2 Natasha. | BEL female civilian, or a tinted commando |
-| **Maj. Dragiša Skopje** | M2 | Yugoslav officer, held prisoner (bible §6: no belt, no weapon, dishevelled, hands tied until freed). | BEL guest |
+| **Grethe Holm** ("Lark") | guest | Original face; 1940s civilian coat and dress, handbag, red lipstick. Voice: English with a light Danish accent. | BEL female civilian, or a tinted commando |
+| **Tonino Esposito** | guest | Original face; a 15-year-old Neapolitan street boy: cap, worn jacket, short trousers. | BEL guest |
 | **POWs and the snitch** | M7 (9 + 1) | Allied POW battledress variants; the snitch identical but seeded differently (no tell-tale) [rec]. | BEL guest |
 | **GB and Driver as prisoners** | M7 | Same models, no kit, dirt decals. | BEL |
-| **Named NPCs** | M5, M6, M8 | SS Col. von Below (no SS insignia per §5.4: plain grey officer), the pilot (flight suit), Gen. Rauter, the tugboat captain. | BEL officer / general |
+| **Mission characters** | per mission | Whoever each mission's own design needs (docs/expansion/); no 1999 named character is built. | BEL officer / civilian |
 | **Firing squad** | M2 | Ordinary soldiers with rifles; an execution-post prop. | BEL soldier |
 
 **Animals** (a quadruped rig and clips each: idle, walk, run, attack, die)
@@ -411,18 +420,16 @@ All new people follow the character bible's likeness rules (§0.2) and insignia 
 
 **Props and vehicles**
 
-| Asset | Missions |
+| Asset | Mechanic |
 |---|---|
-| Sea mine with chain | M1 (building batch 12 `sea_mine_chain`) |
-| Cliff lift and cage | M1 (`lift_tower_cliff`) |
-| Pushable railway wagon | M4 |
-| Pushable fuel bowser | M6 (`fuel_tank_pushable`) |
-| Drawbridge and switch | M8 |
-| Animal pits, pens, ostrich gate | M2 (batch 13) |
-| Knapsacks | M7 |
-| Escape vehicles: van, lorry, locomotive, Panzer II, Kübelwagen, jet, launch, tugboat | M2–M8 |
-| Aircraft: Me 262, Me 163 and others (prototypes and ordinary planes) | M6 |
-| Railway gun "Karl" and armoured train | M4 (batch 14) |
+| Sea mine with chain | sea mines |
+| Lift tower / cage, winch | lift |
+| Pushable railway wagon | pushables (rail) |
+| Pushable fuel bowser | pushables (free) |
+| Drawbridge and switch | drawbridge |
+| Animal pens, pen gate | animals |
+| Knapsacks | knapsack |
+| Vehicles and set-piece props | per mission design (docs/expansion/) |
 
 **Audio and UI:** guest voice sets, German Gestapo barks, all gadget and animal SFX above; the Skill screen, Commando Warnings option, blue/red portrait frames, the BCD menu entry and briefing art.
 
@@ -432,11 +439,11 @@ All new people follow the character bible's likeness rules (§0.2) and insignia 
 
 1. **KO duration, stone and pack radii, rifle range, animal stats, lift and bridge timings:** no source gives numbers; all are [rec] values in `CONFIG.bcd` and get tuned in the sandbox.
 2. **Par times:** gap-6 converted `PAR_TICKS` at 25 ticks/s; at our 20 Hz base they run 25 % longer (spec §7.2). Decide when M1 is built.
-3. **`PEMPUJE`:** read as push doors [rec]; confirm from the retail files before L3.
+3. **`PEMPUJE`:** read as push doors [rec]; our missions use ordinary doors.
 4. **Puppet range:** 13.5 m is our reading of "the sidearm's range". Revisit if a primary source gives a figure.
 5. **Hidden counts** (stones 50, rifle 50): kept to match the files while the HUD shows none, per the manual.
 6. **The demo** is pre-release (no KO, hanger or puppet strings); retail values may differ where only [DEMO] is cited.
-7. **Skopje's rank** ("Major" in English, "Oberst" in Ruetli) and the **M6 plane types** (sources disagree): cosmetic, decide at L3.
+7. **Guests:** closed. The two guests are our own characters (§1.8).
 8. **Skill screen wiring:** `Menus.showSkill(flow)` and `Flow.setDifficulty` exist and are unit-tested, but the running game still builds only a BEL `Flow`. Wire New Game → BCD → Skill when the BCD campaign flow lands (phase LATER). Save games already carry `difficulty` at the top level so a load builds the right Easy/Hard variant before the entities restore. `maxGold` is read under BCD as the cap on earned gold (36 + 24 = Field Marshal at 60).
 
 ### 5.1 Decisions from the NOW review
@@ -444,7 +451,7 @@ All new people follow the character bible's likeness rules (§0.2) and insignia 
 - **Alarm point** (§1.1, §1.3): a man who wakes on his own, or a puppet whose controller is shot at, runs (`ALARM_RUN`) to his zone's alarm point before he shouts: spawn `alarmPoint: [x, z]`, else the zone's `alarmPoint`, else the door of the barracks answering that zone's onSeen event, else the nearest barracks door. With none he shouts where he stands. The puppet losses by range, LOS and "controller seen" still shout on the spot.
 - **Weapon pickup** (§1.2): a roused man is unarmed until he picks his weapon up where he fell (`rearmTime` 1.5 s within `rearmReach` 2 m; carried away, when he next passes the spot) [rec].
 - **Officers** (§1.6): the BEL unarmed officer never reacts to commandos. Under BCD, an officer who sees through a disguise (private or sergeant uniform) watches the Spy for `officerRecognise` (1 s) and then shouts the alarm (his zone's onSeen sensor) [rec].
-- **Dogs** see through uniforms, but not Natasha's civilian cover (only the Gestapo do, §1.8).
+- **Dogs** see through uniforms, but not Grethe's civilian cover (only the Gestapo do, §1.8).
 - **Knock-out immunity** is squad membership (MP40 patrols: `squad` or `trooper`) [RU]. A lone sergeant sentry can be knocked out, so the sergeant puppet and the sergeant uniform can be reached.
 - **Wardrobe** (§1.6): clotheslines and `uniform` pickups add a typed entry (`uniform: 'officer'` on the spec, default `soldier`) and work while the wardrobe is not empty. An unmask clears the worn rank.
 - **Puppet talk** (§1.3): D while a puppet is active (the def's `puppetKey`; D stays the Diver's dive in the key map) or R + click on a soldier. The puppet walks to the Spy's distract reach first; targets beyond the puppet range are refused; the talk ends when he walks more than 3 m away. Esc or selecting another man releases the puppet.

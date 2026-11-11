@@ -103,7 +103,7 @@ export const CONFIG = {
     raftCarryPenalty: 0.9, // §3.1 Marine with packed raft: walk 1.35, run 3.6 (−1 u/tick = −0.9 m/s) [EXE]
     swim: 1.8, // §3.1 Marine swim/dive [rec]
     row: 2.5, // §3.1 raft rowing [rec]
-    hp: { greenberet: 200, sniper: 100, diver: 160, sapper: 130, driver: 130, spy: 160, guest: 100, natasha: 100, skopje: 100, enemy: 200 }, // §3.1 [EXE]; enemy = §4.1 [inf]
+    hp: { greenberet: 200, sniper: 100, diver: 160, sapper: 130, driver: 130, spy: 160, guest: 100, grethe: 100, tonino: 100, enemy: 200 }, // §3.1 [EXE]; enemy = §4.1 [inf]
     stanceDown: 0.5, // §3.3 crawl (C) takes 0.5 s
     stanceUp: 0.6, // §3.3 stand (S) takes 0.6 s
     dblClickMs: 350, // §5.2 double-click window (run / fast drive)
@@ -125,8 +125,8 @@ export const CONFIG = {
       sapper: { name: 'Thomas Hancock', nickname: 'Inferno' },
       driver: { name: 'Sid Perkins', nickname: 'Tread' },
       spy: { name: 'René Duchamp', nickname: 'Spooky' },
-      natasha: { name: 'Natasha "Lips" van de Zand', nickname: 'Lips' }, // BCD guest (bcd-plan §1.8)
-      skopje: { name: 'Maj. Dragiša Skopje', nickname: 'Skopje' }, // BCD guest
+      grethe: { name: 'Grethe Holm', nickname: 'Lark' }, // BCD guest (bcd-plan §1.8): code name "Lark"
+      tonino: { name: 'Tonino Esposito', nickname: 'Tonino' }, // BCD guest (bcd-plan §1.8)
     },
     // §3.0 optional locale name tables (`names.eu`): per-role overrides merged over `roster` when
     // `nameLocale` names a table. Off (null) by default: BEL ships the canonical US-manual names.
@@ -734,9 +734,10 @@ export const CONFIG = {
     gestapoAccuracy: 1.25,
     animals: {
       lion: { radius: 8, speed: 6, hits: 2, cadence: 1.5, dmg: 110 },
-      ostrich: { radius: 5, provoke: 3, dmg: 40, cadence: 1, speed: 5 },
+      ostrich: { radius: 5, provoke: 3, dmg: 40, cadence: 1, speed: 5, chase: 10, calm: 8 }, // loose: gives up 10 m out; lets a kicked soldier be 8 s
       chicken: { flee: 3, noiseRadius: 6, speed: 3 },
       dog: { bite: 35, cadence: 1 },
+      scare: 4, // s a soldier kicked by a loose animal watches it from where he ran before he goes back
     },
     push: { wagon: 0.8, tank: 0.6, noiseRadius: 6, reach: 1.5 },
     seaMine: { trigger: 1.5 }, lift: { travel: 6, capacity: 4 }, drawbridge: { time: 5 },

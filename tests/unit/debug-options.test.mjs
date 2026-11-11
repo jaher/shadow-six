@@ -86,7 +86,7 @@ test('debug: transformDef adds missing commandos and overrides light / wind with
   assert.equal(out.weather.wind.preset, 'calm');
   assert.equal(def.commandos.length, 1);
   const bcd = transformDef({ id: 'b00', campaign: 'BCD', commandos: [] , size: [40, 40] }, { allCommandos: true });
-  assert.ok(bcd.commandos.some((c) => c.role === 'natasha'));
+  assert.ok(bcd.commandos.some((c) => c.role === 'grethe'));
 });
 
 test('debug: inspection mode — enemies blind and deaf while world.debug.noDetect', async () => {

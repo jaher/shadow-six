@@ -6,9 +6,9 @@ import { canSee } from '../../src/ai/perception.js';
 
 const can = (id, c, t, w) => ABILITIES[id].canUse(c, t, w);
 
-test('BCD Natasha: Beretta + lipstick + packs; no stones/KO/cuffs; lipstick makes his cone follow her', () => {
-  const s = bcdSim({ commandos: [{ role: 'natasha', x: 24, z: 20 }], enemies: [post('a', 20, 20, Math.PI)] });
-  const n = s.cmd('natasha'), a = s.get('a');
+test('BCD Grethe: pocket pistol + lipstick + packs; no stones/KO/cuffs; lipstick makes his cone follow her', () => {
+  const s = bcdSim({ commandos: [{ role: 'grethe', x: 24, z: 20 }], enemies: [post('a', 20, 20, Math.PI)] });
+  const n = s.cmd('grethe'), a = s.get('a');
   assert.deepEqual([...n.abilities].filter((id) => ['beretta', 'lipstick', 'stone', 'knockoutFist', 'handcuff', 'puppet'].includes(id)).sort(), ['beretta', 'lipstick']);
   assert.equal(n.maxHp, 100);
   assert.equal(n.disguised, true, 'civilian cover');
@@ -26,23 +26,23 @@ test('BCD Natasha: Beretta + lipstick + packs; no stones/KO/cuffs; lipstick make
   assert.notEqual(a.brain.state, 'LIPSTICK', 'right-click ends it');
 });
 
-test('BCD Natasha: the Gestapo see through her cover and cannot be charmed', () => {
-  const s = bcdSim({ commandos: [{ role: 'natasha', x: 24, z: 20 }], enemies: [{ ...post('g', 20, 20, 0), soldierType: 'gestapo' }] });
-  const n = s.cmd('natasha'), g = s.get('g');
+test('BCD Grethe: the Gestapo see through her cover and cannot be charmed', () => {
+  const s = bcdSim({ commandos: [{ role: 'grethe', x: 24, z: 20 }], enemies: [{ ...post('g', 20, 20, 0), soldierType: 'gestapo' }] });
+  const n = s.cmd('grethe'), g = s.get('g');
   assert.notEqual(canSee(g, n, s.world), 'none');
   assert.notEqual(can('lipstick', n, g, s.world), true);
   assert.equal(g.weapon, 'gestapoLuger');
 });
 
-test('BCD Skopje: stones and packs only; keys 7 / 8 select Skopje / Natasha', async () => {
-  const s = bcdSim({ commandos: [{ role: 'skopje', x: 10, z: 10 }, { role: 'natasha', x: 12, z: 10 }] });
-  const k = s.cmd('skopje');
+test('BCD Tonino: stones and packs only; keys 7 / 8 select Tonino / Grethe', async () => {
+  const s = bcdSim({ commandos: [{ role: 'tonino', x: 10, z: 10 }, { role: 'grethe', x: 12, z: 10 }] });
+  const k = s.cmd('tonino');
   assert.ok(k.abilities.includes('stone') && !k.abilities.includes('pistol') && !k.abilities.includes('beretta'));
   const { Input } = await import('../../src/engine/input.js');
   const fake = Object.create(Input.prototype);
   Object.defineProperty(fake, 'world', { get: () => s.world });
   assert.equal(fake.commandoForKey(7), k);
-  assert.equal(fake.commandoForKey(8), s.cmd('natasha'));
+  assert.equal(fake.commandoForKey(8), s.cmd('grethe'));
 });
 
 test('BCD zookeeper: sees a commando → raises the alarm and flees to the barracks', () => {
@@ -108,9 +108,9 @@ test('BCD dog: barks (alarm) and attacks; bites 35; ignores stones and disguises
   assert.ok(s.log.some((l) => l.name === 'bark' && l.p.line === 'dog_bark'));
 });
 
-test('BCD Natasha: once a Gestapo man sees her, her cover is gone for every soldier', () => {
-  const s = bcdSim({ commandos: [{ role: 'natasha', x: 24, z: 20 }], enemies: [{ ...post('g', 20, 20, 0), soldierType: 'gestapo' }, post('p', 30, 20, Math.PI)] });
-  const n = s.cmd('natasha');
+test('BCD Grethe: once a Gestapo man sees her, her cover is gone for every soldier', () => {
+  const s = bcdSim({ commandos: [{ role: 'grethe', x: 24, z: 20 }], enemies: [{ ...post('g', 20, 20, 0), soldierType: 'gestapo' }, post('p', 30, 20, Math.PI)] });
+  const n = s.cmd('grethe');
   assert.equal(canSee(s.get('p'), n, s.world), 'none');
   s.run(0.5);
   assert.equal(n.disguised, false);

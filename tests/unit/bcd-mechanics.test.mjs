@@ -78,16 +78,16 @@ test('BCD drawbridge: the switch raises the span (walkers cannot cross) and lowe
 });
 
 test('BCD knapsack restores its owner’s kit; guests join when a commando reaches them', () => {
-  const s = bcdSim({ commandos: [{ role: 'driver', x: 10, z: 10, inventory: { pistol: 0 } }, { role: 'skopje', x: 30, z: 30, joinsAt: { x: 30, z: 30, r: 3 } }],
+  const s = bcdSim({ commandos: [{ role: 'driver', x: 10, z: 10, inventory: { pistol: 0 } }, { role: 'tonino', x: 30, z: 30, joinsAt: { x: 30, z: 30, r: 3 } }],
     interactables: [{ kind: 'knapsack', id: 'k', x: 11, z: 10, ownerRole: 'driver' }] });
-  const d = s.cmd('driver'), k = s.cmd('skopje');
+  const d = s.cmd('driver'), k = s.cmd('tonino');
   assert.equal(k.state, 'jailed');
   assert.equal(d.useAbility('use', s.get('k')), true);
   s.run(2);
   assert.ok(d.has('leeEnfield') && d.has('pistol'));
   d.x = 29; d.z = 30; d.stop();
   s.run(0.5);
-  assert.equal(k.state, 'active', 'Skopje joined');
+  assert.equal(k.state, 'active', 'Tonino joined');
 });
 
 test('BCD mechanics are inert under BEL (flags off)', () => {

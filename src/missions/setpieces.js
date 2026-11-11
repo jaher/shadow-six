@@ -5,6 +5,9 @@
  *   setpieces: [{type, id, ...}]      one entry per scripted mechanism (types: setpiece-types*.js, SETPIECE_TYPES)
  *   triggers:  [{on, match?, when?, once?, delay?, do:[actions]}]   event → actions (see runAction)
  *   alarmFail: {events:['DETONATE'], message} | {event, message}    §8.1 alarm-fail scripts (M12/M15/M16/M13)
+ *              + `zones: ['yard', …]` (any alarm event raised in one of these zones fails too: a hostage set piece) and
+ *              `onFail(world, payload)`; every alarm-fail first emits 'mission:alarmFail' {zone, event, cause, x, z,
+ *              reason} so a trigger / script can dress it (a volley) during the end grace
  *   script(world, director)           optional per-mission hook, called once after the lazy init
  *   script.visuals(world)             optional: the script's scenery alone (idempotent, no sim state; may return a
  *                                     promise — a sliced job), built by Game.loadMission as the load ends; the
@@ -82,11 +85,23 @@ export function installSetpieces(world, mission, opts = {}) {
   return dir;
 }
 
-/** §8.1 alarm-fail: listed alarm events (fired by alarm zones or scripted runners) fail the mission. */
+/**
+ * §8.1 alarm-fail: listed alarm events (fired by alarm zones or scripted runners) fail the mission; so does any alarm
+ * event raised in one of the listed `zones` (zone-linked: an alarm anywhere else does not count).
+ */
 function installAlarmFail(dir, af) {
   if (!af) return;
   const events = new Set([].concat(af.events || [], af.event || []));
+  const zones = new Set([].concat(af.zones || []));
   const msg = af.message || 'MISSION FAILED';
-  dir.world.listen('alarm:zone', (p) => { if (events.has(p.event)) dir.fail(msg); });
+  dir.world.listen('alarm:zone', (p) => {
+    if (!events.has(p.event) && !(p.zone != null && zones.has(p.zone))) return;
+    if (dir.world.scriptFail) return;
+    if (zones.size || af.onFail) { // (the BEL forms fail exactly as before)
+      dir.world.events.emit('mission:alarmFail', { ...p, reason: msg });
+      if (typeof af.onFail === 'function') { try { af.onFail(dir.world, p); } catch (err) { console.error('[setpieces] alarmFail.onFail', err); } }
+    }
+    dir.fail(msg);
+  });
 }
 

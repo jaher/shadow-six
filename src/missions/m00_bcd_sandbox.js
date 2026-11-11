@@ -5,9 +5,9 @@
  *   A  knock-out row (z 10–14): GB / Driver / Spy each behind a sentry with his back turned
  *   B  lures (x 34–50, z 18–30): Sniper + a walker for stones; Sapper with packs + a post for cigarettes
  *   C  rifle range (x 70–100, z 15): Lee-Enfield targets at 25 m and 30 m
- *   D  zoo (z 42–60): lion pit, ostrich pen + gate, zookeeper, chickens; a dog; Gestapo + lieutenant; Natasha
+ *   D  zoo (z 42–60): lion pit, ostrich pen + gate, zookeeper, chickens; a dog; Gestapo + lieutenant; Grethe
  *   E  water and machines (z 62–92): canal with a drawbridge + switch, sea mines and a rowboat, a rail wagon, a
- *      fuel tank, a lift, the Driver's knapsack, Skopje (joins when reached), a POW yard with a snitch
+ *      fuel tank, a lift, the Driver's knapsack, Tonino (joins when reached), a POW yard with a snitch
  * Easy/Hard: one guard per variant (`only`), variant par times and Easy route speed / pauses.
  */
 
@@ -23,7 +23,7 @@ export default {
   size: [120, 95],
   seed: 4321,
   briefing: {
-    text: 'Expansion test stations: knock-outs and handcuffs, stones and cigarette packs, the puppet, the Spy\'s hanger and wardrobe, the Driver\'s Lee-Enfield, Natasha and Skopje, the zoo, sea mines, the drawbridge, pushable wagons and the lift.',
+    text: 'Expansion test stations: knock-outs and handcuffs, stones and cigarette packs, the puppet, the Spy\'s hanger and wardrobe, the Driver\'s Lee-Enfield, Grethe and Tonino, the zoo, sea mines, the drawbridge, pushable wagons and the lift.',
     objectivesSummary: 'Try every gadget. Reach the extraction point with every commando.',
   },
   baseTerrain: 'grass',
@@ -44,8 +44,8 @@ export default {
     { role: 'sniper', x: 34, z: 20, heading: 0 },
     { role: 'sapper', x: 40, z: 32, heading: 0, inventory: { pistol: 1, bearTrap: 1, grenade: 2, cigarettes: 3 } },
     { role: 'diver', x: 30, z: 80, heading: Math.PI },
-    { role: 'natasha', x: 100, z: 72, heading: 0 },
-    { role: 'skopje', x: 104, z: 86, heading: 0, joinsAt: { x: 104, z: 86, r: 3 } },
+    { role: 'grethe', x: 100, z: 72, heading: 0 },
+    { role: 'tonino', x: 104, z: 86, heading: 0, joinsAt: { x: 104, z: 86, r: 3 } },
   ],
   enemies: [
     // A: knock-out row (backs to the commandos)

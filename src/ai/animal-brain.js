@@ -2,12 +2,16 @@
  * Wild-animal brain (docs/bcd-plan.md §1.9; BCD only — BEL never spawns these types): lion, ostrich, chicken.
  * States IDLE (wander inside the pen), CHARGE, ATTACK, RETURN; chickens FLEE and cluck. Animals ignore
  * disguises, stones and packs, never use the soldier alarm system and never leave their pen
- * (`spawn.pen = {x, z, r}` or `{points:[[x, z], …]}`; an open `spawn.penGate` door lets ostriches roam and
- * attack soldiers too). Same public surface as EnemyBrain so world.ai / alarm / save treat it alike.
+ * (`spawn.pen = {x, z, r}` or `{points:[[x, z], …]}`). An open `spawn.penGate` door lets ostriches out: they roam
+ * `spawn.roam` ({x, z, r} | {points}; default a circle round the gate, 3× the pen radius, at least 12 m), wander up to
+ * whoever is near (10 m) and kick soldiers as well as commandos who come within 3 m; a kicked soldier runs clear of
+ * the bird (ai/bcd-brain fleeFrom, no alarm). A chase ends at the edge of the pen / roam area, or 10 m from where it
+ * began. Same public surface as EnemyBrain so world.ai / alarm / save treat it alike.
  * @module ai/animal-brain
  */
 
 import { CONFIG } from '../config.js';
+import { fleeFrom } from './bcd-brain.js';
 
 const noop = () => {};
 
@@ -42,21 +46,34 @@ export class AnimalBrain {
     this.home = { x: e.x, z: e.z };
     const p = e.spawn?.pen;
     this.pen = p?.points ? { points: p.points } : { x: p?.x ?? e.x, z: p?.z ?? e.z, r: p?.r ?? CONFIG.bcd.animals[this.kind]?.radius ?? 6 };
+    this.chaseFrom = null;
+    this.calm = null;
+  }
+
+  /** Where loose ostriches roam once the gate is open: `spawn.roam`, else a circle round the gate. */
+  roamArea() {
+    const R = this.enemy.spawn?.roam;
+    if (R?.points) return { points: R.points };
+    if (R) return { x: R.x ?? R[0], z: R.z ?? R[1], r: R.r ?? R[2] ?? 12 };
+    const g = this._gate(), P = this.pen;
+    const r = Math.max(12, 3 * (P.r ?? 4));
+    return { x: g?.x ?? P.x ?? this.home.x, z: g?.z ?? P.z ?? this.home.z, r };
+  }
+
+  _gate() {
+    const id = this.enemy.spawn?.penGate;
+    return id == null || !this.world ? null : this.world.interactables.find((i) => (i.tag ?? i.id) === id) || null;
   }
 
   get cfg() { return CONFIG.bcd.animals[this.kind] || {}; }
 
   /** Pen gate open (ostriches roam the zoo)? */
   roaming() {
-    const id = this.enemy.spawn?.penGate;
-    if (id == null || !this.world) return false;
-    const g = this.world.interactables.find((i) => (i.tag ?? i.id) === id);
-    return !!g?.open;
+    return !!this._gate()?.open;
   }
 
   inPen(x, z) {
-    if (this.roaming()) return true;
-    const P = this.pen;
+    const P = this.roaming() ? this.roamArea() : this.pen;
     return P.points ? inPoly(P.points, x, z) : Math.hypot(x - P.x, z - P.z) <= P.r;
   }
 
@@ -75,7 +92,8 @@ export class AnimalBrain {
     if (this.kind === 'ostrich' && this.roaming()) list.push(...w.enemies.filter((q) => q !== e && !q.brain?.arch?.script?.startsWith?.('animal') && q.soldierType !== 'zookeeper'));
     let best = null, bd = Infinity;
     for (const u of list) {
-      if (!u.alive || u.removed || u.state === 'inVehicle' || u.hidden || u.state === 'hidden' || u.underwater) continue;
+      if (!u.alive || u.removed || u.state === 'inVehicle' || u.hidden || u.state === 'hidden' || u.state === 'jailed' || u.underwater || u.incapacitated) continue;
+      if (this.calm && this.calm.id === u.id && w.time < this.calm.until) continue; // the soldier it just kicked
       if (!this.inPen(u.x, u.z)) continue;
       const d = Math.hypot(u.x - e.x, u.z - e.z);
       if (d <= r && d < bd) { bd = d; best = u; }
@@ -93,11 +111,13 @@ export class AnimalBrain {
     const aggro = this.kind === 'lion' ? C.radius : C.provoke;
     if (this.state === 'IDLE' || this.state === 'RETURN') {
       const p = (this.provokedBy?.alive && this.inPen(this.provokedBy.x, this.provokedBy.z)) ? this.provokedBy : this._prey(aggro);
-      if (p) { this.target = p; this._set('CHARGE'); }
+      if (p) { this.target = p; this.chaseFrom = { x: e.x, z: e.z }; this._set('CHARGE'); }
     }
     const tg = this.target;
     if (this.state === 'CHARGE' || this.state === 'ATTACK') {
-      if (!tg || !tg.alive || !this.inPen(tg.x, tg.z) || tg.state === 'inVehicle') { this.target = null; this.provokedBy = null; e.speedMul = 1; this._set('RETURN'); return; }
+      // a loose ostrich gives up 10 m from where the chase began (in the pen, its edge ends the chase)
+      const far = this.roaming() && this.chaseFrom && Math.hypot(e.x - this.chaseFrom.x, e.z - this.chaseFrom.z) > (C.chase ?? 10);
+      if (!tg || !tg.alive || !this.inPen(tg.x, tg.z) || tg.state === 'inVehicle' || far) { this.target = null; this.provokedBy = null; this.chaseFrom = null; e.speedMul = 1; this._set('RETURN'); return; }
       const d = Math.hypot(tg.x - e.x, tg.z - e.z);
       const W = CONFIG.weapons[e.weapon] || { range: 1.5 };
       if (d <= W.range) {
@@ -109,6 +129,11 @@ export class AnimalBrain {
           e.playAction('stab', 0.4);
           tg.takeDamage(C.dmg ?? W.dmg ?? 40, e, this.kind);
           w.events.emit('hit', { x: tg.x, z: tg.z, surface: 'flesh', target: tg, weapon: this.kind });
+          if (tg.kind === 'enemy' && tg.alive && tg.brain?.bcd) { // a soldier runs clear of the bird; it lets him be a while
+            fleeFrom(tg.brain, e);
+            this.calm = { id: tg.id, until: w.time + (C.calm ?? 8) };
+            this.target = null; this.chaseFrom = null; e.speedMul = 1; this._set('RETURN');
+          }
         }
       } else {
         this._set('CHARGE');
@@ -124,6 +149,10 @@ export class AnimalBrain {
       return;
     }
     this.wanderT -= dt;
+    if (this.roaming()) { // loose: every 1.5–2.5 s it heads for whoever is near, else ambles to a point of the roam area
+      if (this.wanderT <= 0) { this.wanderT = 1.5 + w.rng.next(); this._roamStep(e.isMoving); }
+      return;
+    }
     if (this.wanderT <= 0 && !e.isMoving) {
       this.wanderT = 3 + w.rng.next() * 4;
       const P = this.pen, cx = P.x ?? this.home.x, cz = P.z ?? this.home.z, r = (P.r ?? 4) * 0.7;
@@ -131,6 +160,27 @@ export class AnimalBrain {
       const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
       if (this.inPen(x, z)) e.moveTo(x, z);
     }
+  }
+
+  /** Loose (gate open): up to the nearest man within 10 m (soldier or commando), else (when idle) to a point of the roam area. */
+  _roamStep(moving = false) {
+    const e = this.enemy, w = this.world, A = this.roamArea();
+    const near = this._prey(10);
+    if (near) return e.moveTo(near.x, near.z);
+    if (moving) return false;
+    for (let k = 0; k < 6; k++) {
+      let x, z;
+      if (A.points) {
+        const xs = A.points.map((q) => q[0]), zs = A.points.map((q) => q[1]);
+        x = Math.min(...xs) + w.rng.next() * (Math.max(...xs) - Math.min(...xs));
+        z = Math.min(...zs) + w.rng.next() * (Math.max(...zs) - Math.min(...zs));
+      } else {
+        const a = w.rng.next() * Math.PI * 2, rr = Math.sqrt(w.rng.next()) * A.r;
+        x = A.x + Math.cos(a) * rr; z = A.z + Math.sin(a) * rr;
+      }
+      if (this.inPen(x, z) && w.grid.walkableAt(x, z) && e.moveTo(x, z)) return true;
+    }
+    return false;
   }
 
   _chicken() {
@@ -152,9 +202,9 @@ export class AnimalBrain {
   reacts() { return false; }
   isAware() { return this.state === 'CHARGE' || this.state === 'ATTACK'; }
   distractBy() { return false; }
-  serialize() { return { animal: true, state: this.state, t: this.t, hitT: this.hitT, targetId: this.target?.id ?? null, provokedBy: this.provokedBy?.id ?? null }; }
+  serialize() { return { animal: true, state: this.state, t: this.t, hitT: this.hitT, targetId: this.target?.id ?? null, provokedBy: this.provokedBy?.id ?? null, chaseFrom: this.chaseFrom, calm: this.calm }; }
   deserialize(d) {
-    this.state = d.state ?? 'IDLE'; this.t = d.t ?? 0; this.hitT = d.hitT ?? 0;
+    this.state = d.state ?? 'IDLE'; this.t = d.t ?? 0; this.hitT = d.hitT ?? 0; this.chaseFrom = d.chaseFrom ?? null; this.calm = d.calm ?? null;
     this.target = d.targetId != null ? this.world?.byId(d.targetId) ?? null : null;
     this.provokedBy = d.provokedBy != null ? this.world?.byId(d.provokedBy) ?? null : null;
   }

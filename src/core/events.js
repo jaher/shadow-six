@@ -188,6 +188,7 @@ export const EVENT_NAMES = Object.freeze([
   'enemy:rearmed',
   'enemy:cuffed',
   'enemy:ko',
+  'enemy:bridge-wait', 'unit:fled', 'mission:alarmFail',
   // bodies / physics (docs/bodies-design.md §1)
   'blast:front', 'unit:blast', 'body:settled', 'prop:settled',
   // gate smash (design-spec §3.7 ramming addendum; world/breakables.js, physics/debris.js)

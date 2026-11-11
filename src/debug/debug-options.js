@@ -36,10 +36,10 @@ export const DEFAULT_OPTIONS = Object.freeze({
   statsMin: false,
 });
 
-/** Roles "all commandos available" adds when missing, per ruleset (BCD guests join by script, Natasha is free). */
+/** Roles "all commandos available" adds when missing, per ruleset (BCD: Grethe too; a guest who joins by script is left to it). */
 export const ALL_ROLES = Object.freeze({
   BEL: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],
-  BCD: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'natasha'],
+  BCD: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe'],
 });
 
 /**

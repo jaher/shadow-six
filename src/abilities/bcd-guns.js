@@ -1,10 +1,10 @@
 /**
- * BCD firearms and Natasha's kit (docs/bcd-plan.md §1.7, §1.8) — `campaigns: ['BCD']`, never under BEL:
+ * BCD firearms and Grethe's kit (docs/bcd-plan.md §1.7, §1.8) — `campaigns: ['BCD']`, never under BEL:
  *   rifle     E  Driver's Lee-Enfield: 27 m hitscan, one shot kills, 0.6 s aim, 2.5 s bolt reload, pistol-loud
  *                (18 m); hidden count 50 (HUD shows ∞). CONFIG.weapons.leeEnfield. Like every bullet (§3.6) it sets
  *                off an explosive barrel or a fuel tanker — within its own 27 m, in sight (weapons.explosiveInReach).
- *   beretta   Q  Natasha's Beretta 1935: the BEL pistol's stats and rules.
- *   lipstick  D  Natasha: any rank but the Gestapo stares at her; his cone follows her until she leaves his far
+ *   beretta   Q  Grethe's pocket pistol (internal id `beretta`): the BEL pistol's stats and rules.
+ *   lipstick  D  Grethe: any rank but the Gestapo stares at her; his cone follows her until she leaves his far
  *                band, is attacked, or the player right-clicks her (ai/bcd-reactions.startLipstick).
  * The SMG keeps its BEL def; only its key moves to W through `rules.hotkeys` (§2).
  * @module abilities/bcd-guns
@@ -54,16 +54,16 @@ registerAbility({
   },
 });
 
-// Natasha's Beretta: the BEL pistol def, bound to her own item (the BEL pistol def is left untouched)
+// Grethe's pocket pistol (id `beretta`): the BEL pistol def, bound to her own item (the BEL pistol def is left untouched)
 {
   const P = ABILITIES.pistol;
   registerAbility({
-    ...P, id: 'beretta', label: 'Beretta 1935', hotkey: null, roles: ['natasha'], item: 'beretta', campaigns: BCD, group: 'pistol',
+    ...P, id: 'beretta', label: 'Pocket pistol', hotkey: null, roles: ['grethe'], item: 'beretta', campaigns: BCD, group: 'pistol',
   });
 }
 
 registerAbility({
-  id: 'lipstick', label: 'Lipstick', icon: '💄', hotkey: null, roles: ['natasha'], item: 'lipstick', targeting: 'enemy',
+  id: 'lipstick', label: 'Lipstick', icon: '💄', hotkey: null, roles: ['grethe'], item: 'lipstick', targeting: 'enemy',
   cursor: 'talk', order: 12, campaigns: BCD, range: CONFIG.bcd.lipstick.range, visibleToEnemies: false,
   canUse(c, t, world) {
     if (!world.rules?.guests) return 'Not in this campaign.';
@@ -80,9 +80,9 @@ registerAbility({
   },
 });
 
-// Guests' hand (§1.8: "the ordinary selection, move, crouch and hand controls"): the BEL hand def for Natasha
-// and Skopje — they take cigarette packs from the ground and from bodies, never carry anything (items.canPickUp).
+// Guests' hand (§1.8: "the ordinary selection, move, crouch and hand controls"): the BEL hand def for Grethe
+// and Tonino — they take cigarette packs from the ground and from bodies, never carry anything (items.canPickUp).
 {
   const H = ABILITIES.hand;
-  registerAbility({ ...H, id: 'handGuest', hotkey: null, roles: ['natasha', 'skopje'], campaigns: BCD });
+  registerAbility({ ...H, id: 'handGuest', hotkey: null, roles: ['grethe', 'tonino'], campaigns: BCD });
 }

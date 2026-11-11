@@ -19827,14 +19827,14 @@
    "lines": [
     {
      "id": "p0",
-     "text": "Expansion test stations: knock-outs and handcuffs, stones and cigarette packs, the puppet, the Spy's hanger and wardrobe, the Driver's Lee-Enfield, Natasha and Skopje, the zoo, sea mines, the drawbridge, pushable wagons and the lift.",
+     "text": "Expansion test stations: knock-outs and handcuffs, stones and cigarette packs, the puppet, the Spy's hanger and wardrobe, the Driver's Lee-Enfield, Grethe and Tonino, the zoo, sea mines, the drawbridge, pushable wagons and the lift.",
      "files": [
       "narration/b00/p0.ogg",
       "narration/b00/p0.m4a"
      ],
-     "duration": 11.77,
-     "wer": 0.04,
-     "asrErrors": 1,
+     "duration": 11.72,
+     "wer": 0.08,
+     "asrErrors": 2,
      "words": [
       {
        "w": "Expansion",
@@ -19849,76 +19849,76 @@
       {
        "w": "stations",
        "s": 1.058,
-       "e": 1.72
+       "e": 1.695
       },
       {
        "w": "knock-outs",
-       "s": 1.795,
-       "e": 2.182
+       "s": 1.77,
+       "e": 2.158
       },
       {
        "w": "and",
-       "s": 2.182,
-       "e": 2.295
+       "s": 2.158,
+       "e": 2.27
       },
       {
        "w": "handcuffs",
-       "s": 2.295,
-       "e": 2.77
+       "s": 2.27,
+       "e": 2.745
       },
       {
        "w": "stones",
-       "s": 2.82,
-       "e": 3.207
+       "s": 2.795,
+       "e": 3.182
       },
       {
        "w": "and",
-       "s": 3.207,
-       "e": 3.32
+       "s": 3.182,
+       "e": 3.295
       },
       {
        "w": "cigarette",
-       "s": 3.32,
-       "e": 3.72
+       "s": 3.295,
+       "e": 3.695
       },
       {
        "w": "packs",
-       "s": 3.72,
-       "e": 4.045
+       "s": 3.695,
+       "e": 4.02
       },
       {
        "w": "the",
-       "s": 4.082,
-       "e": 4.17
+       "s": 4.058,
+       "e": 4.145
       },
       {
        "w": "puppet",
-       "s": 4.17,
-       "e": 4.545
+       "s": 4.145,
+       "e": 4.52
       },
       {
        "w": "the",
-       "s": 4.583,
-       "e": 4.67
+       "s": 4.558,
+       "e": 4.645
       },
       {
        "w": "Spy's",
-       "s": 4.67,
-       "e": 4.995
+       "s": 4.645,
+       "e": 4.97
       },
       {
        "w": "hanger",
-       "s": 4.995,
-       "e": 5.258
+       "s": 4.97,
+       "e": 5.232
       },
       {
        "w": "and",
-       "s": 5.258,
-       "e": 5.37
+       "s": 5.232,
+       "e": 5.345
       },
       {
        "w": "wardrobe",
-       "s": 5.37,
+       "s": 5.345,
        "e": 5.795
       },
       {
@@ -19937,74 +19937,74 @@
        "e": 6.845
       },
       {
-       "w": "Natasha",
-       "s": 6.883,
-       "e": 7.232
+       "w": "Grethe",
+       "s": 6.895,
+       "e": 7.182
       },
       {
        "w": "and",
-       "s": 7.232,
-       "e": 7.345
+       "s": 7.182,
+       "e": 7.295
       },
       {
-       "w": "Skopje",
-       "s": 7.345,
-       "e": 7.87
+       "w": "Tonino",
+       "s": 7.295,
+       "e": 7.845
       },
       {
        "w": "the",
-       "s": 7.97,
-       "e": 8.095
+       "s": 7.92,
+       "e": 8.058
       },
       {
        "w": "zoo",
-       "s": 8.095,
-       "e": 8.395
+       "s": 8.058,
+       "e": 8.37
       },
       {
        "w": "sea",
-       "s": 8.445,
-       "e": 8.645
+       "s": 8.42,
+       "e": 8.595
       },
       {
        "w": "mines",
-       "s": 8.645,
-       "e": 8.97
+       "s": 8.595,
+       "e": 8.92
       },
       {
        "w": "the",
-       "s": 9.007,
-       "e": 9.095
+       "s": 8.958,
+       "e": 9.045
       },
       {
        "w": "drawbridge",
-       "s": 9.095,
-       "e": 9.545
+       "s": 9.045,
+       "e": 9.495
       },
       {
        "w": "pushable",
-       "s": 9.595,
-       "e": 9.97
+       "s": 9.545,
+       "e": 9.92
       },
       {
        "w": "wagons",
-       "s": 9.97,
-       "e": 10.333
+       "s": 9.92,
+       "e": 10.282
       },
       {
        "w": "and",
-       "s": 10.333,
-       "e": 10.432
+       "s": 10.282,
+       "e": 10.382
       },
       {
        "w": "the",
-       "s": 10.432,
-       "e": 10.52
+       "s": 10.382,
+       "e": 10.47
       },
       {
        "w": "lift",
-       "s": 10.52,
-       "e": 11.17
+       "s": 10.47,
+       "e": 11.12
       }
      ]
     },

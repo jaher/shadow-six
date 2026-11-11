@@ -21,12 +21,12 @@ test('b00: every commando, guest, unit type and mechanic spawns; 20 s of sim run
   const { id, ...def } = getMission('b00'); // eslint-disable-line no-unused-vars
   const s = bcdSim({ ...def, id: 'b00x' });
   const roles = s.world.commandos.map((c) => c.role).sort();
-  assert.deepEqual(roles, ['diver', 'driver', 'greenberet', 'natasha', 'sapper', 'skopje', 'sniper', 'spy']);
+  assert.deepEqual(roles, ['diver', 'driver', 'greenberet', 'grethe', 'sapper', 'sniper', 'spy', 'tonino']);
   const types = new Set(s.world.enemies.map((e) => e.soldierType));
   for (const t of ['gestapo', 'lieutenant', 'zookeeper', 'snitch', 'pow', 'lion', 'ostrich', 'chicken', 'dog']) assert.ok(types.has(t), t);
   const kinds = new Set(s.world.interactables.map((i) => i.interactKind));
   for (const k of ['drawbridge', 'drawbridgeSwitch', 'seaMine', 'pushable', 'lift', 'knapsack']) assert.ok(kinds.has(k), k);
-  assert.equal(s.cmd('skopje').state, 'jailed', 'Skopje waits to be reached');
+  assert.equal(s.cmd('tonino').state, 'jailed', 'Tonino waits to be reached');
   s.run(20);
   assert.ok(!s.alarmed(), 'a quiet map until the tester acts');
   for (const c of s.world.commandos) assert.ok(c.alive, c.role);

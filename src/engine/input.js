@@ -253,8 +253,8 @@ export class Input {
   commandoForKey(n) {
     const w = this.world;
     if (!w) return null;
-    // BCD guests (bcd-plan §2): 7 = Skopje, 8 = Natasha
-    if (w.rules?.guests && (n === 7 || n === 8)) return w.commandos.find((c) => c.alive && c.role === (n === 7 ? 'skopje' : 'natasha')) || null;
+    // BCD guests (bcd-plan §2): 7 = Tonino, 8 = Grethe
+    if (w.rules?.guests && (n === 7 || n === 8)) return w.commandos.find((c) => c.alive && c.role === (n === 7 ? 'tonino' : 'grethe')) || null;
     if (n === 7) return w.commandos.find((c) => c.alive && (c.role === 'guest' || c.guest || c.isGuest)) || null;
     const role = CONFIG.units.selectOrder[n - 1];
     return w.commandos.find((c) => c.role === role && c.alive) || null;
@@ -621,7 +621,7 @@ export class Input {
     switch (action) {
       case 'deselect': this.deselectAll(); return;
       case 'selectAll':
-        if (this.world.rules?.guests) { this.selectUnit(this.commandoForKey(8)); return; } // BCD: 8 = Natasha
+        if (this.world.rules?.guests) { this.selectUnit(this.commandoForKey(8)); return; } // BCD: 8 = Grethe
         this.select(this.world.commandos.filter((c) => c.alive)); return;
       case 'crawl':
       case 'stand': {

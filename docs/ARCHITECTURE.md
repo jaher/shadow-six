@@ -248,7 +248,10 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `enemy:ko-found` | `{enemy, victim}` | BCD: a comrade sees a knocked-out / cuffed man |
 | `enemy:revived` | `{enemy, by}` | BCD: a stunned man revived by a comrade |
 | `enemy:freed` | `{enemy, by}` | BCD: a cuffed man freed by a comrade (both alarm, §1.2) |
-| `enemy:flee` | `{enemy, from}` | BCD zookeeper flees (§1.9) |
+| `enemy:flee` | `{enemy, from, to?}` | BCD: the zookeeper flees (§1.9); a non-combatant runs to his flee point; a soldier runs clear of a loose animal |
+| `unit:fled` | `{unit, x, z}` | BCD: a fleeing non-combatant (spawn `flee.leave`) reached his point and left the map (a `deliver` objective counts him) |
+| `enemy:bridge-wait` | `{enemy, bridge}` | BCD: a patrol whose route crosses a raised drawbridge waits at its edge (§1.10) |
+| `mission:alarmFail` | `{zone, event, cause, x, z, reason}` | an `alarmFail` with `zones` / `onFail` is about to fail the mission (a script dresses it: a volley) |
 | `enemy:snitched` | `{enemy, guard}` | BCD snitch POW reports to a guard (§1.9) |
 | `bcd:stone` | `{x, z, thrower, reacted}` | BCD stone landed (§1.4) → audio, ui |
 | `bcd:pack-lured` | `{enemy, pack}` | BCD cigarette pack lures a soldier (§1.5) |
