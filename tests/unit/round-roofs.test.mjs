@@ -411,11 +411,13 @@ const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 loader.register(() => ({ name: 'no-textures', loadTexture: () => Promise.resolve(null) }));
 const load = (name, lod = 0) => new Promise((res, rej) => loader.parse(readGlbArrayBuffer(P(`assets/models/${M.assets[name].lods[lod].url}`)), '', (g) => res(g.scene), rej));
 
-/** Run fn with a stub `document` (applyAssetFixups also loads the camo-net textures, which want an <img>), then take it away. */
+/** Run fn with a stub `document` (applyAssetFixups also loads the camo-net textures, which want an <img>), then put back what was there.
+ *  A sibling test (hud-eye) restores `document` by assignment and so leaves an own `document: undefined` behind when it ran in the
+ *  same process (CI shards): `'document' in globalThis` is then true, so ask for the method, not the key. */
 function withDom(fn) {
-  const had = 'document' in globalThis;
-  if (!had) globalThis.document = { createElementNS: () => ({ style: {}, addEventListener() {}, removeEventListener() {}, set src(v) {} }) };
-  try { return fn(); } finally { if (!had) delete globalThis.document; }
+  const g = globalThis, had = typeof g.document?.createElementNS === 'function', prev = Object.getOwnPropertyDescriptor(g, 'document');
+  if (!had) g.document = { createElementNS: () => ({ style: {}, addEventListener() {}, removeEventListener() {}, set src(v) {} }) };
+  try { return fn(); } finally { if (!had) { if (prev) Object.defineProperty(g, 'document', prev); else delete g.document; } }
 }
 
 /** The sloped revolution roof meshes of a scene, with their quantisation scale (m per unit). */
