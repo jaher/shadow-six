@@ -757,8 +757,10 @@ feat/vehicle-integration stay trivial.
   - coping fixings are above every stake top in their span + 4 cm (the M2 regression);
   - strand paths do not enter any other structure's solid footprint;
   - belt hedgehogs are ≥ 1 m from loose hedgehogs.
-- Budget: tri and instance counts for each of M2, M3 (and M10 after merge) are under §7's limits; build time
-  < 40 ms in Node with geometry only.
+- Budget: tri and draw-call counts for each of M2, M3 (and the M4–M20 pass) are under §7's limits (hard bounds); the
+  whole warm build costs under 10 reference workloads (`tests/unit/cpu-speed.mjs`, `wire-budget.mjs`): a bound in ms is
+  a property of the machine (a shared CI runner reads 2–4× a desktop, and the first build in a process several times its
+  warm one), so the unit tests do not assert one.
 - Cut gap: after `applyGap` there are no strand segments inside the gap cells; each cut strand has 2 tails; a
   rebuild from a saved grid gives the same gap.
 - Reinforced and electric looks differ from the cuttable default (material or recipe flags).
@@ -973,7 +975,7 @@ rims), read on the grid built *without* the added runs (their own fence stamp ov
 first M18 island coil ran its last loops through `sandbags_isl` and the old B.HIGH-only check missed it; the M8
 `wx_wadi_e` stakes, which leaned over the `wadi_n` rim and touched the bridge approach, and the M10 `wx_mg_3` end at
 hedgehog `hh_e7` were pulled clear by the same check). Touching another wire run's cells is allowed. The layer stays in the
-§7 budget (< 200 k ribbon triangles, ≤ 40 draw objects, < 150 ms build).
+§7 budget (< 200 k ribbon triangles, ≤ 40 draw objects, a warm build under 10 reference workloads: `tests/unit/wire-budget.mjs`).
 
 **Tried and dropped (screenshots or checks).** M4 pier nest (under the pines), M5 radar (the summit is a raised
 deck), M7 E gun pit (down the quay slope), M8 SW pillbox (crossed `wire_s`), M11 mesa rim (under the raised mesa

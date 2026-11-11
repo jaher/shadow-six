@@ -14,6 +14,7 @@ import { buildMap } from '../../src/world/map-builder.js';
 import { getMission } from '../../src/missions/index.js';
 import gallery from '../../src/missions/dev/wire-gallery.js';
 import { penWireRuns } from '../../src/art/wire-missions.js';
+import { WIRE_BUDGET, wireCountProblems, wireBuildCost, wireCostMessage } from './wire-budget.mjs';
 
 const loadMap = (def) => {
   const world = new World({ size: def.size, scene: new THREE.Scene(), mission: def });
@@ -138,9 +139,14 @@ test('placement: M3 wire stays out of solids; budgets for M2 / M3 / gallery', ()
       assert.ok(owners.has(g.owner[k]) || g.block[k] !== B.HIGH, `${def.id}: wire in a solid at ${p.map((v) => v.toFixed(2))}`);
     }
     const s = W.stats;
-    // §7 budgets for the campaign maps (the gallery packs every type into 64 × 56 m: logged only)
-    if (def.id !== 'wiregal') assert.ok(s.ribbonTris < 200000 && s.drawCalls <= 40 && s.buildMs < 150, `${def.id} budget ${JSON.stringify(s)}`);
-    console.log(`  wire ${def.id}: ${JSON.stringify(s)}`);
+    // §7 budgets for the campaign maps (the gallery packs every type into 64 × 56 m: logged only). Counts are hard
+    // bounds; what a build costs is bounded in reference workloads, never in ms (wire-budget.mjs)
+    const cost = def.id === 'wiregal' ? null : wireBuildCost(world, handle, def);
+    console.log(`  wire ${def.id}: ${JSON.stringify(s)}${cost ? `; warm build ${cost.ms.toFixed(1)} ms = ${cost.units.toFixed(2)} reference loops of ${cost.refMs.toFixed(1)} ms` : ''}`);
+    if (cost) {
+      assert.deepEqual(wireCountProblems(s), [], `${def.id} budget ${JSON.stringify(s)}`);
+      assert.ok(cost.units <= WIRE_BUDGET.buildUnits, wireCostMessage(def.id, cost));
+    }
     handle.dispose();
   }
 });

@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { test, assert, near } from './lib.mjs';
+import { referenceMs } from './cpu-speed.mjs';
 import { readGlbArrayBuffer } from '../../tools/glb-io.mjs';
 import { GLTFLoader } from '../../src/engine/glb-gzip.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -519,17 +520,23 @@ test('gameplay measures the authored geometry: a refined roof moves no hull, ras
 });
 
 test('library: no asset keeps a flat-shaded or coarse round roof (every LOD 0 as the game loads it)', async () => {
-  let fixedAssets = 0, surfaces = 0, ms = 0;
-  const left = [];
-  for (const name of Object.keys(M.assets)) {
+  let fixedAssets = 0, surfaces = 0, ms = 0, k = 0;
+  const left = [], pace = []; // pace: a reference loop every 25th asset, the machine's speed while the assets go through
+  const names = Object.keys(M.assets);
+  for (const name of names) {
     const scene = await load(name, 0);
     const t0 = performance.now();
     const n = roundRoofs(scene, 0);
     ms += performance.now() - t0;
     if (n) { fixedAssets++; surfaces += n; }
     for (const f of roofs(scene)) if (!f.skip) left.push(`${name} ${f.o.material.name} N${f.N} R${f.R}`);
+    if (++k % 25 === 0) pace.push(referenceMs());
   }
   assert.deepEqual(left, [], 'nothing left to round');
   assert.ok(fixedAssets >= 20 && surfaces >= 25, `${fixedAssets} assets / ${surfaces} surfaces rounded`);
-  assert.ok(ms / Object.keys(M.assets).length < 15, `detection + rebuild ${(ms / Object.keys(M.assets).length).toFixed(2)} ms per asset (load budget)`);
+  // the load budget in reference workloads (cpu-speed.mjs), not ms per asset: a ms bound is the machine's (9-11 ms per asset
+  // read against the old 15 ms bound on a host at load 45). The whole pass costs ~300-430 of them today; the limit is 1500.
+  const speed = pace.sort((x, y) => x - y)[pace.length >> 1], units = ms / speed;
+  console.log(`       round roofs: detection + rebuild ${(ms / names.length).toFixed(2)} ms per asset = ${units.toFixed(0)} reference loops of ${speed.toFixed(1)} ms`);
+  assert.ok(units < 1500, `detection + rebuild ${(ms / names.length).toFixed(2)} ms per asset = ${units.toFixed(0)} reference loops of ${speed.toFixed(1)} ms (load budget: under 1500)`);
 });

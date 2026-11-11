@@ -7,6 +7,7 @@ import { test, assert } from './lib.mjs';
 import { MISSIONS } from '../../src/missions/index.js';
 import { wireTypeOf } from '../../src/art/wire-obstacles.js';
 import { wireImpact, WIRE_ADD } from './wire-check.mjs';
+import { WIRE_BUDGET, wireCountProblems, wireBuildCost, wireCostMessage } from './wire-budget.mjs';
 import { loadGrid } from './mission-check.mjs';
 
 const added = (m) => (m.structures || []).filter((s) => WIRE_ADD.test(s.id ?? ''));
@@ -40,9 +41,9 @@ for (const def of withWire) test(`wire pass: ${def.id} stays inside the wire bud
   const { buildMap } = await import('../../src/world/map-builder.js');
   const { B } = await import('../../src/world/grid.js');
   const inSolid = new Map(); // one line per run and solid (the runner prints the first lines of a failure)
-  {
-    const world = new World({ size: def.size, scene: new THREE.Scene(), mission: def });
-    const handle = buildMap(world, def);
+  const world = new World({ size: def.size, scene: new THREE.Scene(), mission: def });
+  const handle = buildMap(world, def);
+  try {
     const W = handle.wire;
     assert.ok(W, `${def.id} wire layer`);
     const runs = new Set(added(def).map((s) => s.id));
@@ -65,11 +66,13 @@ for (const def of withWire) test(`wire pass: ${def.id} stays inside the wire bud
         if (!inSolid.has(hit)) inSolid.set(hit, `${hit} at (${p[0].toFixed(1)}, ${p[2].toFixed(1)})`);
       }
     }
-    const s = W.stats;
-    assert.ok(s.ribbonTris < 200000 && s.drawCalls <= 40 && s.buildMs < 150, `${def.id} budget ${JSON.stringify(s)}`);
-    console.log(`  wire ${def.id}: runs ${s.runs}, ${s.ribbonTris} tris, ${s.barbs} barbs, ${s.drawCalls} draws, ${s.buildMs} ms`);
-    handle.dispose();
-  }
-  const hits = [...inSolid.values()];
-  assert.deepEqual(hits, [], `added wire inside a solid: ${hits.join('; ')}`);
+    const s = W.stats, cost = wireBuildCost(world, handle, def);
+    console.log(`  wire ${def.id}: runs ${s.runs}, ${s.ribbonTris} tris, ${s.barbs} barbs, ${s.drawCalls} draws; build ${s.buildMs} ms the first time, ${cost.ms.toFixed(1)} ms warm = ${cost.units.toFixed(2)} reference loops of ${cost.refMs.toFixed(1)} ms`);
+    // correctness first: a budget that is over must not hide a wire inside a solid
+    const hits = [...inSolid.values()];
+    assert.deepEqual(hits, [], `added wire inside a solid: ${hits.join('; ')}`);
+    // the budget: counts are hard bounds, the cost of building is bounded in reference workloads (never in ms: wire-budget.mjs)
+    assert.deepEqual(wireCountProblems(s), [], `${def.id} budget ${JSON.stringify(s)}`);
+    assert.ok(cost.units <= WIRE_BUDGET.buildUnits, wireCostMessage(def.id, cost));
+  } finally { handle.dispose(); }
 });

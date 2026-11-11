@@ -170,7 +170,7 @@ test('fallbacks: no DOM, a failed sheet or reduced motion leave the static rende
   const none = new EyeAnimator(fakeBtn());
   assert.equal(none.tick(0), -1, 'no document: inert');
   assert.equal(none.refresh(2), null);
-  const g = globalThis, saved = { document: g.document, Image: g.Image };
+  const g = globalThis, had = ['document', 'Image'].filter((k) => k in g), saved = { document: g.document, Image: g.Image };
   const mk = () => ({ style: {}, dataset: {}, setAttribute() {}, remove() {} });
   let img = null;
   g.document = { createElement: mk };
@@ -194,7 +194,9 @@ test('fallbacks: no DOM, a failed sheet or reduced motion leave the static rende
     assert.equal(a.tick(10), -1, 'reduced motion → static');
     assert.ok(!btn.cls.has('eye-live') && btn.cls.has('eye-rm'));
   } finally {
-    g.document = saved.document; g.Image = saved.Image;
+    // put back what was there: assigning the saved `undefined` leaves an own property behind, and `'document' in globalThis`
+    // is then true for every test after this one in the same process (a CI shard): round-roofs' DOM stub trusted that
+    for (const k of ['document', 'Image']) { if (had.includes(k)) g[k] = saved[k]; else delete g[k]; }
   }
 });
 

@@ -8,6 +8,7 @@
 import { test, assert } from './lib.mjs';
 import { makeSim } from './abilsim.mjs';
 import { makeDriver, PLAN_SLICE_MS } from '../../tools/solutions/driver.mjs';
+import { virtualClock } from './virtual-clock.mjs';
 
 const spin = (ms) => { const t = performance.now(); while (performance.now() - t < ms) { /* busy */ } };
 const sim = () => makeSim({ size: [20, 20], commandos: [{ role: 'greenberet', x: 5, z: 5 }], enemies: [] }, { brains: false });
@@ -61,19 +62,24 @@ test('driver breathe: with the replay\'s frame count, the checks between the tic
 });
 
 test('driver breathe: the ticks themselves are not the slice\'s (slow ticks, cheap checks: no pause; a sliced plan after them runs on)', async () => {
-  const s = sim();
-  let frameNo = 0, ticks = 0, pauses = 0;
-  // (a boosted fixed speed: many ticks a frame, each taking real time; between them a cheap check — and a sliced plan)
-  const D = makeDriver(s.world, {
-    step: () => { if (++ticks % 8 === 0) frameNo++; spin(PLAN_SLICE_MS * 0.3); s.step(); }, quiet: true, log: () => {},
-    pause: async () => { pauses++; frameNo++; }, frame: () => frameNo,
-  });
-  let calls = 0;
-  await D.untilAsync(async () => { await D.breathe(); return ++calls >= 16; }, 5, 'cheap checks');
-  assert.equal(pauses, 0, `8 ticks a frame of ${(PLAN_SLICE_MS * 0.3).toFixed(1)} ms each: no pause for the checks (${pauses})`);
-  // a plan of 4 pieces of PLAN_SLICE_MS / 4 after a frame of slow ticks: one slice, no pause
-  await D.wait(7 / 60);
-  function* plan() { for (let i = 0; i < 4; i++) { spin(PLAN_SLICE_MS / 4 - 0.2); yield; } return 1; }
-  assert.equal(await D.runSliced(plan()), 1);
-  assert.equal(pauses, 0, `the plan's own work fits its slice (${pauses} pauses)`);
+  // on a virtual clock: the plan below spends PLAN_SLICE_MS - 0.8 ms of a PLAN_SLICE_MS slice, a margin the real clock
+  // does not keep on a loaded host (one stall over 0.8 ms and the plan is paused)
+  const clock = virtualClock(), spin = clock.spin;
+  try {
+    const s = sim();
+    let frameNo = 0, ticks = 0, pauses = 0;
+    // (a boosted fixed speed: many ticks a frame, each taking real time; between them a cheap check — and a sliced plan)
+    const D = makeDriver(s.world, {
+      step: () => { if (++ticks % 8 === 0) frameNo++; spin(PLAN_SLICE_MS * 0.3); s.step(); }, quiet: true, log: () => {},
+      pause: async () => { pauses++; frameNo++; }, frame: () => frameNo,
+    });
+    let calls = 0;
+    await D.untilAsync(async () => { await D.breathe(); return ++calls >= 16; }, 5, 'cheap checks');
+    assert.equal(pauses, 0, `8 ticks a frame of ${(PLAN_SLICE_MS * 0.3).toFixed(1)} ms each: no pause for the checks (${pauses})`);
+    // a plan of 4 pieces of PLAN_SLICE_MS / 4 after a frame of slow ticks: one slice, no pause
+    await D.wait(7 / 60);
+    function* plan() { for (let i = 0; i < 4; i++) { spin(PLAN_SLICE_MS / 4 - 0.2); yield; } return 1; }
+    assert.equal(await D.runSliced(plan()), 1);
+    assert.equal(pauses, 0, `the plan's own work fits its slice (${pauses} pauses)`);
+  } finally { clock.restore(); }
 });
