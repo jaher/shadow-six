@@ -71,13 +71,16 @@ test('D.parallel: one flow\'s wait ending leaves the other\'s label shown', asyn
   assert.ok(labels.slice(labels.indexOf('b waits') + 1, -1).every((l) => l !== null), labels.join('|'));
 });
 
-test('one flow: a wait label is cleared to null as before', async () => {
+test('one flow: a wait label is cleared to null as before — back to the note when one stands round it', async () => {
   const { w, D, labels } = rig();
   await D.until(() => w.tick >= 5, 5, 'x');
   D.waitNote('note');
   await D.until(() => w.tick >= 10, 5, 'y');
+  // (the solution still waits under its note — M20's knife moments looked for every 2 s: video mode's time-lapse runs on)
+  await D.wait(2);
   D.waitNote(null);
-  assert.deepEqual(labels, ['x', null, 'note', 'y', null, null]);
+  await D.until(() => w.tick >= 200, 5, 'z');
+  assert.deepEqual(labels, ['x', null, 'note', 'y', 'note', 'a 2 s pause', 'note', null, 'z', null]);
 });
 
 test('D.parallel: a flow that hands the frame back while it plans keeps its turn (the logic run\'s order, live too)', async () => {

@@ -232,7 +232,14 @@ function* rockets(w, m) {
     const o = w.structures?.get?.(s.id)?.object3d;
     if (swapVisual(w, s.id, lib.object3d, lib.ready)) {
       n++;
-      if (o) o.userData.destroy = () => lib.object3d.userData.destroy?.();
+      if (o) {
+        o.userData.destroy = () => lib.object3d.userData.destroy?.();
+        // (and its ruin staged at load as any library building's — Game.loadMission asks the interactable's own object
+        // for prepareDestroy: without it the burnt-out wreck was built, its model fetched, in the blast's tick, 0.6 ms)
+        const ud = lib.object3d.userData;
+        if (ud.prepareDestroy) o.userData.prepareDestroy = () => ud.prepareDestroy();
+        if (ud.stageAlways != null) o.userData.stageAlways = ud.stageAlways;
+      }
     }
   }
   return n;

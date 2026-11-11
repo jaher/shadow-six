@@ -726,7 +726,9 @@ export class Walkthrough extends SolutionReplay {
     const want = this._idleSince != null && t - this._idleSince > 1.0 ? SKIP_BOOST : 1;
     if (want < p.boost) p.boost = want; // back to the chosen pace at once
     else if (want > p.boost) p.boost = Math.min(want, p.boost * Math.pow(2.2, Math.min(dt, 0.1))); // ramps up
-    if (Math.abs(p.boost - 1) < 0.02) p.boost = 1;
+    // (settled on the chosen pace: float noise round 1 — not a ramp's first steps, which at 60 frames a second are under
+    // 2 % each: snapped back every frame, the boost never rose but on a slow frame)
+    if (want === 1 && Math.abs(p.boost - 1) < 0.02) p.boost = 1;
   }
 
   /**

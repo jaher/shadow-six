@@ -338,6 +338,10 @@ const failMemos = new WeakMap();
 export const searchStats = { expanded: 0 };
 /** How often findPath answered from a search it kept (tests): the same points (`found`), the same two cells (`chain`). */
 export const reuseStats = { found: 0, chain: 0 };
+/** Tests only (tests/unit/search-hot-loop: the same answers every way): `hot` false expands the step masks' cells in
+ * searchPath's own loop instead of hotRun, `steps` false there without the step masks (the cell-by-cell fast path),
+ * `layers` false without any static layer (grid.isWalkable's own tests, cell by cell). Read once a search. */
+export const searchTuning = { hot: true, steps: true, layers: true };
 const maskIds = new WeakMap();
 let nextMaskId = 1;
 /** Failed-search sets kept per epoch (each a byte per cell). */
@@ -1359,7 +1363,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   // (a diver too — grid.isWalkable's dive rules: the static layer staticLayers keeps for them, the underpass cells read
   // off the grid — M18's Marine up the river: ~25k cells a search, 21 ms with the test called cell by cell)
   const dive = walkOpts.dive, under = grid.underpass;
-  const fast = ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain && (!dive || !!under), rows = grid.rows;
+  const fast = ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain && (!dive || !!under) && searchTuning.layers, rows = grid.rows;
   const { block, navBlock, fenceHole, dynamicBlock } = grid, dyn = walkOpts.dynamic, avoid = walkOpts.avoid;
   const SL = fast ? staticLayers(grid, swim, true, dive) : null, sOpen = SL ? SL.open[dive ? 2 : swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
   // (the fast path's walk test, written out where it is asked — no call per neighbour: the static layer, then the
@@ -1372,7 +1376,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const endF = fast && meet ? ladderEndFlags(grid) : null;
   // (the step masks of this walk layer — staticLayers' nb — and, when ladder ends are noted, the cells beside one: those
   // take the cell-by-cell path below; not a diver's search)
-  const nbm = SL !== null && !dive ? stepMasksOf(SL, grid, swim ? 1 : 0) : null, nearE = endF !== null ? ladderEndNear(grid) : null;
+  const nbm = SL !== null && !dive && searchTuning.steps ? stepMasksOf(SL, grid, swim ? 1 : 0) : null, nearE = endF !== null ? ladderEndNear(grid) : null;
   // (grid.canStep, inline, from the cell being expanded — its height and run read once for its eight neighbours: the
   // elevation step, then a ramp / stair run's sides, the grid's own test)
   const elev = grid.elev, runOf = grid.runOf;
@@ -1384,7 +1388,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
 
   // (the step masks' cells in hotRun, a function of its own; the cells it hands back — and every cell when the masks do not
   // serve — in this loop, as ever)
-  const hot = nbm !== null && (!hasLinks || linked !== null) ? HOT : null;
+  const hot = nbm !== null && (!hasLinks || linked !== null) && searchTuning.hot ? HOT : null;
   if (hot !== null) {
     hot.heap = heap; hot.cellOf = cellOf; hot.st = st; hot.slotOf = slotOf; hot.g = g; hot.f = f; hot.parent = parent; hot.via = via;
     hot.nbm = nbm; hot.nearE = nearE; hot.lk = hasLinks ? linked : null; hot.dynB = dynB; hot.avM = avM; hot.frM = frM; hot.mul = mul;

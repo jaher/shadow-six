@@ -235,6 +235,7 @@ export class Interactable extends Entity {
       // every path over the dam is invalidated (replay m03: troops walked over the destroyed dam)
       const g = w.grid;
       for (const k of this._crestCells) { g.terrain[k] = T.WATER; g.bridge[k] = 0; g.elev[k] = 0; } // a raised crest (M3) too
+      g.bridgeVer++;
       // 'flood': the surge drowns the wadeable toe ledge below the dam (mission `floodPoly`)
       const S = this.params?.structure;
       if (S?.destroyFx?.includes('flood') && Array.isArray(S.floodPoly)) g.fillPoly(S.floodPoly, 'terrain', T.WATER);
@@ -365,6 +366,7 @@ export class Interactable extends Entity {
         g.owner[k] = this.owner;
         g.block[k] = nav.lowQuarter && inLocalQuarter(S, x, z, nav.lowQuarter) ? B.LOW : cls;
       }
+      g.bridgeVer++;
       // the ladders up to the deck (mission or library) lead nowhere now
       for (const l of g.links || []) if (l.enabled && (set.has(l.ka) || set.has(l.kb))) g.setLinkEnabled(l.id, false);
       g.version++; // (the deck's ground, bridge cells and ladders change too: a plain bump, every per-version cache redone)

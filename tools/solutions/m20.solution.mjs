@@ -34,7 +34,7 @@ import { BODY, bodyGap, clearPose, hasObstacles, deadStance, STOP_MARGIN } from 
 import { ABILITIES } from '../../src/abilities/registry.js';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { arcStep } from '../../src/entities/vehicle-maneuver.js';
-import { sneak, planSneak, clearFor, routeClear, routeClearGen, unwitnessed, bodySeen, predict, walking, viewersOf, walkerViews, walkerSees, seesAny, inflateCone, dummyAt, glanceCone } from './sneak.mjs';
+import { sneak, planSneak, clearFor, routeClear, routeClearGen, unwitnessed, bodySeen, predict, walking, viewersOf, walkerViews, walkerSees, walkerSeesWide, seesAny, inflateCone, dummyAt, glanceCone } from './sneak.mjs';
 import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M20DBG || globalThis.__M3DBG);
@@ -65,6 +65,24 @@ function exactly(D, slack, fn) {
   w.sneakHaltExact = slack;
   try { return fn(); } finally { w.sneakHaltExact = prev; }
 }
+/** exactly, for a timing check that is a generator (`gen`: a function* — yield* it, the same answer) */
+function* exactlyG(D, slack, gen) {
+  const w = D.world, prev = w.sneakHaltExact;
+  w.sneakHaltExact = slack;
+  try { return yield* gen(); } finally { w.sneakHaltExact = prev; }
+}
+/**
+ * A moment's test (an okAt): a plain answer as it is; a generator (okAt written as a function*: its route checks
+ * yield* quietRouteG) run the sliced way — D.runSliced: in the live replay the frame is handed back every few ms, no
+ * tick in between, so the answer is the one it gives run straight through. (Closed if the run ends meanwhile: its
+ * `finally` puts the planner's settings back.)
+ */
+async function askA(D, r) {
+  if (!r || typeof r.next !== 'function') return r;
+  try { return await D.runSliced(r); } finally { r.return(); }
+}
+/** askA straight through (no slices): the same answer */
+function askS(r) { return r && typeof r.next === 'function' ? runGen(r) : r; }
 
 /**
  * `role` crawls the way round the castle's S side (S_FIELD). Down the narrow E field the wall's men are near-band-wide:
@@ -91,12 +109,23 @@ async function crawl(D, role, x, z, o = {}) {
  * (`lead` s) and near enough to plan for (`H` s), then crawls so as to get there then. (The planner's goal test is the
  * moments found, not okAt itself: those are costly, and it asks them of every arrival it weighs.)
  */
-async function crawlForMoment(D, role, x, z, okAt, { lead = 12, H = 70, maxWait = 900, label = '', exact = null, ...o } = {}) {
+async function crawlForMoment(D, role, x, z, okAt, o = {}) {
+  try { return await crawlForMoment0(D, role, x, z, okAt, o); } finally { D.waitNote?.(null); }
+}
+async function crawlForMoment0(D, role, x, z, okAt, { lead = 12, H = 70, maxWait = 900, label = '', exact = null, ...o } = {}) {
   const t0 = D.t, u = D.c(role), home = [u.x, u.z]; // (where he lies now, where nobody looks: he waits there)
+  // (video mode: from the first look to the crawl one wait — the looks and the 2 s pauses between them under one note,
+  // D.waitNote, so AUTO's time-lapse runs on through them instead of starting afresh every 2 s; nothing in the run
+  // changes: no order is given while it stands)
+  const note = `${label || role}: a moment`;
   for (;;) {
+    D.waitNote?.(note);
     const g = [];
-    for (let d = lead; d <= H + 1e-9; d += 0.5) if (okAt(d)) g.push(d);
+    // (okAt may be a generator — its route checks sliced, askA: the live replay keeps its frames meanwhile; the world
+    // stands still, so the moments are the ones found straight through)
+    for (let d = lead; d <= H + 1e-9; d += 0.5) if (await askA(D, okAt(d))) g.push(d);
     if (g.length) {
+      D.waitNote?.(null); // (he sets off: the wait is over)
       const set = new Set(g.map((d) => Math.round((D.t + d) * 2)));
       // (clicked as planned, not as straight dashes: the moment is the plan's own arrival — a dash that comes sooner and
       // waits, or ends a stride off the plan's cell, misses a window of a second or two)
@@ -107,9 +136,10 @@ async function crawlForMoment(D, role, x, z, okAt, { lead = 12, H = 70, maxWait 
       if (ok !== false && Math.hypot(u.x - x, u.z - z) < 0.8) return;
       // (the crawl fell behind its moment on the way: back to where he lay, not lying on in the open)
       if (Math.hypot(u.x - home[0], u.z - home[1]) > 1) await crawl(D, role, ...home, { box: 5, hold: 3, crawlPad: 5, label: `${label} (back)` });
+      D.waitNote?.(note);
     }
     if (D.t - t0 > maxWait) throw new Error(`${label}: no moment within ${maxWait} s`);
-    if (DBG) { const n = new Map(); for (let d = lead; d <= H; d += 0.5) { const why = []; if (!okAt(d, why)) { const k = (why[0] || '?').replace(/\+.*/, ''); n.set(k, (n.get(k) || 0) + 1); } } dbg(D, [...n].map(([k, v]) => `${k}×${v}`), `${label}: no moment`); }
+    if (DBG) { const n = new Map(); for (let d = lead; d <= H; d += 0.5) { const why = []; if (!askS(okAt(d, why))) { const k = (why[0] || '?').replace(/\+.*/, ''); n.set(k, (n.get(k) || 0) + 1); } } dbg(D, [...n].map(([k, v]) => `${k}×${v}`), `${label}: no moment`); }
     await D.wait(2);
   }
 }
@@ -122,7 +152,7 @@ async function atMoment(D, role, at, okAt, back, { tries = 6, grace = 4, label =
   // (he lies at `at` up to `grace` s for the moment: the crawl's `hold` keeps him unseen there that long)
   for (let k = 0; ; k++) {
     await crawlForMoment(D, role, ...at, (d, why) => okAt(d + 0.5, why), { ...o, label });
-    try { await untilA(D, async () => { const why = []; return okAt(0, why) || dbg(D, why, `${label}: the moment`); }, grace, `${label}: the moment`); return; } catch (err) { if (!/timeout/.test(err.message) || k + 1 >= tries) throw err; }
+    try { await untilA(D, async () => { const why = []; return (await askA(D, okAt(0, why))) || dbg(D, why, `${label}: the moment`); }, grace, `${label}: the moment`); return; } catch (err) { if (!/timeout/.test(err.message) || k + 1 >= tries) throw err; }
     D.log(`  ${label}: the moment passed at t=${D.t.toFixed(1)}; back to (${back[0]},${back[1]})`);
     await crawl(D, role, ...back, { box: 5, hold: 3, crawlPad: 5, label: `${label} (back)` });
   }
@@ -154,7 +184,8 @@ function* quietRouteG(D, pts, { mode = 'walk', from, speed = 1.0, delay = 0, hol
     // (`margin` may be per guard: [deg, m] for each, as a slow sweep's turning point needs less than a fast one)
     const mg = typeof margin === 'function' ? margin(e) : margin;
     const moving = walking(e), reach = (e.vision?.far ?? 36) + 2 + (moving ? 1.2 * (t + hold + slack) : 0);
-    let n = 0;
+    // (his mirror refreshed once for the whole check — the world stands still meanwhile — not once per look: ghost.mjs)
+    let n = 0, mir = null;
     for (const [sx, sz, st] of samples) {
       if (Math.hypot(e.x - sx, e.z - sz) > reach) continue;
       const d = dummyAt(w, mode, sx, sz);
@@ -162,10 +193,10 @@ function* quietRouteG(D, pts, { mode = 'walk', from, speed = 1.0, delay = 0, hol
         if (++n % (moving ? 6 : 24) === 0) yield; // (a few looks at a time — a walker's are many heads: the live replay hands the frame back between them)
         const tt = Math.max(0, st + o);
         let seen;
-        if (moving) seen = seesAny(walkerViews(e, predict(e, tt), w, w.time + tt), d, w, mg);
+        if (moving) { const q = predict(e, tt); seen = walkerSeesWide(e, q, d, w, w.time + tt, mg, mir ??= mirrorOf(e)); }
         else {
           const cone = inflateCone(coneAt(e, w.time + tt), mg); seen = pointInCone(cone, d.x, d.z) && canSee(e, d, w, { cone }) !== 'none';
-          if (!seen) { const gc = inflateCone(glanceCone(e, tt), mg); seen = !!gc && pointInCone(gc, d.x, d.z) && canSee(e, d, w, { cone: gc }) !== 'none'; }
+          if (!seen) { const gc = inflateCone(glanceCone(e, tt, 0.6, mir ??= mirrorOf(e)), mg); seen = !!gc && pointInCone(gc, d.x, d.z) && canSee(e, d, w, { cone: gc }) !== 'none'; }
         }
         if (seen) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${tt.toFixed(1)}`); return false; }
       }
@@ -648,10 +679,12 @@ const GATE_AX = [Math.cos((105 * Math.PI) / 180), Math.sin((105 * Math.PI) / 180
  * where that turn leaves it (Vehicle.straightReach) — the first that runs all the way. The arch leaves the hull ±0.2 m of
  * the axis: where the turn leaves it depends on how it came into the mouth. null: none.
  */
-export function bridgeClick(tank) {
+export function bridgeClick(tank) { return runGen(bridgeClickG(tank)); }
+/** bridgeClick as a generator (the drive plans and runs it tries yield now and then: D.runSliced; the same answer) */
+function* bridgeClickG(tank) {
   for (const t of [14, 13, 15]) for (const off of [0, 0.1, -0.1, 0.2, -0.2]) {
     const x = +(57 + GATE_AX[0] * t + GATE_AC[0] * off).toFixed(2), z = +(114 + GATE_AX[1] * t + GATE_AC[1] * off).toFixed(2);
-    if (driveEnd(tank, x, z)) return [x, z];
+    if (yield* driveEndG(tank, x, z)) return [x, z];
   }
   return null;
 }
@@ -661,31 +694,46 @@ export function bridgeClick(tank) {
  * (Vehicle._planDrive), the turn's legs (vehicle-maneuver arcStep), then the straight run (straightRun). null: refused,
  * or the run stops on the way.
  */
-function driveEnd(tank, x, z) {
-  const plan = tank._planDrive(x, z);
+function* driveEndG(tank, x, z) {
+  // (Vehicle.planDriveGen: the plan _planDrive makes — the same nodes in the same order, into the same memo — handing
+  // control back every 32 nodes)
+  let n = 0;
+  const plan = yield* tank.planDriveGen(x, z, { pause: () => (++n & 31) === 0 });
   if (!plan) return null;
   let p = { x: tank.x, z: tank.z, h: tank.heading };
   for (const l of plan.legs) p = arcStep(p.x, p.z, p.h, l.dir * l.len, l.k);
-  return straightRun(tank, p, x, z, plan.legs.length ? 0.3 : tank.speed || 0);
+  return yield* straightRunG(tank, p, x, z, plan.legs.length ? 0.3 : tank.speed || 0);
 }
 
 /**
  * The click into the gate's mouth from which bridgeClick finds the run through the arch — tried from where each click
  * would leave the tank (driveEnd), a player's look ahead along the drive cursor. [mouth, run] or null.
  */
-export function mouthClick(tank) {
+export function mouthClick(tank) { return runGen(mouthClickG(tank)); }
+/** mouthClick as a generator (D.runSliced; the same answer) */
+function* mouthClickG(tank) {
+  for (const [mx, mz] of GATE_MOUTH_TRY) {
+    const e = yield* driveEndG(tank, mx, mz);
+    if (!e) continue;
+    const run = yield* posedG(tank, { x: e.x, z: e.z, h: e.h, v: 0 }, bridgeClickG(tank));
+    if (run) return [[mx, mz], run];
+  }
+  return null;
+}
+
+/**
+ * Run generator `gen` with the tank set at pose `p` (where a click would leave it) — put back where it is around every
+ * yield: a frame drawn meanwhile (the live replay hands it back between slices, no tick in between) shows it where it
+ * stands. Straight through it is the same as setting it there for the whole look ahead and back after.
+ */
+function* posedG(tank, p, gen) {
   const at = { x: tank.x, z: tank.z, h: tank.heading, v: tank.speed };
+  const set = () => { tank.x = p.x; tank.z = p.z; tank.heading = p.h; tank.speed = p.v; };
+  const back = () => { tank.x = at.x; tank.z = at.z; tank.heading = at.h; tank.speed = at.v; };
   try {
-    for (const [mx, mz] of GATE_MOUTH_TRY) {
-      const e = driveEnd(tank, mx, mz);
-      if (!e) continue;
-      tank.x = e.x; tank.z = e.z; tank.heading = e.h; tank.speed = 0;
-      const run = bridgeClick(tank);
-      tank.x = at.x; tank.z = at.z; tank.heading = at.h; tank.speed = at.v;
-      if (run) return [[mx, mz], run];
-    }
-    return null;
-  } finally { tank.x = at.x; tank.z = at.z; tank.heading = at.h; tank.speed = at.v; }
+    set();
+    for (;;) { const r = gen.next(); if (r.done) return r.value; back(); yield; set(); }
+  } finally { back(); gen.return(); }
 }
 
 /**
@@ -694,10 +742,11 @@ export function mouthClick(tank) {
  * the turning circle, the nose tried a probe step ahead of where each tick leaves it, arrived within 0.3 m) —
  * Vehicle.straightReach's 25 cm steps along the line can pass a cell the nose's corner only clips, where the drive stops.
  */
-function straightRun(tank, p, x, z, v0 = 0) {
+function* straightRunG(tank, p, x, z, v0 = 0) {
   const dt = CONFIG.sim.dt, R = tank.def.turnRadius, vmax = tank.def.slow, ahead = CONFIG.vehicles.probeStep;
   let px = p.x, pz = p.z, h = p.h, v = v0;
   for (let n = 0; n < 4000; n++) {
+    if ((n & 63) === 63) yield;
     const d = Math.hypot(x - px, z - pz);
     if (d < 0.3) return { x: px, z: pz, h };
     const want = Math.atan2(z - pz, x - px);
@@ -1145,16 +1194,21 @@ export const STAGES = [
       // looks through the gap by the hut's N corner into the lee's N end — in a run he saw a man carrying a body there,
       // 22 m off; e19 has his own rule)
       const blind = [e65, D.get('e19')];
-      const okAt = (d, why = null) => (backTurned(D, 'e19', Math.max(0, d - 1), d + 15, 112) || (why?.push('e19 walks W'), false))
-        && exactly(D, 1.5, () => quietRoute(D, up, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.6, hold: 1.5, slack: 0.6, margin: S_MARGIN, except: blind, why })
-        && quietRoute(D, [...N_WAY_REV, E65_BODY], { mode: 'walk', from: cs, speed: CONFIG.units.carry, delay: d + tUp + 1.6, hold: 1.5, slack: 1.0, margin: S_MARGIN, except: blind, why }));
+      // (a generator: its route checks sliced — askA)
+      const okAt = function* (d, why = null) {
+        return (backTurned(D, 'e19', Math.max(0, d - 1), d + 15, 112) || (why?.push('e19 walks W'), false))
+          && (yield* exactlyG(D, 1.5, function* () {
+            return (yield* quietRouteG(D, up, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.6, hold: 1.5, slack: 0.6, margin: S_MARGIN, except: blind, why }))
+              && (yield* quietRouteG(D, [...N_WAY_REV, E65_BODY], { mode: 'walk', from: cs, speed: CONFIG.units.carry, delay: d + tUp + 1.6, hold: 1.5, slack: 1.0, margin: S_MARGIN, except: blind, why }));
+          }));
+      };
       // (a moment that slips before the knife — e22's glance off the forecast — he crawls back to the lee and waits for
       // the next: he has not moved from where he lay)
       for (let k = 0; ; k++) {
         await atMoment(D, 'greenberet', AT, okAt, S1, { box: 5, hold: 14, grace: 12, crawlPad: 5, exact: 1.5, label: 'GB → behind e65' });
         try {
           await knife(D, e65, { maxSec: 6, quiet: 5, after: null, label: 'by the road', reach: 4, margin: S_MARGIN,
-            ready: async () => { const why = []; return okAt(0, why) || dbg(D, why, 'e65 carry'); } });
+            ready: async () => { const why = []; return (await askA(D, okAt(0, why))) || dbg(D, why, 'e65 carry'); } });
           break;
         } catch (err) { if (!/timeout/.test(err.message) || k >= 3 || !e65.alive) throw err; }
         D.log(`  GB → behind e65: the knife's moment slipped at t=${D.t.toFixed(1)}; back to (${S1[0]},${S1[1]})`);
@@ -1173,7 +1227,7 @@ export const STAGES = [
       const way = [N_WAY[N_WAY.length - 1], ...S_FACE_W, E27_BACK], walked = waysOf(D, 'greenberet', AT, way), tWalk = 0.8 + pathLen(AT, walked) / CONFIG.units.walk;
       const me = { x: E27_BACK[0], z: E27_BACK[1], heading: Math.atan2(e27.z - E27_BACK[1], e27.x - E27_BACK[0]), stance: 'stand' };
       const cs = corpseSpot(D.world, me, e27), back = [...S_FACE_W.slice().reverse(), ...N_WAY_REV];
-      const okAt = (d, why = null) => {
+      const okAt = function* (d, why = null) { // (a generator: its route checks sliced — askA)
         // (a second or two either way: in the game the walkers keep to their forecast only roughly)
         if (e24.alive) for (let t = Math.max(0, d - 1.5); t <= d + tWalk + 3; t += 0.5) if (Math.cos(D.predict(e24, t).heading) > -0.6) { why?.push('e24 not walking W'); return false; }
         // (e24 walking W has his back to the walk; the carry back is checked against him like everyone, his head at his
@@ -1182,8 +1236,10 @@ export const STAGES = [
         return (backTurned(D, 'e19', Math.max(0, d - 1), d + tWalk + 16, 112) || (why?.push('e19 walks W'), false))
           // (along the way the game walks him — round the barracks' S corner as it draws it: walked, wayOf leg by leg —
           // not the clicked polyline: in the game the first strides ran 0.3 m S of it, into the far left of e22's sweep)
-          && exactly(D, 1.5, () => quietRoute(D, walked, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1.5, margin: S_MARGIN, except: [e27, D.get('e19')], why })
-          && quietRoute(D, [...back, E27_BODY], { mode: 'walk', from: cs, speed: CONFIG.units.carry, delay: d + tWalk + 2.6, hold: 1.5, slack: 1.0, margin: S_MARGIN, except: [e27, D.get('e19')], why }));
+          && (yield* exactlyG(D, 1.5, function* () {
+            return (yield* quietRouteG(D, walked, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1.5, margin: S_MARGIN, except: [e27, D.get('e19')], why }))
+              && (yield* quietRouteG(D, [...back, E27_BODY], { mode: 'walk', from: cs, speed: CONFIG.units.carry, delay: d + tWalk + 2.6, hold: 1.5, slack: 1.0, margin: S_MARGIN, except: [e27, D.get('e19')], why }));
+          }));
       };
       await atMoment(D, 'greenberet', AT, okAt, S1, { box: 5, hold: 14, grace: 12, crawlPad: 5, exact: 1.5, label: 'GB → the barracks\' S corner (e27)' });
       await D.stance('greenberet', 'stand');
@@ -1204,13 +1260,15 @@ export const STAGES = [
       // barracks' S face; otherwise he is checked like everyone, his halted head where its sweep puts it; e19 across the
       // court with his back to it: the way runs along the very edge of his far band, and his halts end a moment off the
       // forecast)
-      const okAt = (d, why = null) => {
+      const okAt = function* (d, why = null) { // (a generator: its route checks sliced — askA)
         // (a few seconds either way: in the game the walkers keep to their forecast only roughly)
         if (e24.alive) for (let t = Math.max(0, d - 3); t <= d + walkT + 3; t += 0.5) { const q = D.predict(e24, t); if (Math.hypot(q.x - 66, q.z - 96) < 3) { why?.push('e24 at his E halt'); return false; } }
         return (backTurned(D, 'e19', Math.max(0, d - 1), d + walkT + 3, 112) || (why?.push('e19 walks W'), false))
-          && exactly(D, 1.5, () => quietRoute(D, way, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1, margin: S_MARGIN, why })
-          && quietRoute(D, [], { mode: 'walk', from: [e22.x, e22.z], delay: d + walkT, hold: 4, margin: S_MARGIN, except: [e22], why })
-          && quietRoute(D, wayOf(D, 'greenberet', [e22.x, e22.z], E22_BODY), { mode: 'walk', from: [e22.x, e22.z], speed: CONFIG.units.carry, delay: d + walkT + 2.5, hold: 2, slack: 1.0, margin: S_MARGIN, except: [e22], why }));
+          && (yield* exactlyG(D, 1.5, function* () {
+            return (yield* quietRouteG(D, way, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1, margin: S_MARGIN, why }))
+              && (yield* quietRouteG(D, [], { mode: 'walk', from: [e22.x, e22.z], delay: d + walkT, hold: 4, margin: S_MARGIN, except: [e22], why }))
+              && (yield* quietRouteG(D, wayOf(D, 'greenberet', [e22.x, e22.z], E22_BODY), { mode: 'walk', from: [e22.x, e22.z], speed: CONFIG.units.carry, delay: d + walkT + 2.5, hold: 2, slack: 1.0, margin: S_MARGIN, except: [e22], why }));
+          }));
       };
       await atMoment(D, 'greenberet', AT, okAt, S1, { box: 5, hold: 14, grace: 12, crawlPad: 5, exact: 1.5, label: 'GB → the barracks\' S corner (e22)' });
       await D.stance('greenberet', 'stand');
@@ -1227,14 +1285,14 @@ export const STAGES = [
       // into the lee round the hut's N corner (with e22 gone, the short way)
       const e24 = D.get('e24'), gb = D.c('greenberet'), AT = AT_S;
       const toLurk = [N_WAY[N_WAY.length - 1], ...S_FACE_W, [67, 102.2], LURK24], tWalk = 0.8 + pathLen(AT, toLurk) / CONFIG.units.walk;
-      const okAt = (d, why = null) => {
+      const okAt = function* (d, why = null) { // (a generator: its route checks sliced — askA)
         // (e24 halted at the W end of his beat, looking N, as he sets off: from (55, 101) the way lies off his right shoulder)
         if (e24.alive) { const q = D.predict(e24, d); if (Math.hypot(q.x - 55, q.z - 101) > 1.5) { why?.push('e24 not at his W halt'); return false; } }
         // (and far from the hut's corner and e24's halt until the knife: its round passes them on the way from the gate)
         return (p26Far(D, d - 3, d + 4) && farFrom(D, P26, [LURK24, [66, 96]], d + tWalk + 32, 24, Math.max(0, d)) || (why?.push('Patrol 26 near'), false)) && (backTurned(D, 'e19', d, d + tWalk, 112) || (why?.push('e19 walks W'), false))
-          && quietRoute(D, toLurk, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1, margin: S_MARGIN, except: [D.get('e19')], why })
+          && (yield* quietRouteG(D, toLurk, { mode: 'walk', from: AT, speed: CONFIG.units.walk, delay: d + 0.8, slack: 0.6, hold: 1, margin: S_MARGIN, except: [D.get('e19')], why }))
           // (lying at the hut's corner: e24 walking E along his beat passes it on his right, never looking round at it)
-          && quietRoute(D, [], { mode: 'crawl', from: LURK24, delay: d + tWalk + 0.5, hold: 18, margin: S_MARGIN, except: [e24], why });
+          && (yield* quietRouteG(D, [], { mode: 'crawl', from: LURK24, delay: d + tWalk + 0.5, hold: 18, margin: S_MARGIN, except: [e24], why }));
       };
       await atMoment(D, 'greenberet', AT, okAt, S1, { box: 5, hold: 14, grace: 12, crawlPad: 5, exact: 1.5, label: 'GB → the barracks\' S corner (e24)' });
       await D.stance('greenberet', 'stand');
@@ -1544,9 +1602,10 @@ export const STAGES = [
       for (const m0 of GATE_MOUTHS) {
         await clearAround(D, tank);
         // (the mouth click whose stop leaves a straight run through the arch: mouthClick looks ahead; none, the next spot)
-        const m = mouthClick(tank)?.[0] ?? m0;
+        // (sliced: up to ~160 drive plans and runs looked at — ~50 ms of one frame in the live replay)
+        const m = (await D.runSliced(mouthClickG(tank)))?.[0] ?? m0;
         await drive(D, tank, [m], { stop: true });
-        if ((run = bridgeClick(tank))) break;
+        if ((run = await D.runSliced(bridgeClickG(tank)))) break;
         D.log(`  the tank at the mouth (${tank.x.toFixed(2)},${tank.z.toFixed(2)}) h${Math.round((tank.heading * 180) / Math.PI)}: no straight run through the arch; out and in again`);
         await drive(D, tank, [TANK_GATE[TANK_GATE.length - 1]], { stop: true });
       }

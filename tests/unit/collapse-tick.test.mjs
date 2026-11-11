@@ -1,8 +1,9 @@
 /**
  * The work a structure's fall does in its blast's tick (M18's bridge: the one own-tick over 16 ms of its walkthrough):
- *  - NavGrid.clearOwner scans with TypedArray indexOf: the same cells cleared, the same rows bumped, as a cell loop;
- *  - navStamp / hullStamp mark dirty only the rows whose counts change (a re-stamp over the whole map that changes a
- *    few cells by the bridge left every row to redo): the patched static layers still equal a whole rebuild;
+ *  - NavGrid.clearOwner scans with TypedArray indexOf: the same cells cleared, the same rows (and columns) bumped, as a
+ *    cell loop;
+ *  - navStamp / hullStamp mark dirty only the rows — and columns — whose counts change (a re-stamp over the whole map
+ *    that changes a few cells by the bridge left every row to redo): the patched static layers still equal a rebuild;
  *  - `silentDestroy` (structure def): no noise of its own (its charges were heard map-wide that tick);
  *  - `blastR` (structure def): the shock wave's radius in its 'explosion' event, which the physics queue takes as the
  *    blast's radius (its event radius — the visuals', the alarm's — unchanged).

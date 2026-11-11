@@ -525,6 +525,39 @@ export function walkerSees(e, q, dummy, w, tAbs, mc = null) {
 }
 
 /**
+ * `seesAny(walkerViews(e, q, w, tAbs, m), dummy, w, mg)` — every head's cone widened by `mg` ([deg, m]: inflateCone) —
+ * the same answer, asked the cheap way: the heads in walkerViews' order, a head's viewer copy and cone built only when
+ * the point lies in its widened cone, that cone's reach and aperture worked out first exactly as coneAt, inflateCone
+ * and pointInCone do (the same arithmetic). Most heads face elsewhere: a solution's route check at a hundred moments
+ * built ~20 ghosts and ~40 cones per look (M20's moment searches: ~0.3-0.9 s each, every 2 s of a wait). `m`: his
+ * mirror, refreshed (mirrorOf) — once per guard for a whole check while the world stands still.
+ */
+const _wideFar = [];
+export function walkerSeesWide(e, q, dummy, w, tAbs, mg, m = null) {
+  const v = e.vision;
+  if (e.vehEye || !v || !mg) return seesAny(walkerViews(e, q, w, tAbs, m ?? mirrorOf(e)), dummy, w, mg);
+  const { hds, offs } = headsOf(e, q, w, tAbs);
+  const a = v.far ?? v.range, half = v.fov / 2 + (mg[0] * Math.PI) / 180;
+  const dx = dummy.x - q.x, dz = dummy.z - q.z, d2 = dx * dx + dz * dz, bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
+  // (coneAt's far for each head offset — it does not depend on the heading — widened as inflateCone widens it)
+  const fars = _wideFar;
+  for (let k = 0; k < offs.length; k++) fars[k] = (v.elliptical ? ellipseFar(a, (offs[k] || 0) + 0, v.ellipseRatio) : a) + mg[1];
+  for (const hd of hds) {
+    for (let k = 0; k < offs.length; k++) {
+      const off = offs[k], th = (off || 0) + 0, far = fars[k];
+      // (pointInCone's tests on this head's widened cone — NaN: tried)
+      if (d2 > far * far) continue;
+      if (d2 > 1e-12) { let an = bear - (hd + th); an -= TAU * Math.round(an / TAU); if (Math.abs(an) > half) continue; }
+      const g = ghostOn(m ??= mirrorOf(e));
+      g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; g.headCarry = 0;
+      const cone = inflateCone(coneAt(g, tAbs), mg);
+      if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
+    }
+  }
+  return false;
+}
+
+/**
  * The heads walkerSees tries for walking enemy `e` predicted at `q` at time `tAbs`, in its order: [viewer, cone, …]
  * (they do not depend on the target, so a planner works them out once per guard and moment). Rules as walkerSees:
  * a vehicle's eye at its predicted heading ± a little; a halted man under `w.sneakHaltExact` where his sweep puts his
@@ -952,7 +985,7 @@ export function* bodySeenGen(D, x, z, dur = 120, { step = 0.5, except = [] } = {
  * every `.every` s (enemy-brain _partnerGlance; its countdown is brain.glanceT). His cone `t` s from now while he glances
  * (± `pad` s: the turn there and back), else null.
  */
-export function glanceCone(e, t, pad = 0.6) {
+export function glanceCone(e, t, pad = 0.6, m = null) {
   const w = e.world, b = e.brain, G = CONFIG.ai?.partnerGlance;
   if (!w?.sneakGlances || !e.partner || !b || b.glanceT == null || !G || b.state !== 'IDLE') return null;
   const p = w.byId?.(e.partner);
@@ -964,7 +997,8 @@ export function glanceCone(e, t, pad = 0.6) {
   rel -= Math.floor(rel / cyc) * cyc; // time since the latest glance start (0 ≤ rel < cyc), once t ≥ s0
   if (t < s0 - pad) return null;
   if (!(rel <= G.dur + pad || rel >= cyc - pad)) return null;
-  const g = ghost(e);
+  // (`m`: his mirror, already refreshed — mirrorOf — by a caller asking many moments while the world stands still)
+  const g = m ? ghostOn(m) : ghost(e);
   g.heading = Math.atan2(p.z - e.z, p.x - e.x); g.sweepActive = false; g.headOffset = 0; g.headCarry = 0;
   return coneAt(g, w.time + t);
 }
@@ -1135,6 +1169,17 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   const SUB = Math.max(1, o.subSteps ?? 1);
   const sCones = statics.map(() => []);
   const sCone = (i, k) => { const a = sCones[i], j = Math.round(k * SUB); let c = a[j]; if (c === undefined) c = a[j] = coneAt(statics[i], now + k * DT); return c; };
+  // (a post's cone widened by `coneMargin` — and by `postMargin` on top — once per post and step as sCone: the same
+  // values as widening it again for every cell asked, no copy per cell)
+  const sConesW = statics.map(() => []), sConesP = statics.map(() => []);
+  const sConeW = (i, k) => {
+    if (!o.coneMargin) return sCone(i, k);
+    const a = sConesW[i], j = Math.round(k * SUB); let c = a[j]; if (c === undefined) c = a[j] = inflateCone(sCone(i, k), o.coneMargin); return c;
+  };
+  const sConeP = (i, k) => { const a = sConesP[i], j = Math.round(k * SUB); let c = a[j]; if (c === undefined) c = a[j] = inflateCone(sConeW(i, k), o.postMargin); return c; };
+  // (a cell's target dummy, once per cell: on foot it does not depend on who looks — dummyFor — and the world stands
+  // still while he plans; a boat's is its hull edge nearest each viewer)
+  const cDummy = mode === 'boat' ? null : new Array(W * H);
   const viewMemo = walkers.map(() => new Map());
   // (each walker's ghosts read his fields through his mirror — ghost.mjs: never through him — refreshed once a plan)
   const wMirror = walkers.map(mirrorOf);
@@ -1187,7 +1232,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       if (!walkerNearAt(wi, kk, x, z)) continue; // (out of his reach at this step)
       const q = predAt(e, kk), dd = hypot2(q.x - x, q.z - z), far = e.vision?.far ?? 36;
       if (dd > far + walkerPad + 3 + hull) continue;
-      const d = dummyFor(w, mode, x, z, q.x, q.z);
+      const d = cDummy ? (cDummy[c] ??= dummyAt(w, mode, x, z)) : dummyFor(w, mode, x, z, q.x, q.z);
       // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
       // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
       if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w, o.coneMargin)) { s = true; break walk; }
@@ -1204,7 +1249,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   };
   const fresh = (c, k) => {
     work++;
-    const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0;
+    const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0, dc = cDummy ? (cDummy[c] ??= dummyAt(w, mode, x, z)) : null;
     let s = false;
     for (const i of statCand(c)) {
       if (s) break;
@@ -1212,10 +1257,10 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       const dd = hypot2(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
       for (let sub = 0; sub < SUB; sub++) {
         const ks = k + sub / SUB;
-        const cone = o.coneMargin ? inflateCone(sCone(i, ks), o.coneMargin) : sCone(i, ks), d = dummyFor(w, mode, x, z, e.x, e.z);
+        const cone = sConeW(i, ks), d = dc ?? dummyFor(w, mode, x, z, e.x, e.z);
         // (`o.postMargin` [deg, m], opt-in: posts' cones only widened, for the cell itself — he is between two cell
         // centres as he moves on, a fraction of a metre aside)
-        const pc = o.postMargin ? inflateCone(cone, o.postMargin) : cone;
+        const pc = o.postMargin ? sConeP(i, ks) : cone;
         if (pointInCone(pc, d.x, d.z) && canSee(e, d, w, { cone: pc }) !== 'none') { s = true; break; }
         // at the edge of the band that matters the unit's own path may wander a little: the cell `edgePad` m nearer too
         const bandEdge = mode === 'crawl' ? near : far;
@@ -1276,7 +1321,9 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   const k0 = o.startDelay ? Math.round(o.startDelay / DT) : 0, holdK = Math.round((o.hold ?? 3) / DT);
   // (no goal state can ever be accepted — every cell he may stop at stays watched within every `hold` window up to the
   // last step a search can reach: it would only grind to its cap and fail. The same null, now: driver.mjs goalReachable)
-  if (!o.shelter && !(yield* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, seen, raft: mode === 'boat', kMax: Math.max(k0, HS - 1 + Math.max(1, Math.ceil(Math.SQRT2 / speed / DT))) }))) {
+  // (with `o.goalOk`, a stay counts only from a step the search would accept: the same test the search ends on)
+  const okAt = o.goalOk ? (c, k) => o.goalOk(cx(c), cz(c), now + k * DT) : null;
+  if (!o.shelter && !(yield* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, seen, raft: mode === 'boat', kMax: Math.max(k0, HS - 1 + Math.max(1, Math.ceil(Math.SQRT2 / speed / DT))), ok: okAt }))) {
     if (o.why) o.why.push(`goal (${tx},${tz}) never unseen for ${(holdK * DT).toFixed(1)} s within the horizon`);
     __verify?.(D, tx, tz, o, null, performance.now() - t0v);
     give();

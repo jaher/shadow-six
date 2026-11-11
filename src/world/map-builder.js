@@ -439,6 +439,8 @@ export function navKeepPoints(world, built) {
 
 /** Head room (m) a walker needs under eaves, porch roofs and lintels (a standing figure is ~1.8 m). */
 export const HEAD_ROOM = 1.9;
+/** Probes: `on` re-tests every head room stamp's cells exactly, nothing kept (stampHeadroom); `mismatch`: stamps that differed. */
+export const headroomCheck = { on: false, stamps: 0, mismatch: 0 };
 
 /**
  * Rule (e) head room: open cells under an overhang (grid.overLo: eaves, porch roofs, a tower cabin) lower than
@@ -459,33 +461,197 @@ export function stampHeadroom(world, built) {
     for (let k = 0; k < grid.overLo.length; k++) if (grid.overLo[k] !== Infinity) all.push(k);
     return all;
   };
-  const stamp = () => {
-    const gy = typeof world.groundY === 'function' ? world.groundY : null, out = new Set();
-    // (bounds of that ground first — world.groundYBounds, the deck-aware ground's: a cell whose ground is surely within
-    // HEAD_ROOM of its overhang is stamped, one whose ground cannot come that close is open, both without the feet ring's
-    // ~33 look-ups; the rest asks the ground itself. The same cells as the exact test everywhere)
-    const gyB = gy && typeof world.groundYBounds === 'function' && world.groundYBounds.of === gy ? world.groundYBounds : null, b = [0, 0];
-    for (const k of overCells()) {
-      const lo = grid.overLo[k];
+  // (the ground under each overhang cell — its bounds, and the ground itself where they leave the cell open — kept from
+  // one stamp in play to the next for a cell with no bridge cell within a stride: there the deck-aware ground reads
+  // nothing but what the map built (the terrain, the low surfaces) and the cell's own elevation, kept with it — no deck,
+  // no movable span, no other grid layer. A cell by a bridge / deck is asked again every time; nothing is kept from the
+  // map build's own stamp, made before the terrain's relief is in (M9: eaves 1.93 m over ground read 0 then, 0.035 in
+  // play). M20's HQ blast: ~7 000 cells, 3-4 ms of its tick)
+  // (kept per world, not per call: a re-stamp of the visual nav — restampStandingG, M20's gatehouses on their art — makes
+  // a second head room stamp with its own listener, and each blast runs both; the second used to start cold, its
+  // ground asked again for all ~3 500 cells, ~4 ms of the HQ blast's tick)
+  const H = _headroomOf(world, keep);
+  const reach = Math.ceil(STRIDE_R / grid.cell);
+  const bridgeNear = (i, j) => {
+    for (let jj = Math.max(0, j - reach); jj <= Math.min(grid.rows - 1, j + reach); jj++) {
+      for (let ii = Math.max(0, i - reach); ii <= Math.min(grid.cols - 1, i + reach); ii++) if (grid.bridge[jj * grid.cols + ii]) return true;
+    }
+    return false;
+  };
+  // One cell's test against this ground (H.memo, made anew for another ground function): 0 no overhang, 3 left open (a
+  // keep cell, blocked, open water), 1 head room enough, 2 stamped. Bounds of that ground first — world.groundYBounds,
+  // the deck-aware ground's: a cell whose ground is surely within HEAD_ROOM of its overhang is stamped, one whose ground
+  // cannot come that close is open, both without the feet ring's ~33 look-ups; the rest asks the ground itself. The same
+  // cells as the exact test everywhere. `keepAll` off (the map build's own stamp): nothing kept in the memo.
+  const tester = (keepAll) => {
+    const gy = typeof world.groundY === 'function' ? world.groundY : null, b = [0, 0];
+    const gyB = gy && typeof world.groundYBounds === 'function' && world.groundYBounds.of === gy ? world.groundYBounds : null;
+    if (!H.memo || H.memo.gy !== gy || H.memo.gyB !== gyB) H.memo = { gy, gyB, at: new Map() };
+    const at = H.memo.at;
+    // (a cell with a bridge cell within a stride: its ground reads the decks and the bridge layer too — kept while the
+    // bridge layer stands as it was, NavGrid.bridgeVer, and no movable surface (world.surfaces: a ferry, a flatcar) is in
+    // the world; else asked again every time)
+    const still = !world.surfaces?.length, bv = grid.bridgeVer;
+    const test = (k, lo, bl, te, el, nearK) => {
       // (open water is swum or rowed, never walked: a lock gate's beam over an open channel — M13's south gate, latched
       // open — must not shut it to divers and boats once a blast re-stamps the head room)
-      if (lo === Infinity || keep.has(k) || grid.block[k] !== B.NONE || grid.terrain[k] === T.WATER) continue;
-      const i = k % grid.cols, j = (k / grid.cols) | 0, c = grid.cellCenter(i, j);
-      if (gyB) {
-        gyB.call(world, c.x, c.z, b);
-        if (lo - Math.max(grid.elev[k], b[0]) < HEAD_ROOM) { out.add(k); continue; }
-        if (lo - Math.max(grid.elev[k], b[1]) >= HEAD_ROOM) continue;
+      if (lo === Infinity) return 0;
+      if (keep.has(k) || bl !== B.NONE || te === T.WATER) return 3;
+      const i = k % grid.cols, j = (k / grid.cols) | 0;
+      let e = at.get(k);
+      // (an entry made while the cell had a bridge near holds for it only then: e[4], the bridge layer's version then, -1 off one)
+      if (!e || e[3] !== el || (nearK !== 0 ? !(still && e[4] === bv) : e[4] !== -1)) {
+        e = [NaN, NaN, NaN, el, nearK !== 0 ? bv : -1];
+        if (!keepAll || (nearK !== 0 && !still)) at.delete(k); else at.set(k, e);
       }
-      const y = Math.max(grid.elev[k], gy ? gy.call(world, c.x, c.z) : 0);
-      if (lo - y < HEAD_ROOM) out.add(k);
+      if (gyB) {
+        if (Number.isNaN(e[0])) { const c = grid.cellCenter(i, j); gyB.call(world, c.x, c.z, b); e[0] = b[0]; e[1] = b[1]; }
+        if (lo - Math.max(el, e[0]) < HEAD_ROOM) return 2;
+        if (lo - Math.max(el, e[1]) >= HEAD_ROOM) return 1;
+      }
+      if (Number.isNaN(e[2])) { const c = grid.cellCenter(i, j); e[2] = gy ? gy.call(world, c.x, c.z) : 0; }
+      return lo - Math.max(el, e[2]) < HEAD_ROOM ? 2 : 1;
+    };
+    return { gy, gyB, b, test, still, bv };
+  };
+  // (a bridge cell within a stride of overhang cell k: asked again only when the bridge layer has changed — bridgeVer)
+  const nearOf = (S, k) => {
+    if (S.nearAt[k] !== grid.bridgeVer) { S.near[k] = bridgeNear(k % grid.cols, (k / grid.cols) | 0) ? 1 : 0; S.nearAt[k] = grid.bridgeVer; }
+    return S.near[k];
+  };
+  const stamp = (keepAll = true) => {
+    const { gy, gyB, b, test, still: noSurf } = tester(keepAll), last = H.last;
+    // (the stamp another listener of the same world made just now — the same keep cells, no cell of the grid written
+    // since its own nav stamp (only bumps of no rows: NavGrid.dirtyRowsSince) — holds these very cells: the test reads
+    // the overhang, block, terrain and height layers and the ground, and a nav stamp writes none of them. Its listener
+    // ran first in the same event)
+    const still = last && H.shared && last.play && last.memo === H.memo && !headroomCheck.on
+      ? (last.ver === grid.version ? true : ((d) => !!d && d.j0 > d.j1)(grid.dirtyRowsSince?.(last.ver))) : false;
+    if (still) {
+      grid.navStampSame('headroom');
+      H.last = { ver: grid.version, out: last.out, memo: H.memo, play: true, listVer: last.listVer };
+      return last.out.size;
+    }
+    // (each cell's inputs as its last in-play test read them — its overhang, block, terrain and height — and what it
+    // found: a cell whose inputs are the same and that had and has no bridge cell within a stride (its ground then reads
+    // nothing that changes) finds the same again, without the ground's memo nor its look-ups — the cells a blast leaves
+    // alone, ~3 900 of M20's. A stamp of the map build's own (keepAll off) keeps nothing, and forgets what was kept.
+    // The overhang cells walked as a typed list (made again when an overhead stamp may have changed them: overVer) and
+    // the cells found written to a typed buffer: this runs a few times a mission, in a blast's tick, as cold code)
+    const S = _headroomSnap(H, grid, keepAll);
+    if (!S.list || S.listVer !== grid.overVer) { S.list = Int32Array.from(overCells()); S.listVer = grid.overVer; S.outBuf = new Int32Array(S.list.length); }
+    const list = S.list, outBuf = S.outBuf, near = S.near, nearAt = S.nearAt, bv = grid.bridgeVer, cols = grid.cols;
+    const { lo: sLo, el: sEl, bt: sBt, res: sRes, gen: sGen, bvAt: sBv } = S, gen = S.id;
+    const overLo = grid.overLo, block = grid.block, terrain = grid.terrain, elev = grid.elev;
+    let n = 0, changed = false;
+    for (let q = 0; q < list.length; q++) {
+      const k = list[q];
+      // (a bridge cell within a stride: asked again only when the bridge layer has changed — NavGrid.bridgeVer)
+      if (nearAt[k] !== bv) { near[k] = bridgeNear(k % cols, (k / cols) | 0) ? 1 : 0; nearAt[k] = bv; }
+      const nearK = near[k], lo = overLo[k], bl = block[k], te = terrain[k], el = elev[k], bt = bl | (te << 8);
+      // (a cell by a bridge: the same while the bridge layer is, with no movable surface in the world — tester)
+      if (keepAll && sGen[k] === gen && (nearK === 0 || (noSurf && sBv[k] === bv)) && sLo[k] === lo && sEl[k] === el && sBt[k] === bt) { if (sRes[k] === 2) outBuf[n++] = k; continue; }
+      const res = test(k, lo, bl, te, el, nearK);
+      if (res === 2) outBuf[n++] = k;
+      if ((res === 2) !== (sRes[k] === 2)) changed = true;
+      if (keepAll) { sGen[k] = nearK === 0 || noSurf ? gen : 0; sBv[k] = bv; sLo[k] = lo; sEl[k] = el; sBt[k] = bt; sRes[k] = res; }
+    }
+    // (no cell found otherwise than the last stamp in play over the same overhang cells: its very cells)
+    if (keepAll && !changed && last && last.play && last.listVer === S.listVer && last.memo === H.memo && !headroomCheck.on) {
+      grid.navStampSame('headroom');
+      H.last = { ver: grid.version, out: last.out, memo: H.memo, play: true, listVer: S.listVer };
+      return last.out.size;
+    }
+    const out = new Set(outBuf.subarray(0, n));
+    if (headroomCheck.on) {
+      // (a cross-check, probes: the cells the same tests stamp with nothing kept — bounds, then the ground itself)
+      headroomCheck.stamps++;
+      let same = true;
+      for (const k of overCells()) {
+        const lo = grid.overLo[k];
+        if (lo === Infinity || keep.has(k) || grid.block[k] !== B.NONE || grid.terrain[k] === T.WATER) continue;
+        const c = grid.cellCenter(k % grid.cols, (k / grid.cols) | 0);
+        let hit = null;
+        if (gyB) {
+          gyB.call(world, c.x, c.z, b);
+          if (lo - Math.max(grid.elev[k], b[0]) < HEAD_ROOM) hit = true;
+          else if (lo - Math.max(grid.elev[k], b[1]) >= HEAD_ROOM) hit = false;
+        }
+        if (hit === null) hit = lo - Math.max(grid.elev[k], gy ? gy.call(world, c.x, c.z) : 0) < HEAD_ROOM;
+        if (hit !== out.has(k)) same = false;
+      }
+      if (!same) headroomCheck.mismatch++;
     }
     grid.navStamp('headroom', out);
+    H.last = { ver: grid.version, out, memo: H.memo, play: keepAll, listVer: S.listVer };
     return out.size;
   };
-  const cells = stamp();
+  const cells = stamp(false);
   const off = world.events?.on?.('structure:destroyed', () => stamp());
+  // (the kept ground filled on a still screen — warmHeadroom, engine/idle-warm.js — a few ms at a time: every cell a
+  // re-stamp asks, and the ones under a structure that can be destroyed, whose cells a blast opens — M20's HQ: ~570 of
+  // them, ~3 ms of its tick. A cache fill only)
+  let warmList = null, warmAt = 0, snapAt = 0, owners = null;
+  _headroomWarm.set(world, (ms) => {
+    const gy = typeof world.groundY === 'function' ? world.groundY : null, b = [0, 0];
+    const gyB = gy && typeof world.groundYBounds === 'function' && world.groundYBounds.of === gy ? world.groundYBounds : null;
+    if (!H.memo || H.memo.gy !== gy || H.memo.gyB !== gyB) { H.memo = { gy, gyB, at: new Map() }; warmList = null; }
+    const memo = H.memo;
+    if (!warmList) {
+      warmList = [...overCells()]; warmAt = 0; snapAt = 0; owners = new Set();
+      for (const it of world.interactables || []) if (it.owner && !it.destroyed) owners.add(it.owner);
+    }
+    const t0 = performance.now();
+    while (warmAt < warmList.length) {
+      const k = warmList[warmAt++];
+      if (grid.overLo[k] === Infinity || keep.has(k) || grid.terrain[k] === T.WATER || (grid.block[k] !== B.NONE && !owners.has(grid.owner[k]))) continue;
+      const i = k % grid.cols, j = (k / grid.cols) | 0, el = grid.elev[k], e0 = memo.at.get(k);
+      if ((e0 && e0[3] === el && e0[4] === -1 && !Number.isNaN(e0[2])) || bridgeNear(i, j)) continue;
+      const c = grid.cellCenter(i, j), e = [NaN, NaN, gy ? gy.call(world, c.x, c.z) : 0, el, -1]; // (-1: made off a bridge: tester)
+      if (gyB) { gyB.call(world, c.x, c.z, b); e[0] = b[0]; e[1] = b[1]; }
+      memo.at.set(k, e);
+      if ((warmAt & 63) === 0 && performance.now() - t0 >= ms) return false;
+    }
+    // then each overhang cell's test as a stamp in play would make it now, recorded (the snapshot stamp() reads: see
+    // there) — the first blast's stamp then tests only the cells it changed
+    const { test, still: noSurf, bv } = tester(true), S = _headroomSnap(H, grid, true), gen = S.id;
+    while (snapAt < warmList.length) {
+      const k = warmList[snapAt++], nearK = nearOf(S, k), lo = grid.overLo[k], bl = grid.block[k], te = grid.terrain[k], el = grid.elev[k];
+      const res = test(k, lo, bl, te, el, nearK);
+      S.gen[k] = nearK === 0 || noSurf ? gen : 0; S.bvAt[k] = bv; S.lo[k] = lo; S.el[k] = el; S.bt[k] = bl | (te << 8); S.res[k] = res;
+      if ((snapAt & 63) === 0 && performance.now() - t0 >= ms) return false;
+    }
+    return true;
+  });
   return { cells, off: typeof off === 'function' ? off : null };
 }
+const _headroomWarm = new WeakMap();
+/**
+ * stampHeadroom's state kept per world across its calls: `memo` (the ground under each overhang cell, see there) and
+ * `last` (the last stamp: grid version after its nav stamp, its cells). `shared`: every call so far keeps the same
+ * cells open (navKeepPoints), so one call's stamp is another's.
+ */
+const _headroomState = new WeakMap();
+/** stampHeadroom's per-cell record of its last in-play tests (see there), on H; `keepAll` off forgets it. */
+function _headroomSnap(H, grid, keepAll) {
+  const N = grid.size;
+  let S = H.snap;
+  if (!S || S.n !== N) {
+    S = H.snap = { n: N, id: 1, lo: new Float32Array(N), el: new Float32Array(N), bt: new Uint16Array(N), res: new Uint8Array(N), gen: new Uint32Array(N),
+      bvAt: new Int32Array(N).fill(-1), near: new Uint8Array(N), nearAt: new Int32Array(N).fill(-1), memo: null };
+  }
+  // (a new ground memo — another ground function — or a build-time stamp: nothing recorded holds)
+  if (!keepAll || S.memo !== H.memo) { S.id++; S.memo = H.memo; }
+  return S;
+}
+function _headroomOf(world, keep) {
+  let H = _headroomState.get(world);
+  if (!H) { _headroomState.set(world, (H = { memo: null, last: null, keep, shared: true })); return H; }
+  if (H.shared && (H.keep.size !== keep.size || [...keep].some((k) => !H.keep.has(k)))) H.shared = false;
+  return H;
+}
+/** Fill the head room stamp's kept ground (stampHeadroom) for ~`ms`: on a still screen. @returns {boolean} all filled */
+export function warmHeadroom(world, ms = 4) { return _headroomWarm.get(world)?.(ms) ?? true; }
 
 export function stampVisualNav(world, built, points = []) { return runSync(stampVisualNavG(world, built, points)); }
 

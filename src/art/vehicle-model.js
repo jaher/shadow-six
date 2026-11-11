@@ -563,7 +563,10 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
      * sockets are after the frame's ticks (once — at 4× a frame runs eight ticks; each one updated the whole model's
      * matrices for them). Visual only.
      */
-    frame() { if (st.holdersDirty) { st.holdersDirty = false; syncHolders(); } },
+    frame() {
+      if (st.holdersDirty) { st.holdersDirty = false; syncHolders(); }
+      if (st.destroyed && !st.burnt && st.veh?.world) burn(st.veh);
+    },
     /**
      * Boats: sample the underside of the model drawn now (cached per model instance; ~2–6 ms of triangles) ahead of
      * the first rest pose — at the mission load, not in the first sim tick that poses the hull. Visual only.
@@ -749,21 +752,23 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   }).catch((e) => { console.warn('[vehicles] model failed', type, e?.message || e); return model; });
 
   /** One simulation step of the visuals: drive, suspension, doors, lamps, exhaust. */
+  // the grass under a burnt-out hull lies flat and scorched (drawn only — the trail is not recorded: the frame's work,
+  // not the tick's that wrecked it: M20's second blast)
+  function burn(v) {
+    st.burnt = true;
+    if (def.kind === 'land') v.world.terrain?.stampTrail?.('flatten', v.x, v.z, v.heading, { length: dims.l * 1.3 + 1, width: dims.w * 1.8 + 1, record: false });
+    // the scorch joins the engine's ground-decal scene (drawn over the terrain before AO, like the VFX decals)
+    const ds = v.world.fx?.vfx?.decals?.scene;
+    if (st.scorch && ds) {
+      root.updateMatrixWorld(true);
+      const m = st.scorch; m.matrixAutoUpdate = false; m.matrix.copy(m.matrixWorld);
+      m.matrix.elements[13] = (v.world.groundY?.(v.x, v.z) || 0) + 0.03;
+      ds.add(m); m.matrixWorldNeedsUpdate = true;
+    }
+  }
   function step(dt, v) {
     st.t += dt;
     st.veh = v; // the entity, for doors(): its boarder queue promises doors to men still walking to them
-    if (st.destroyed && !st.burnt && v.world) { // the grass under a burnt-out hull lies flat and scorched
-      st.burnt = true;
-      if (def.kind === 'land') v.world.terrain?.stampTrail?.('flatten', v.x, v.z, v.heading, { length: dims.l * 1.3 + 1, width: dims.w * 1.8 + 1, record: false });
-      // the scorch joins the engine's ground-decal scene (drawn over the terrain before AO, like the VFX decals)
-      const ds = v.world.fx?.vfx?.decals?.scene;
-      if (st.scorch && ds) {
-        root.updateMatrixWorld(true);
-        const m = st.scorch; m.matrixAutoUpdate = false; m.matrix.copy(m.matrixWorld);
-        m.matrix.elements[13] = (v.world.groundY?.(v.x, v.z) || 0) + 0.03;
-        ds.add(m); m.matrixWorldNeedsUpdate = true;
-      }
-    }
     if (!st.fitted && model.isReady && v.world?.grid) fit(v);
     const speed = (v.reversing ? -1 : 1) * (v.speed || 0);
     let yawL = 0;

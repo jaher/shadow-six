@@ -296,6 +296,12 @@ export class NavGrid {
     this._nextLinkId = 1;
     /** Bumped on every write so caches (cone meshes, path caches) can invalidate. */
     this.version = 0;
+    // (counts that move in play, written to from the start like fireCells — core/shapes: their first change in a blast
+    // keeps the grid's shape under its optimised readers)
+    /** Bumped whenever a cell of the bridge layer changes (the head room stamp keeps which cells have one near). */
+    this.bridgeVer = 1; this.bridgeVer = 0;
+    /** Bumped on every overhead stamp (overStamp: the overhang cells, overCells, may have changed). */
+    this.overVer = 1; this.overVer = 0;
     // (set later — ramps and stair runs as the map adds them, the body-top cache, walkableLine's per-grid visitor and
     // its last call's options — declared here so the grid keeps one hidden-class shape: a field first added in play
     // threw away the optimised code of everything that reads the grid)
@@ -444,6 +450,7 @@ export class NavGrid {
   // ---------------------------------------------------------------- writers
 
   _write(k, layer, value, owner) {
+    if (layer === this.bridge && layer[k] !== value) this.bridgeVer++;
     layer[k] = value;
     if (owner !== undefined && owner !== null) this.owner[k] = owner;
   }
@@ -642,7 +649,7 @@ export class NavGrid {
     const O = this.owner;
     for (let k = O.indexOf(owner); k >= 0 && k < this.size; k = O.indexOf(owner, k + 1)) {
       this.block[k] = B.NONE;
-      this.bridge[k] = 0;
+      if (this.bridge[k]) { this.bridge[k] = 0; this.bridgeVer++; }
       O[k] = 0;
       if (k0 < 0) k0 = k;
       k1 = k;
@@ -918,6 +925,15 @@ export class NavGrid {
   }
 
   /**
+   * navStamp(key, cells) for cells the caller knows to be the very ones stamped under `key` now: nothing written, the
+   * version bumped as navStamp bumps it for no change (the head room stamp, re-made after a blast that left it as it was).
+   * @param {string} key
+   */
+  navStampSame(key) { // eslint-disable-line no-unused-vars
+    this._bumpRows(Infinity, -Infinity, Infinity, -Infinity);
+  }
+
+  /**
    * A drawn footprint for hulls (see hullBlock): replaces the cells previously stamped under `key` with `cells`.
    * @param {string} key @param {Iterable<number>} cells
    */
@@ -967,6 +983,7 @@ export class NavGrid {
       if (this.overLo[k] !== Infinity) over.add(k); else over.delete(k);
     }
     const r = this._rowsOf(touched);
+    this.overVer++;
     this._bumpRows(r.j0, r.j1, r.i0, r.i1);
   }
 
@@ -1710,7 +1727,7 @@ export class NavGrid {
   /** Restore layers written by serialize() (terrain is rebuilt from mission data). */
   deserialize(data) {
     if (data.block) this.block.set(data.block);
-    if (data.bridge) this.bridge.set(data.bridge);
+    if (data.bridge) { this.bridge.set(data.bridge); this.bridgeVer++; }
     if (data.owner) this.owner.set(data.owner);
     this.fenceHole.fill(0);
     this.fenceHoleCount = 0;

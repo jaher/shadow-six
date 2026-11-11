@@ -410,17 +410,21 @@ export class Game {
     if (this.world !== world) return prog.cancel(), world;
     // ruins waiting for their blast (art/building-props.js prepareDestroy: bunkers, dams): built now, off the scene —
     // their models load while the rest does; the warm-up frame draws them; the blast only moves them into place
-    const ruins = [];
+    const ruins = [], staged = new Set();
     // (+ the ruins of the buildings a destroy objective names: their blast is the shot too — M11's four rigs)
     const targets = new Set((def.objectives || []).filter((o) => o.type === 'destroy').flatMap((o) => o.targets || []));
-    for (const it of world.interactables || []) {
-      const ud = it.object3d?.userData, tag = it.tag ?? it.spawn?.id ?? it.id;
-      // (a target only a mission set-piece can bring down — M18's bridge, `indestructible` to anything but its three
-      // charges together: multi_charge — is staged too: its ruin was built in the blast's tick, ~0.7 ms of it)
-      const f = !it.destroyed && ((it.destructible && ud?.stageAlways) || targets.has(tag)) ? ud?.prepareDestroy : null;
-      const rr = f ? safe(() => f(), 'ruin staging') : null;
-      if (rr) { ruins.push(rr); await nextTask(); } // (a ruin a task: a bunker's wreck is ~100 ms of geometry)
-    }
+    const stageRuins = async () => {
+      for (const it of world.interactables || []) {
+        if (staged.has(it)) continue;
+        const ud = it.object3d?.userData, tag = it.tag ?? it.spawn?.id ?? it.id;
+        // (a target only a mission set-piece can bring down — M18's bridge, `indestructible` to anything but its three
+        // charges together: multi_charge — is staged too: its ruin was built in the blast's tick, ~0.7 ms of it)
+        const f = !it.destroyed && ((it.destructible && ud?.stageAlways) || targets.has(tag)) ? ud?.prepareDestroy : null;
+        const rr = f ? safe(() => f(), 'ruin staging') : null;
+        if (rr) { staged.add(it); ruins.push(rr); await nextTask(); } // (a ruin a task: a bunker's wreck is ~100 ms of geometry)
+      }
+    };
+    await stageRuins();
     if (this.world !== world) return prog.cancel(), world;
     // scenery apron past the map edges (art/apron.js): the camera keeps its true footprint inside it at every zoom
     const apron = this.mapHandle?.terrain?.apron;
@@ -443,6 +447,9 @@ export class Game {
       idleWarm.add('path costs', () => { if (this.world === world) warmPathCosts(world.grid); }); // (the searches' cost layers: the first orders')
       // (the search's rarely run parts, once a page: met first in play they threw its optimized code out mid-tick)
       idleWarm.add('path code', () => { if (this.world === world) warmSearchCode(world.grid); });
+      // (the ground a blast's head room re-stamp asks for, a few ms at a time)
+      const headroom = () => { if (this.world === world && !MapBuilder.warmHeadroom(world)) idleWarm.add('head room ground', headroom); };
+      idleWarm.add('head room ground', headroom);
       queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world);
       queueContactMarks([...world.commandos, ...world.enemies], idleWarm); // (the first knife kill's landmarks)
     }, 'idle warm queue');
@@ -495,6 +502,10 @@ export class Game {
     // compiled during play, the first time the camera saw them: M11's crater wellhead, a 167 ms frame in video mode).
     // The script finds it built (missions/setpieces.js; idempotent, no sim state)
     await safeAsync(() => def.script?.visuals?.(world), 'mission visuals'); // (may be a sliced job: M20's castle)
+    if (this.world !== world) return prog.cancel(), world;
+    // (and the ruins of what those visuals swapped in — M20's V2s, a library model in place of the placeholder: their
+    // wrecks were built, their models fetched, in the second blast's tick)
+    await stageRuins();
     if (this.world !== world) return prog.cancel(), world;
     // what that art drew in place of a structure's placeholder (`userData.artSwapped`: M20's masonry over its levels'
     // rock) is what a body is laid clear of: its standing visuals measured again on it (map-builder restampStandingG)

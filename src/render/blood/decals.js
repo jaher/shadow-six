@@ -65,12 +65,17 @@ export class DecalLayer {
     this._on = true; this.mesh.visible = false; // not drawn (nor compiled) until the first decal
     this.mesh.userData.warmShow = true; // (…but drawn in the load's program warm-up frame: Game._warmFrame)
     this.list = []; // records in instance order
+    // (each record's instance matrix as written, kept: a drop from the head of the ring rewrites every instance, and a
+    // ground decal's tilt asks the floor 4 times — M20's HQ blast: ~3 ms of its tick. Forgotten for the records within
+    // reach of the grid rows written since (their floor may have moved: _valid), for all after a write of the grid's own)
+    this._mx = new WeakMap(); this._ver = null;
     this._m = new THREE.Matrix4(); this._x = new THREE.Vector3(); this._y = new THREE.Vector3(); this._n = new THREE.Vector3(); this._p = new THREE.Vector3();
   }
 
   /** Rewrite every instance (after drops from the head of the ring; cheap: ≤ 512 matrices). */
   rebuild(list) {
     this.list = list.slice(-MAX);
+    this._valid();
     this.list.forEach((d, i) => this._write(i, d));
     this.mesh.count = this.list.length;
     this.mesh.instanceMatrix.needsUpdate = true; this.aTile.needsUpdate = true;
@@ -79,6 +84,7 @@ export class DecalLayer {
 
   add(d) {
     if (this.list.length >= MAX) { this.rebuild([...this.list.slice(1), d]); return; }
+    this._valid();
     this._write(this.list.length, d);
     this.list.push(d);
     this.mesh.count = this.list.length;
@@ -86,7 +92,23 @@ export class DecalLayer {
     this._sync();
   }
 
+  /** Forget the kept matrices of the records whose floor a grid write since the last call may have moved (see _mx). */
+  _valid() {
+    const w = this.sys.world, g = w?.grid;
+    if (!g || this._ver === g.version) return;
+    const d = this._ver != null && !w.surfaces?.length ? g.dirtyRowsSince?.(this._ver) : null;
+    if (!d) this._mx = new WeakMap();
+    else {
+      // (the floor at a point reads the grid within a stride; the tilt samples 0.2 m round the decal)
+      const z0 = (d.j0 - 3) * g.cell, z1 = (d.j1 + 4) * g.cell;
+      for (const r of this.list) if (r.z >= z0 && r.z <= z1) this._mx.delete(r);
+    }
+    this._ver = g.version;
+  }
+
   _write(i, d) {
+    const kept = this._mx.get(d);
+    if (kept) { this.mesh.instanceMatrix.array.set(kept, i * 16); this.aTile.setXYZW(i, d.k, d.t0, d.op, d.sf); return; }
     const n = this._n, X = this._x, Y = this._y;
     if (d.n) {                                                     // wall: normal = face, x = horizontal
       n.set(d.n[0], d.n[1], d.n[2]).normalize();
@@ -106,11 +128,12 @@ export class DecalLayer {
     e[8] = n.x; e[9] = n.y; e[10] = n.z; e[11] = 0;
     e[12] = this._p.x; e[13] = this._p.y; e[14] = this._p.z; e[15] = 1;
     this.mesh.setMatrixAt(i, this._m);
+    this._mx.set(d, this.mesh.instanceMatrix.array.slice(i * 16, i * 16 + 16));
     this.aTile.setXYZW(i, d.k, d.t0, d.op, d.sf);
   }
 
   set visible(v) { this._on = v; this._sync(); }
   _sync() { this.mesh.visible = this._on && this.list.length > 0; }
-  clear() { this.list = []; this.mesh.count = 0; this._sync(); }
+  clear() { this.list = []; this.mesh.count = 0; this._mx = new WeakMap(); this._ver = null; this._sync(); }
   dispose() { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mat.dispose(); }
 }

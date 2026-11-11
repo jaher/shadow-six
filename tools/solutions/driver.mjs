@@ -131,13 +131,16 @@ export { walkerSees as driverWalkerSees };
  * holdK + 1 steps in a row anywhere in [k0, kMax + holdK], the search cannot succeed: it would expand states up to its
  * cap (300 000: ~9 s at M3's shed ramp, the moment the Spy takes e20 aside) and return null. `seen(c, k)` is the
  * planner's own memoised test (pure while it plans), so asking it first changes nothing the search finds.
+ * `ok(c, k)` (optional): the search's own further goal test (a planner's `goalOk`: an arrival only at given moments) —
+ * a stay counts only if it may begin then (M20's knife moments: none of them left the corner unwatched long enough,
+ * and each such search ground through ~40 000 states for its null).
  */
 export function goalReachable(a) {
   const it = goalReachableGen(a);
   for (;;) { const r = it.next(); if (r.done) return r.value; }
 }
 /** goalReachable, yielding now and then (a sliced planner: see makeDriver `pause`). */
-export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, kMax, seen, raft }) {
+export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, kMax, seen, raft, ok = null }) {
   const goals = [s1];
   if (!raft) {
     const gi = Math.floor(tx) - x0, gj = Math.floor(tz) - z0;
@@ -154,7 +157,7 @@ export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK,
     for (let k = Math.max(0, k0); k <= k1; k++) {
       if ((k & 7) === 0) yield; // (a seen() asks every guard: a slice stays within PLAN_SLICE_MS)
       if (seen(c, k)) { run = 0; continue; }
-      if (++run > holdK) return true; // unseen from k - holdK (≥ k0, ≤ kMax) to k
+      if (++run > holdK && (!ok || ok(c, k - holdK))) return true; // unseen from k - holdK (≥ k0, ≤ kMax) to k, a stay that may begin then
     }
   }
   return false;
@@ -434,11 +437,13 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     });
   };
   // what the solution waits for (video mode's "⏩ waiting" tag): the labels standing — with parallel flows the last one
-  // standing is shown (one flow's wait ending does not clear the other's); one flow alone says null as it always did
+  // standing is shown (one flow's wait ending does not clear the other's); one flow alone says null as it always did —
+  // unless a D.waitNote stands round the wait (the solution still waits: M20's look for a knife moment every 2 s): the
+  // note then, so AUTO's time-lapse runs on through the looks and the pauses between them (video mode only)
   const waiting = [];
   const topWait = () => (flows > 1 && waiting.length ? waiting[waiting.length - 1] : null);
   const sayWait = (l) => { waiting.push(l); onWait?.(l); };
-  const unsayWait = (l) => { const i = waiting.lastIndexOf(l); if (i >= 0) waiting.splice(i, 1); onWait?.(topWait()); };
+  const unsayWait = (l) => { const i = waiting.lastIndexOf(l); if (i >= 0) waiting.splice(i, 1); onWait?.(noting ?? topWait()); };
   const checkpoints = [];
 
   let noting = null; // (D.waitNote's label while it stands)
