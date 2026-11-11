@@ -115,7 +115,7 @@ export function groupOf(def) {
 
 export const GROUPS = Object.freeze([
   { id: 'BEL', label: 'Behind Enemy Lines' },
-  { id: 'BCD', label: 'Beyond the Call of Duty' },
+  { id: 'BCD', label: 'Lights Out' }, // our own expansion campaign (code id 'BCD'): the registered e01 … e08
   { id: 'TEST', label: 'Sandbox / test maps' },
 ]);
 

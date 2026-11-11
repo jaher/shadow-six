@@ -205,10 +205,10 @@ export class Help {
     } else {
       put(R, groups[1][0], groups[1][1]);
       put(R, groups[2][0], groups[2][1]);
-      // BCD (bcd-plan §2): the expansion's key layout, read from the ruleset map (nothing under BEL)
+      // BCD (bcd-plan §2): LIGHTS OUT's key layout, read from the ruleset map (nothing under BEL)
       const bcd = bcdHelpRows(this.hud.game?.world?.rules);
       if (bcd.length) {
-        el('h4', null, R, 'BEYOND THE CALL OF DUTY');
+        el('h4', null, R, 'LIGHTS OUT');
         const dl = el('dl', 'mk-keys', R);
         for (const [k, v] of bcd) {
           el('dt', null, dl).append(cap(k));

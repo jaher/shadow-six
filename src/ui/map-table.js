@@ -2,14 +2,17 @@
  * S06b MISSION SELECT: the map table (docs/menus-art-direction.md §1.10 B4, S06b). A top-down oak table under a
  * desk lamp; on it the cream Europe map (the briefing SVG style on paper) with brass pins for reached missions, a red
  * flag on the next one, grey dots for locked ones, and red string joining them in campaign order. Campaign tabs
- * (BEL | BCD locked "coming later"). The typed card on the right shows number, name, date, place and best medals.
+ * BEL | LIGHTS OUT (our own expansion, code id 'BCD'; [ ] / a click switch them): each tab shows its own career, and
+ * LIGHTS OUT pins only the missions registered so far, with a typed slip naming the slots still IN PREPARATION. The
+ * typed card on the right shows number, name, date, place and best medals.
  * Pins are the card's rows, so keyboard / pad / mouse / touch navigation is the kit's.
  * @module ui/map-table
  */
 
 import { el } from './dom.js';
 import { medal, LOCK_SVG } from './menu-kit.js';
-import { BEL_CATALOGUE, CAMPAIGN_TABS } from './catalogue.js';
+import { CAMPAIGN_TABS, catalogueFor } from './catalogue.js';
+import { EXPANSION_SLOTS } from '../missions/expansion/registry.js';
 import { europeSVG, project } from './europe.js';
 import { campaignTheme, briefingCueFor } from '../audio/music-cues.js';
 
@@ -51,15 +54,32 @@ export function layoutPins(pts, lw = 38, lh = 22) {
   });
 }
 
+/** "MISSIONS 1–8" / "MISSION 3" / "MISSIONS 2 · 5": the LIGHTS OUT slots still in preparation, typed. */
+export function prepList(missing) {
+  if (missing.length === EXPANSION_SLOTS) return `MISSIONS 1–${EXPANSION_SLOTS}`;
+  return `MISSION${missing.length > 1 ? 'S' : ''} ${missing.join(' · ')}`;
+}
+
+/** Slot numbers 1 … 8 of LIGHTS OUT with no registered mission (pins = the tab's pins). */
+export function missingSlots(pins) {
+  const have = new Set(pins.map((p) => p.c.n));
+  return Array.from({ length: EXPANSION_SLOTS }, (_, k) => k + 1).filter((n) => !have.has(n));
+}
+
 export class MapTable {
   constructor(screens) {
     this.s = screens;
     this.tab = 'BEL';
   }
 
+  /** The career a tab shows ('BEL' | 'BCD'), active or not. */
+  flowOf(tab = this.tab) {
+    return this.s.flowOf?.(tab) || this.s.flow;
+  }
+
   /** Best medals earned for a mission this career (flow.results). */
-  best(id) {
-    const res = (this.s.flow?.results || []).filter((r) => r.missionId === id && r.won);
+  best(id, flow = this.flowOf()) {
+    const res = (flow?.results || []).filter((r) => r.missionId === id && r.won);
     if (!res.length) return null;
     return {
       time: Math.max(...res.map((r) => r.stars?.time ?? 0)),
@@ -69,27 +89,30 @@ export class MapTable {
   }
 
   /** Pin status of a catalogue mission: 'reached' | 'next' | 'locked' | 'unbuilt'. */
-  status(c) {
-    const flow = this.s.flow, hud = this.s.hud;
+  status(c, flow = this.flowOf(c?.campaign || this.tab)) {
+    const hud = this.s.hud;
     const def = flow?.missions?.find((m) => m.id === c.id);
     if (!def) return 'unbuilt';
     const open = flow.unlocked(c.id) || hud.devUnlock;
     if (!open) return 'locked';
-    const next = this.s.nextMission();
+    const next = this.s.nextMission(flow);
     return next?.id === c.id ? 'next' : 'reached';
   }
 
-  open(tab = this.tab) {
-    this.tab = tab;
-    const s = this.s, hud = s.hud, kit = s.kit;
-    const pins = BEL_CATALOGUE.map((c) => ({ c, st: this.status(c) }));
+  /** Open the table on a campaign tab (`replace`: a tab switch swaps the card in place). */
+  open(tab = this.tab, o = {}) {
+    this.tab = CAMPAIGN_TABS.some((t) => t.id === tab) ? tab : 'BEL';
+    const s = this.s, hud = s.hud, kit = s.kit, flow = this.flowOf(this.tab);
+    const pins = catalogueFor(this.tab).map((c) => ({ c, st: this.status(c, flow) }));
+    const missing = this.tab === 'BCD' ? missingSlots(pins) : [];
+    const none = !pins.length; // LIGHTS OUT before its first mission is registered
     const focusIx = Math.max(0, pins.findIndex((p) => p.st === 'next'));
     const open = (p, direct) => {
-      if (p.st === 'locked' || p.st === 'unbuilt') return;
+      if (!p || p.st === 'locked' || p.st === 'unbuilt') return;
       // a mission is starting: closing the table must not send the flow (and the music) back to the title menu —
       // the bed fades on 'mission:loading' (STYLE §2.5) and the briefing loop decodes meanwhile
       this._launching = true;
-      if (!direct) s.game?.audio?.musicPrefetch?.(briefingCueFor(p.c));
+      if (!direct) s.game?.audio?.musicPrefetch?.(briefingCueFor(p.c.campaign === 'BCD' ? { id: p.c.id } : p.c)); // (the briefing's own pick)
       if (direct) hud.loading.startDirect(p.c.id);
       else hud.startMission(p.c.id);
     };
@@ -118,11 +141,11 @@ export class MapTable {
       detail: (r, pane) => {
         const pin = pins.find((p) => p.c.id === r.id);
         if (pin) this._theme(pin.c); // the focused pin's theater theme (crossfades only when the chapter changes)
-        return this._card(pin, pane);
+        return pin ? this._card(pin, pane) : none ? this._slotsCard(pane, missing) : false;
       },
       footer: [
-        { label: '(B)RIEFING', onSelect: () => open(cur(), false) },
-        { label: '(S)TART WITHOUT BRIEFING', onSelect: () => open(cur(), true) },
+        { label: '(B)RIEFING', disabled: none, reason: 'IN PREPARATION', onSelect: () => open(cur(), false) },
+        { label: '(S)TART WITHOUT BRIEFING', disabled: none, reason: 'IN PREPARATION', onSelect: () => open(cur(), true) },
         { label: '(ESC) EXIT', hotkey: '', onSelect: () => kit.back() },
       ],
       hints: false,
@@ -132,9 +155,9 @@ export class MapTable {
         kit.focus(Math.max(0, Math.min(pins.length - 1, t.focus + dir)));
       },
       onTab: (dir) => this._switchTab(dir),
-      render: (box) => this._table(box, pins),
+      render: (box) => this._table(box, pins, missing),
       onOpen: () => {
-        kit.sound.play('lamp');
+        if (!o.replace) kit.sound.play('lamp');
         s.flow?.openSelect?.();
         this._theme(pins[focusIx]?.c);
       },
@@ -143,24 +166,33 @@ export class MapTable {
         this._launching = false;
         if (!launching && s.flow?.state === 'select') s.flow.setState('title');
       },
-    });
+    }, { replace: !!o.replace });
   }
 
-  /** Campaign-map music (§9.1): the theme of the focused mission's theater (Norway … Final Assault). */
+  /** Campaign-map music (§9.1): the theme of the focused mission's theater (Norway … Final Assault; LIGHTS OUT by theater). */
   _theme(c) {
-    this.s.game?.audio?.music?.(campaignTheme(c));
+    this.s.game?.audio?.music?.(campaignTheme(c?.campaign === 'BCD' ? { theater: c.theater } : c));
   }
 
+  /** [ / ]: the previous / next campaign tab. */
   _switchTab(dir) {
     const i = CAMPAIGN_TABS.findIndex((t) => t.id === this.tab);
-    const t = CAMPAIGN_TABS[(i + dir + CAMPAIGN_TABS.length) % CAMPAIGN_TABS.length];
+    this._goTab(CAMPAIGN_TABS[(i + dir + CAMPAIGN_TABS.length) % CAMPAIGN_TABS.length]);
+  }
+
+  /** Show a campaign tab: the table is laid again with that campaign's pins and career. */
+  _goTab(t) {
+    if (!t || t.id === this.tab) return;
     if (t.locked) {
       this.s.kit.sound.play('deny');
       this.s.kit.note(`${t.label.toUpperCase()} — ${String(t.note || 'LOCKED').toUpperCase()}`);
+      return;
     }
+    this.s.kit.sound.play('paper');
+    this.open(t.id, { replace: true });
   }
 
-  _table(box, pins) {
+  _table(box, pins, missing = []) {
     const kit = this.s.kit;
     const tabs = el('div', 'mk-tabs', box);
     tabs.setAttribute('role', 'tablist');
@@ -182,14 +214,15 @@ export class MapTable {
       }
       b.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (t.locked) this._switchTab(1);
+        this._goTab(t);
       });
     }
     const sheet = el('div', 'mk-mapsheet', box);
     const svg = `<svg class="mk-mapsvg" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${europeSVG(MAP_W, MAP_H, TABLE_VIEW)}</svg>`;
     sheet.insertAdjacentHTML('beforeend', svg);
-    // red string through the pins in campaign order (reached ones solid, the rest faint)
-    const pts = pins.map((p) => project(p.c.lon, p.c.lat, MAP_W, MAP_H, TABLE_VIEW));
+    // red string through the pins in campaign order (reached ones solid, the rest faint); a pin off the table's view
+    // stays on the sheet's edge
+    const pts = pins.map((p) => project(p.c.lon, p.c.lat, MAP_W, MAP_H, TABLE_VIEW).map((v) => Math.min(990, Math.max(10, v))));
     const reached = pins.map((p) => p.st === 'reached' || p.st === 'next');
     let solid = '', faint = '';
     for (let i = 1; i < pts.length; i++) {
@@ -214,6 +247,21 @@ export class MapTable {
     const leg = el('div', 'mk-legend', sheet); // the map key, printed in the sheet's corner
     leg.setAttribute('aria-hidden', 'true');
     leg.innerHTML = `<span><i class="lg reached">${PIN_BRASS}</i>REACHED</span><span><i class="lg next">${PIN_FLAG}</i>NEXT</span><span><i class="lg locked">${LOCK_SVG}</i>LOCKED</span><span><i class="lg unbuilt"></i>IN PREPARATION</span>`;
+    if (missing.length) { // LIGHTS OUT: a typed slip pinned to the sheet names the slots still in preparation
+      const slip = el('div', 'mk-prepslip', sheet);
+      el('b', null, slip, `LIGHTS OUT · ${EXPANSION_SLOTS - missing.length} OF ${EXPANSION_SLOTS} READY`);
+      el('span', null, slip, `IN PREPARATION: ${prepList(missing)}`);
+    }
+  }
+
+  /** The typed card of a LIGHTS OUT table with no mission registered yet. */
+  _slotsCard(pane, missing) {
+    const card = el('div', 'mk-paper mk-mapcard', pane);
+    el('div', 'k', card, 'LIGHTS OUT');
+    el('div', 'mk-maptitle', card, `${EXPANSION_SLOTS - missing.length} OF ${EXPANSION_SLOTS} READY`);
+    el('div', 'mk-typed', card, '1943–1945');
+    el('div', 'mk-typed st', card, `IN PREPARATION — ${prepList(missing)}`);
+    return true;
   }
 
   _card(p, pane) {

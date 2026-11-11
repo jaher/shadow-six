@@ -17,6 +17,7 @@ import { el, fmtTime } from './dom.js';
 import { labelHTML, medal, stamp } from './menu-kit.js';
 import { hasQuickSave } from '../save.js';
 import { BEL_CATALOGUE } from './catalogue.js';
+import { EXPANSION_SLOTS } from '../missions/expansion/registry.js';
 import { isTouchUI } from './touch.js';
 
 const REASONS = [
@@ -289,7 +290,7 @@ export class Debrief {
     if (next) foot.push(['(N)EXT MISSION', 'KeyN', () => this.hud.startMission(next)]);
     // after the last campaign mission (or the M20 gate): the epilogue — campaign_end → credits → menu (STYLE §2.5)
     const last = flow?.last;
-    const final = !next && (flow?.numberOf?.(this.hud.def?.id) || 0) >= BEL_CATALOGUE.length;
+    const final = !next && (flow?.numberOf?.(this.hud.def?.id) || 0) >= (flow?.campaign === 'BCD' ? EXPANSION_SLOTS : BEL_CATALOGUE.length);
     if (last?.won && (last.epilogue || final) && this.hud.epilogue) foot.unshift(['(E)PILOGUE', 'KeyE', () => { this.close(); this.hud.epilogue(); }]);
     foot.push(['(P)LAY AGAIN', 'KeyP', () => this.hud.restartMission()]);
     this._footer(box, foot);

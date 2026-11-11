@@ -163,8 +163,9 @@ The earlier reference set, an action frame and two scene frames for each of miss
   found, alarms and reinforcements.
 - **A world that reacts**: snow with trails and footprints, rivers and fjords with swimmers and boat wakes, wind
   in the trees and flags, fire, smoke and explosions, physically based lighting.
-- **Briefings, debriefings, quick save / load and a sandbox** to learn the controls; the *Beyond the Call of
-  Duty* gadgets and units exist behind their own ruleset (sandbox only for now).
+- **Briefings, debriefings, quick save / load and a sandbox** to learn the controls; the expansion-style gadgets and
+  units (knock-outs, handcuffs, the puppet, stones, cigarette packs and more) exist behind their own ruleset, for
+  *Lights Out*, our original expansion campaign (8 missions in preparation; try them in the BCD sandbox for now).
 - **Solutions you can watch**: the finished missions come with a scripted full solution, played with player orders
   only and without a single detection. Replay it live in the game, or follow it as a captioned walkthrough with a
   camera director (both under `?debug`, see [Debug mode](#debug-mode)); `tools/solutions/film-mission.mjs` films it
@@ -183,8 +184,10 @@ debriefings, and saving and loading. Where they stand:
 - **Performance passes** (a steady frame rate through each mission's walkthrough in video mode) are under way:
   missions 2, 3 and 11 are done, missions 12, 15 and 18 are in progress and the others are queued. Engine-wide
   work (less garbage per frame, cheaper detailed characters, test-suite health) is merged.
-- **Still to come:** the *Beyond the Call of Duty* campaign and some systems and polish. Work is merged and
-  published as it is finished.
+- **Still to come:** *Lights Out*, our original expansion campaign: eight new missions, 1943–1945, a career that
+  starts at Major, Easy and Hard data for every mission. Its menus, career and map table are in the game (NEW GAME →
+  SINGLE PLAYER → LIGHTS OUT); the 8 missions are in preparation and appear there as each one is finished. Some
+  systems and polish remain too. Work is merged and published as it is finished.
 
 ## System requirements
 
@@ -228,9 +231,10 @@ URL parameters:
 Add `?debug` to the URL (`?debug=1`, `?debug=cones` and any other value work too; `?debug=0` is off), for example
 `http://localhost:8080/?debug` or `https://jaher.github.io/shadow-six/?debug`. The game skips the title splash and
 opens **DEBUG LEVEL SELECT**: every mission in the mission list, grouped as *Behind Enemy Lines* (by mission number),
-*Beyond the Call of Duty* and *Sandbox / test maps*, each with its number, name, theater colour and icon, and a
-thumbnail once you have played it in debug mode (a small capture cached in the browser). New missions appear by
-themselves. Click or tap a level, or use the arrow keys and Enter. Esc (or *Main menu*) goes to the normal title.
+*Lights Out* (our expansion campaign: the missions finished so far) and *Sandbox / test maps*, each with its number,
+name, theater colour and icon, and a thumbnail once you have played it in debug mode (a small capture cached in the
+browser). New missions appear by themselves. Click or tap a level, or use the arrow keys and Enter. Esc (or *Main
+menu*) goes to the normal title.
 
 Options in the overlay, remembered in `localStorage` (those marked * apply on the next launch):
 
@@ -454,7 +458,8 @@ src/render/           vision cones, selection markers, effects
 src/art/              models, materials, terrain, water, characters
 src/ui/, src/audio/   menus, HUD, briefings, credits; audio
 src/debug/            debug mode: level select, solution replay, video mode (walkthrough), info HUD
-src/missions/         mission definitions (m00 sandbox, m01–m20 the BEL campaign, b00 the BCD sandbox)
+src/missions/         mission definitions (m00 sandbox, m01–m20 the BEL campaign, b00 the BCD sandbox;
+                      expansion/: the Lights Out registry and its mission slots e01–e08)
 assets/               textures, models, HDRIs, audio, portraits, fonts (see CREDITS.md)
 vendor/               three.js r186 and addons
 tools/                dev server, web build (tools/build), asset build scripts (Blender, audio, portraits),

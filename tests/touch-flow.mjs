@@ -137,6 +137,9 @@ export async function phoneFlow(t, name, o = {}) {
     t(await page.evaluate(() => !!document.querySelector('.mk-host .mk-card:not(.leaving) .mk-touchbtn.back')), `${tag}: a visible BACK button on sub-menus`);
     await page.waitForTimeout(300);
     await tap('.mk-host .mk-card:not(.leaving) .mk-list .mk-row:first-child');
+    await waitCard('single'); // the campaign choice: BEHIND ENEMY LINES | LIGHTS OUT | EXIT
+    await page.waitForTimeout(300);
+    await tap('.mk-host .mk-card:not(.leaving) .mk-list .mk-row:first-child');
     await waitCard('bel');
     await page.waitForTimeout(300);
     await tap('.mk-host .mk-card:not(.leaving) .mk-list .mk-row:first-child');

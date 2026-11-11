@@ -1,6 +1,8 @@
 /**
  * Owned by MISSIONS (see docs/ARCHITECTURE.md). Ordered mission list. m00 is the sandbox test
- * map; then the BEL campaign: m01 Baptism of Fire, m02 A Quiet Blow-Up, m03 Reverse Engineering (§7.4–§7.6).
+ * map; then the BEL campaign: m01 Baptism of Fire, m02 A Quiet Blow-Up, m03 Reverse Engineering (§7.4–§7.6); then the
+ * BCD sandbox b00 (dev); then LIGHTS OUT, our own expansion campaign (internal id 'BCD'): the missions registered in
+ * ./expansion/registry.js, in number order (docs/expansion/STATUS.md "Mission registration contract").
  * @module missions/index
  */
 
@@ -26,19 +28,34 @@ import m18 from './m18_the_force_of_circumstance.js';
 import m19 from './m19_frustrate_retaliation.js';
 import m20 from './m20_operation_valhalla.js';
 import b00 from './m00_bcd_sandbox.js'; // BCD sandbox (dev/test map, docs/bcd-plan.md §3 N13)
+import { expansionMissions, onExpansionChange } from './expansion/registry.js';
+import './expansion/index.js'; // LIGHTS OUT: each mission module listed there registers itself
 
-/** Ordered list of all mission definitions (sandbox first, then BEL M1–M20 in campaign order, then BCD). */
-export const MISSIONS = [m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, b00];
+/** The maps that are always there: the sandbox, BEL M1–M20 in campaign order, the BCD sandbox. */
+const BASE = [m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, b00];
+
+/**
+ * Ordered list of all mission definitions (sandbox first, then BEL M1–M20 in campaign order, then the BCD sandbox,
+ * then the registered LIGHTS OUT missions in number order). Live: a mission registered later joins it in place.
+ */
+export const MISSIONS = [...BASE, ...expansionMissions()];
 
 /**
  * Campaigns as ordered mission lists (ARCHITECTURE.md "Campaigns & rulesets"). Every def declares
- * `campaign: 'BEL' | 'BCD'`; the sandbox m00 is BEL-ruled but not part of the campaign list.
- * Mission select shows these as tabs (BCD locked / "coming later").
+ * `campaign: 'BEL' | 'BCD'`; the sandbox m00 is BEL-ruled but not part of the campaign list. BCD is LIGHTS OUT:
+ * the registered missions only (a slot still in preparation is simply absent). Mission select shows both as tabs.
  */
 export const CAMPAIGNS = {
   BEL: MISSIONS.filter((m) => m.campaign === 'BEL' && m.id !== 'm00'),
   BCD: MISSIONS.filter((m) => m.campaign === 'BCD' && !m.dev), // the BCD sandbox (b00) is dev-only
 };
+
+// a LIGHTS OUT mission registered (or taken out) after this module ran — a test page, a late import — updates the same
+// arrays in place, so the flows, the menus and the debug select that hold them see it
+onExpansionChange(() => {
+  MISSIONS.splice(BASE.length, MISSIONS.length - BASE.length, ...expansionMissions());
+  CAMPAIGNS.BCD.splice(0, CAMPAIGNS.BCD.length, ...MISSIONS.filter((m) => m.campaign === 'BCD' && !m.dev));
+});
 
 /** Campaign id of a mission def (default 'BEL'). */
 export function campaignOf(def) {

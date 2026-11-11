@@ -5,8 +5,10 @@
  *   title → select → briefing → playing ⇄ paused → debrief → (next mission's briefing | epilogue)
  *
  *   game.flow.state          'title' | 'select' | 'briefing' | 'playing' | 'paused' | 'debrief' | 'epilogue'
- *   game.flow.campaign       'BEL' (| 'BCD' later)
- *   game.flow.missions       ordered mission defs of the campaign (missions/index.js CAMPAIGNS)
+ *   game.flow.campaign       'BEL' | 'BCD' (LIGHTS OUT, our own expansion campaign)
+ *   game.flow.missions       ordered mission defs of the campaign (missions/index.js CAMPAIGNS; live for LIGHTS OUT)
+ *   game.flows               {BEL, BCD}: one flow (career) per campaign; game.flow is the active one, the campaign of
+ *                            the mission started last (Game.useFlow). Only the active flow follows the game's state.
  *   game.flow.unlocked(id)   → boolean
  *   game.flow.startMission(id) → Promise<World>        (→ 'briefing')
  *   game.flow.begin()        briefing → playing (Esc / "start" on the briefing)
@@ -34,7 +36,13 @@ export const CAREER_KEY = 'shadowsix.career.v1';
 /** Minimum rank index for M20 (§8.2 gate). */
 export const M20_MIN_RANK = CONFIG.mission.m20MinRank;
 
-/** Game flow controller. Created by the Game as `game.flow`. */
+/** Campaign number of `missions[i]`: its def's `number` when it has one (LIGHTS OUT), else i + 1. */
+function numberAt(missions, i) {
+  const n = missions[i]?.number;
+  return Number.isInteger(n) && n > 0 ? n : i + 1;
+}
+
+/** Game flow controller. The Game creates one per campaign (`game.flows`); `game.flow` is the active one. */
 export class Flow {
   /**
    * @param {import('../game.js').Game} game
@@ -54,7 +62,8 @@ export class Flow {
     this.persist = !!opts.persist;
     this.current = null; // id of the mission being played
     this.last = null; // last mission-end payload
-    this._unlocked = new Set(missions.length ? [missions[0].id] : []);
+    const first = this.byNumber(1);
+    this._unlocked = new Set(first ? [first.id] : []);
     if (this.persist) this.loadCareer();
     this._offs = [];
     const ev = game?.events;
@@ -77,20 +86,32 @@ export class Flow {
     this.game?.events?.emit('flow:state', { from, to });
   }
 
-  /** Mirror the Game's sim state (playing/paused/won/lost/title) into the flow layer. */
+  /** Mirror the Game's sim state (playing/paused/won/lost/title) into the flow layer (the active campaign's flow only). */
   _onGameState(to) {
+    if (this.game?.flow && this.game.flow !== this) return;
     if (to === 'playing' || to === 'paused') this.setState(to);
     else if (to === 'won' || to === 'lost') this.setState('debrief');
     else if (to === 'title') this.setState('title');
   }
 
+  /** Mission 1 is always open (also one that joined the campaign after this career loaded: a LIGHTS OUT slot). */
   unlocked(id) {
-    return this._unlocked.has(id);
+    return this._unlocked.has(id) || (id != null && this.byNumber(1)?.id === id);
   }
 
-  /** 1-based campaign number of a mission id (0 when not in the campaign, e.g. the sandbox). */
+  /**
+   * 1-based campaign number of a mission id (0 when not in the campaign, e.g. the sandbox): the def's own `number`
+   * (LIGHTS OUT slots, which may have gaps while missions are in preparation), else its place in the list.
+   */
   numberOf(id) {
-    return this.missions.findIndex((m) => m.id === id) + 1;
+    const i = this.missions.findIndex((m) => m.id === id);
+    return i < 0 ? 0 : numberAt(this.missions, i);
+  }
+
+  /** The campaign mission numbered `n`, or null (a LIGHTS OUT slot still in preparation). */
+  byNumber(n) {
+    const i = this.missions.findIndex((m, k) => numberAt(this.missions, k) === n);
+    return i < 0 ? null : this.missions[i];
   }
 
   /** title → mission select. */
@@ -104,8 +125,15 @@ export class Flow {
     this.setState('title');
   }
 
-  /** Load + brief a mission (unlocking is the caller's concern for debug/tests). */
+  /**
+   * Load + brief a mission (unlocking is the caller's concern for debug/tests). A mission of the other campaign is
+   * started by that campaign's flow, which becomes game.flow; the career's Skill (BCD) goes to the load.
+   */
   async startMission(id) {
+    const own = this.game?.flowForMission?.(id);
+    if (own && own !== this) return own.startMission(id);
+    this.game?.useFlow?.(this.campaign);
+    if (this.game) this.game.difficulty = this.difficulty; // BCD Easy / Hard data variant (null under BEL)
     const w = await this.game.loadMission(id);
     this.current = this.game.missionDef?.id ?? id;
     this.setState('briefing');
@@ -123,10 +151,10 @@ export class Flow {
     return this.current ? this.startMission(this.current) : Promise.resolve(null);
   }
 
-  /** Id of the mission that follows `id` (null at the campaign end). */
+  /** Id of the mission that follows `id` (null at the campaign end, or while the next slot is in preparation). */
   nextMissionId(id = this.current) {
-    const i = this.missions.findIndex((m) => m.id === id);
-    return i >= 0 && this.missions[i + 1] ? this.missions[i + 1].id : null;
+    const n = this.numberOf(id);
+    return (n && this.byNumber(n + 1)?.id) || null;
   }
 
   /**
@@ -151,11 +179,11 @@ export class Flow {
   enterPassword(code) {
     const d = decodePassword(code);
     if (!d || d.campaign !== this.campaign) return null;
-    const m = this.missions[d.mission - 1];
+    const m = this.byNumber(d.mission);
     if (!m) return null;
     if (d.difficulty) this.setDifficulty(d.difficulty); // BCD: a password replays one mission at its skill (§1.13)
     this.gold = goldFrom(d.rank, d.stars);
-    for (let i = 0; i < d.mission; i++) this._unlocked.add(this.missions[i].id);
+    for (const x of this.missions) if (this.numberOf(x.id) <= d.mission) this._unlocked.add(x.id);
     this.saveCareer();
     return m.id;
   }
@@ -165,11 +193,14 @@ export class Flow {
     return encodePassword(this.campaign, n, partialStars(this.gold), rankIndex(this.gold), this.difficulty);
   }
 
-  /** BCD Skill screen choice ('easy' | 'hard'): stored in the career and used for the next mission load. */
+  /**
+   * BCD Skill screen choice ('easy' | 'hard'): stored in the career and used for the next mission load (at once when
+   * this is the active flow; else when it starts its next mission).
+   */
   setDifficulty(d) {
     if (!CONFIG.rulesets[this.campaign]?.difficulty) return false;
     this.difficulty = d === 'easy' ? 'easy' : 'hard';
-    if (this.game) this.game.difficulty = this.difficulty;
+    if (this.game && (!this.game.flow || this.game.flow === this)) this.game.difficulty = this.difficulty;
     return true;
   }
 
@@ -187,7 +218,7 @@ export class Flow {
       const R = CONFIG.rulesets[this.campaign];
       if (n && R?.difficulty && Number.isFinite(R.maxGold)) this.gold = Math.min(this.gold, (R.careerStartGold ?? 0) + R.maxGold); // BCD: Field Marshal (60) cap
       out.rank = rankName(this.gold);
-      const next = n ? this.missions[n] : null;
+      const next = n ? this.byNumber(n + 1) : null;
       const gateOk = !next || n + 1 !== 20 || meetsM20Gate(this.gold);
       if (next && gateOk) this._unlocked.add(next.id);
       out.password = next && gateOk ? this.passwordFor(n + 1) : null;

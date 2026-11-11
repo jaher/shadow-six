@@ -391,8 +391,11 @@ export class HUD {
     this._syncVisibility();
   }
 
+  /** The active campaign's mission after this one (by number: a LIGHTS OUT slot in preparation has none). */
   nextMissionId() {
-    const list = this.game.flow?.missions || [];
+    const f = this.game.flow;
+    if (f?.nextMissionId) return f.nextMissionId(this.def?.id ?? null);
+    const list = f?.missions || [];
     const i = list.findIndex((m) => m.id === this.def?.id);
     return i >= 0 && list[i + 1] ? list[i + 1].id : null;
   }

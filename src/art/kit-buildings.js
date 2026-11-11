@@ -16,6 +16,7 @@ import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } fr
 import { paintedMaterial } from './kit-props.js';
 import { MEDINA_RX, glazedTile, medinaDoor, medinaWindow, medinaFacade, medinaAwning, medinaShop, palaceFront } from './medina-kit.js';
 import { fluedStackGeometry, sootMaterial } from './chimney-flues.js';
+import { smoothLathe } from './round-roofs.js';
 
 function mesh(geo, mat, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -38,13 +39,15 @@ function flueStack(g, w, d, y0, y1, mat, x, z) {
   (g.userData.flueMouths ||= []).push([x, y1 - 0.04, z]);
 }
 const V2 = (r, y) => new THREE.Vector2(r, y);
-/** Lathe with world-scale UVs (u around the circumference in metres / tile, v = height / tile). */
+/**
+ * Lathe with world-scale UVs (u around the circumference in metres / tile, v = height / tile), with the analytic normal
+ * (art/round-roofs.js smoothLathe: smooth round the circle, hard at eaves and rims, one apex normal per facet). The segment
+ * count stays as authored: gameplay measures these meshes' vertices (nav stamps, overheads, hulls), and a finer circle
+ * would flip raster cells (a lathe's outline is 1-2 px off round at zoom 2; the GLB library's roofs, whose authored
+ * geometry gameplay keeps measuring, are re-tessellated instead: engine/gameplay-geometry.js).
+ */
 function tlathe(pts, seg, mat, tile = 2.2) {
-  const g = new THREE.LatheGeometry(pts.map(([r, y]) => V2(r, y)), seg);
-  const uv = g.attributes.uv, P = g.attributes.position;
-  const rmax = Math.max(...pts.map((q) => q[0]));
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (2 * Math.PI * rmax) / tile, P.getY(i) / tile);
-  return mesh(g, mat);
+  return mesh(smoothLathe(pts, seg, { tile }), mat);
 }
 
 // ------------------------------------------------------------------------------------------ style

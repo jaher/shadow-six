@@ -1,6 +1,6 @@
 /**
  * UI flow (design-spec §6.6–6.8; docs/menus-art-direction.md S04–S20 and the §0 recognisability contract):
- * front end MAIN → NEW GAME in BEL order, SINGLE PLAYER (BCD locked), mission select map table (BCD "coming later",
+ * front end MAIN → NEW GAME in BEL order, SINGLE PLAYER (BEL | LIGHTS OUT), mission select map table (LIGHTS OUT tab,
  * 20 pins), password cells, credits (fonts + fan-tribute disclaimer), help folder, options (+ the three original
  * game preferences), QUIT confirmation with (N)O default; briefing part 1 → part 2 → playing; P pause card;
  * in-mission Esc = MAIN on the oxblood frame → resume; notebook; 10 save slots; win card → debrief → (P)LAY AGAIN;
@@ -48,15 +48,17 @@ export default async function uiFlow(page, t) {
   // ---- SINGLE PLAYER, the map table (S06b)
   const sp = await page.evaluate(() => {
     const s = window.__game.game.hud.screens;
-    s.openCampaigns();
-    const rows = [...document.querySelectorAll('.mk-host .mk-card:not(.leaving) .mk-list .mk-row')].map((b) => ({ t: b.textContent, off: b.getAttribute('aria-disabled') === 'true' }));
-    s.kit.pop();
-    s.openSinglePlayer(); // BCD locked: SINGLE PLAYER goes straight to BEHIND ENEMY LINES (Enter, Enter → briefing)
-    return rows;
+    s.openSinglePlayer(); // SINGLE PLAYER → the campaign choice: BEHIND ENEMY LINES | LIGHTS OUT | EXIT
+    const cc = document.querySelector('.mk-host .mk-card:not(.leaving)');
+    const rows = [...cc.querySelectorAll('.mk-list .mk-row')].map((b) => ({ t: b.textContent, off: b.getAttribute('aria-disabled') === 'true' }));
+    s.kit.activate(0); // BEHIND ENEMY LINES
+    return { title: cc.querySelector('.mk-title')?.textContent || '', rows };
   });
-  t(sp.some((r) => /BEYOND THE CALL OF DUTY/.test(r.t) && r.off), 'BCD locked on the campaign choice');
+  t.equal(sp.title, 'SINGLE PLAYER', 'SINGLE PLAYER opens the campaign choice');
+  t.equal(sp.rows.map((r) => r.t).join('|'), 'BEHIND ENEMY LINES|LIGHTS OUT|EXIT', 'the campaign choice: BEL, LIGHTS OUT, EXIT');
+  t(sp.rows.some((r) => r.t === 'LIGHTS OUT' && !r.off) && !sp.rows.some((r) => /CALL OF DUTY/i.test(r.t)), 'LIGHTS OUT open on the campaign choice');
   c = await card(page);
-  t.equal(c.title, 'BEHIND ENEMY LINES', 'SINGLE PLAYER opens BEHIND ENEMY LINES directly while BCD is locked');
+  t.equal(c.title, 'BEHIND ENEMY LINES', 'the campaign choice opens BEHIND ENEMY LINES');
   t.equal(c.rows[0]?.label, 'START CAMPAIGN');
   const mt = await page.evaluate(() => {
     const kit = window.__game.game.hud.kit;
@@ -68,7 +70,7 @@ export default async function uiFlow(page, t) {
   t.log(JSON.stringify(mt).slice(0, 400));
   t.equal(mt.pins, 20, 'mission select pins the 20 BEL missions');
   const bcd = mt.tabs.find((x) => x.id === 'BCD');
-  t(bcd?.locked && /coming later/i.test(bcd.text), 'BCD tab locked, "coming later"');
+  t(bcd && !bcd.locked && /LIGHTS OUT/.test(bcd.text), 'LIGHTS OUT tab open beside BEHIND ENEMY LINES');
   t(/MISSION 1/.test(mt.card), 'typed card for the focused pin');
   t(mt.footer.includes('(B)RIEFING') && mt.footer.includes('(S)TART WITHOUT BRIEFING'), 'map table hotkeys');
   await t.shot('ui-maptable');

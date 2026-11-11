@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { convexHull } from './placement-geom.js';
 import { sessionCache, hasher, dataKey } from '../engine/asset-cache.js';
 import { due, runSync } from '../engine/slice.js';
+import { gameplayGeometry } from '../engine/gameplay-geometry.js';
 
 export { dataKey };
 
@@ -33,7 +34,7 @@ export function snowTris(nd) {
   const mat = nd.material;
   if (!Array.isArray(mat)) return isSnowMaterial(mat) ? () => true : null;
   if (!mat.some(isSnowMaterial)) return null;
-  const groups = nd.geometry?.groups || [];
+  const groups = gameplayGeometry(nd.geometry)?.groups || [];
   if (!groups.length) return isSnowMaterial(mat[0]) ? () => true : null;
   return (t) => { for (const g of groups) if (t >= g.start && t < g.start + g.count) return isSnowMaterial(mat[g.materialIndex ?? 0]); return false; };
 }
@@ -63,8 +64,8 @@ function* planHullRaw(root, o = {}) {
       const finest = ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm));
       if (n.name !== finest) return;
     }
-    if (n.isMesh && !SKIP.test(n.name || '') && n.geometry?.attributes?.position) {
-      const pos = n.geometry.attributes.position, stride = Math.max(1, Math.ceil(pos.count / maxVerts));
+    if (n.isMesh && !SKIP.test(n.name || '') && gameplayGeometry(n.geometry)?.attributes?.position) {
+      const pos = gameplayGeometry(n.geometry).attributes.position, stride = Math.max(1, Math.ceil(pos.count / maxVerts));
       const inst = n.isInstancedMesh ? n.count : 0, im = new THREE.Matrix4(), m = new THREE.Matrix4();
       // (a vertex has no triangle of its own: a mesh counts as snow when its material — every one of them — is snow)
       const lo = wade > minY && [].concat(n.material).every(isSnowMaterial) ? wade : minY;
@@ -156,8 +157,8 @@ function* planCellsRaw(root, o = {}) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && gameplayGeometry(nd.geometry)?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const gg = gameplayGeometry(nd.geometry), pos = gg.attributes.position, idx = gg.index;
       const count = idx ? idx.count : pos.count, snow = wade > minY ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
@@ -226,8 +227,8 @@ function* overheadCellsRaw(root, o = {}, into = new Map()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && gameplayGeometry(nd.geometry)?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const gg = gameplayGeometry(nd.geometry), pos = gg.attributes.position, idx = gg.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
         if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
@@ -277,8 +278,8 @@ function* standingCellsRaw(root, surf, o = {}, into = new Set()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && gameplayGeometry(nd.geometry)?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const gg = gameplayGeometry(nd.geometry), pos = gg.attributes.position, idx = gg.index;
       const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
@@ -339,13 +340,19 @@ export function measureTop(root, x, z, lo, hi, meshes = null) {
   const list = meshes || finestMeshes(root);
   _o.set(x, hi, z);
   _ray.set(_o, _d); _ray.far = hi - lo;
-  for (const h of _ray.intersectObjects(list, false)) {
-    if (h.point.y < lo || h.point.y > hi) continue;
-    const n = h.face?.normal;
-    if (n) { const wn = n.clone().transformDirection(h.object.matrixWorld); if (wn.y < 0.3) continue; } // walls / undersides
-    return h.point.y;
-  }
-  return null;
+  // (a mesh whose drawn geometry was refined by art/round-roofs.js is raycast on the geometry the artist made, for the
+  // length of this synchronous call: its roof tops do not move by the bulge of a finer circle)
+  const swapped = [];
+  for (const m of list) { const g = gameplayGeometry(m.geometry); if (g !== m.geometry) { swapped.push([m, m.geometry]); m.geometry = g; } }
+  try {
+    for (const h of _ray.intersectObjects(list, false)) {
+      if (h.point.y < lo || h.point.y > hi) continue;
+      const n = h.face?.normal;
+      if (n) { const wn = n.clone().transformDirection(h.object.matrixWorld); if (wn.y < 0.3) continue; } // walls / undersides
+      return h.point.y;
+    }
+    return null;
+  } finally { for (const [m, g] of swapped) m.geometry = g; }
 }
 
 /**
@@ -522,8 +529,8 @@ function* lowSurfacesRaw(root, o = {}, into = new Map()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && gameplayGeometry(nd.geometry)?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const gg = gameplayGeometry(nd.geometry), pos = gg.attributes.position, idx = gg.index;
       const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
@@ -609,7 +616,7 @@ export function visualSignature(root) {
   const visit = (n) => {
     h.str(n.name); h.num(n.visible ? 1 : 0); h.num(n.userData?.clip === false ? 1 : 0); h.num(n.userData?.surface === false ? 1 : 0); h.num(n.children.length);
     if (n.isMesh) {
-      const g = n.geometry, pos = g?.attributes?.position;
+      const g = gameplayGeometry(n.geometry), pos = g?.attributes?.position; // (the geometry gameplay measures: a visual refinement leaves the key and the results as they were)
       const gh = pos ? geometryHash(g) : null;
       if (!gh) ok = false; else h.str(gh);
       h.num(snowTris(n) ? 1 : 0); // (snow cover: what a `wade` analysis leaves out)

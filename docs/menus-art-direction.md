@@ -708,7 +708,10 @@ Choosing **(Y)ES** opens name entry:
 #### S06a. SINGLE PLAYER: campaign [orig flow plus the spec's campaigns]
 The card is titled **SINGLE PLAYER**, with these rows:
 - `BEHIND ENEMY LINES`
-- `BEYOND THE CALL OF DUTY`: locked, with a padlock and the note "COMING LATER"
+- `LIGHTS OUT`: our own expansion campaign (code id `BCD`, docs/expansion/STATUS.md). When it is focused, the detail
+  pane shows an original night print (inline SVG, `src/ui/lights-out-art.js`: a hooded field lamp going dark over a
+  harbour under an Alpine ridge, six figures on the quay, the title sprayed through a stencil) and a typed card:
+  8 MISSIONS · 1943–1945 · CAREER STARTS AT MAJOR · n OF 8 READY.
 - `EXIT`
 
 Choosing BEL opens a second card titled **BEHIND ENEMY LINES**, with these rows:
@@ -717,7 +720,13 @@ Choosing BEL opens a second card titled **BEHIND ENEMY LINES**, with these rows:
 - `MISSION SELECT` [new]
 - `EXIT`
 
-**Skill** is BCD-only (Easy / Difficult) and is shown only for BCD later.
+Choosing LIGHTS OUT opens a card titled **LIGHTS OUT** (the same print and typed card in its detail pane), with these
+rows:
+- `CONTINUE — MISSION 2: …` (shown only when the LIGHTS OUT career has progress)
+- `START CAMPAIGN`: disabled with "IN PREPARATION" until mission 1 is registered. It opens **SKILL** (`EASY — FOR
+  ROOKIES`, `DIFFICULT — FOR VETERANS`; LIGHTS OUT only), then mission 1's briefing.
+- `MISSION SELECT`: the map table on the LIGHTS OUT tab
+- `EXIT`
 
 #### S06b. MISSION SELECT: the map table [new]
 ```
@@ -740,6 +749,11 @@ Choosing BEL opens a second card titled **BEHIND ENEMY LINES**, with these rows:
 - **Red string** joins the missions in order.
 
 **Navigation:** arrow keys or the pad move between pins in campaign order. The mouse selects by hover and click.
+
+**Campaign tabs:** BEHIND ENEMY LINES | LIGHTS OUT. `[` / `]`, the pad's shoulder buttons or a click switch them; the
+card is laid again in place with that campaign's pins and career. The LIGHTS OUT tab pins only the missions
+registered so far; a typed slip on the sheet names the slots still IN PREPARATION, and with none registered the typed
+card says "0 OF 8 READY" and (B)RIEFING / (S)TART WITHOUT BRIEFING are disabled.
 
 **Detail card:** the typed card (Special Elite) shows the mission number, name, date and place, and the best medals earned (MedalDiscs).
 

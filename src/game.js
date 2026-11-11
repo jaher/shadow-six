@@ -209,8 +209,15 @@ export class Game {
     const HudClass = !createHud && pick(HudMod, 'HUD', 'Hud');
     const hudRoot = opts.hudRoot || document.getElementById('hud') || container;
     this.hud = safe(() => (createHud ? createHud(this, hudRoot) : HudClass ? new HudClass(this, hudRoot) : null), 'hud');
-    /** Campaign flow / scoring / passwords (CORE2, src/core/flow.js). */
-    this.flow = new Flow(this, Missions.CAMPAIGNS?.BEL || [], 'BEL', { persist: !this.manualTick });
+    /**
+     * Campaign flows / scoring / passwords (CORE2, src/core/flow.js): one career per campaign, BEL and LIGHTS OUT ('BCD',
+     * a Major's career with the Skill choice), each under its own storage key. `flow` is the active one: the campaign of
+     * the mission started last (useFlow), BEL at boot.
+     */
+    const career = { persist: !this.manualTick };
+    this.flows = { BEL: new Flow(this, Missions.CAMPAIGNS?.BEL || [], 'BEL', career) };
+    this.flow = this.flows.BEL; // (before the BCD career loads: its stored Skill is not this load's difficulty)
+    this.flows.BCD = new Flow(this, Missions.CAMPAIGNS?.BCD || [], 'BCD', career);
 
     this._onVisibility = () => {
       if (document.hidden && this.state === 'playing' && !this.manualTick) this.pause(true);
@@ -228,6 +235,38 @@ export class Game {
   /** The active camera view (CameraController) of the multi-view rig. */
   get cameraController() {
     return this.cameraRig.active;
+  }
+
+  // ------------------------------------------------------------ campaigns
+
+  /** The flow (career) of a campaign id: 'BEL' | 'BCD' (LIGHTS OUT); BEL's for anything else. */
+  flowFor(campaign) {
+    return this.flows?.[campaign] || this.flows?.BEL || this.flow;
+  }
+
+  /** The flow of mission `id`'s campaign (null for an unknown id). */
+  flowForMission(id) {
+    const def = missionList().find((m) => m.id === id);
+    return def ? this.flowFor(def.campaign || 'BEL') : null;
+  }
+
+  /**
+   * Make `campaign`'s flow game.flow (every mission load does: debrief, next, retry, continue and the last operation
+   * follow the campaign being played). The menu / campaign layer has one state: the newly active flow takes it over and
+   * the other one rests at 'title' (no event: nothing changed on screen).
+   * @returns {import('./core/flow.js').Flow}
+   */
+  useFlow(campaign) {
+    const f = this.flowFor(campaign);
+    if (f && f !== this.flow) {
+      const prev = this.flow;
+      if (prev) {
+        f.state = prev.state;
+        prev.state = 'title';
+      }
+      this.flow = f;
+    }
+    return this.flow;
   }
 
   // ------------------------------------------------------------ state machine
@@ -284,6 +323,7 @@ export class Game {
     if (typeof idOrIndex === 'number') def = list[idOrIndex];
     else if (typeof idOrIndex === 'string') def = list.find((m) => m.id === idOrIndex);
     if (!def || typeof def !== 'object') throw new Error(`unknown mission "${idOrIndex}"`);
+    this.useFlow(def.campaign || 'BEL'); // its campaign's career is the active one from now on
     this.events.emit('mission:loading', { id: def.id }); // UI releases the menu diorama (menus-art-direction §1.10)
     this.unloadMission();
     this.missionIndex = list.indexOf(def);
@@ -1439,7 +1479,7 @@ export class Game {
     this.selection.dispose();
     this.input.dispose?.();
     this.cameraRig.dispose();
-    this.flow?.dispose?.();
+    for (const f of new Set([...Object.values(this.flows || {}), this.flow])) f?.dispose?.();
     this.scopeMagnifier?.dispose();
     this.renderer.dispose?.();
   }

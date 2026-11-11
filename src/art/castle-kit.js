@@ -15,6 +15,7 @@ import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { antiTile } from './anti-tiling.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { registerHdTexture } from '../engine/hd-textures.js';
+import { creaseNormals } from './round-roofs.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -95,7 +96,8 @@ export const ccw = (p) => (area2(p) < 0 ? p.slice().reverse() : p);
 
 /**
  * Triangle accumulator: primitives in world (or any common) coordinates, grouped by material key. `build()` returns
- * one Group with one mesh per material: box-projected UVs (metres / tile), flat normals, COLOR_0 tone + grime.
+ * one Group with one mesh per material: box-projected UVs (metres / tile) from the flat face normals, crease-angle
+ * smoothed shading normals (round towers and cones shade round, 90° corners stay hard), COLOR_0 tone + grime.
  */
 export class Geo {
   constructor(seed = 1) { this.parts = new Map(); this.R = rng(seedOf(seed)); this.seed = seedOf(seed) % 997; }
@@ -211,6 +213,7 @@ export class Geo {
       }
       geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      creaseNormals(geo); // after the UV / tone pass above, which reads the flat face normals
       geo.computeBoundingSphere();
       const m = new THREE.Mesh(geo, castleMaterial(mat));
       m.name = `${name}:${mat}`;

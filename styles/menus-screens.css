@@ -625,3 +625,33 @@ html.mk-touch .mk-nexttip .mk-cap { display: none; }
 .ui-paused .hint { pointer-events: auto; cursor: pointer; }
 html.mk-touch .ui-paused .hint { min-height: 44px; padding: 0 18px; border: 1px solid rgba(201, 162, 74, .6); border-radius: 3px; background: rgba(12, 12, 7, .82); }
 html.mk-touch .ui-paused .hint .mk-cap { display: none; }
+
+/* ================================================================== S06a LIGHTS OUT (our own expansion campaign): the night print
+   and its typed card in the detail pane of SINGLE PLAYER (LIGHTS OUT focused) and of the LIGHTS OUT card (ui/lights-out-art.js) */
+.mk-campaigns .mk-detail { left: calc(436 * var(--mr)); top: calc(108 * var(--mr)); width: calc(196 * var(--mr)); }
+.mk-lo-print { transform: rotate(1.1deg); }
+.mk-lo-print .mk-lo-svg { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #04070b; }
+.mk-lo-print .clip { left: auto; right: calc(14 * var(--mr)); transform: rotate(6deg); }
+.mk-lo-card { margin-top: calc(10 * var(--mr)); letter-spacing: .05em; }
+@media (max-height: 520px) { .mk-campaigns .mk-detail { width: max(calc(196 * var(--mr)), 230px); } } /* landscape phones: the 12 px floor of the typed card */
+.mk-lo-card .mk-lo-ready { margin-top: calc(2 * var(--mr)); }
+@media (max-aspect-ratio: 3/4) and (max-width: 760px) {
+  /* a phone: the rows stay put under the title whether the print shows or not; the print sits above the touch bar */
+  .mk-campaigns .mk-box > .mk-list { top: calc(12vh + 58px + env(safe-area-inset-top)) !important; }
+  .mk-campaigns .mk-box > .mk-list.disc { transform: translateX(-50%); }
+  .mk-campaigns .mk-detail { left: 16px; right: 16px; width: auto; top: auto; bottom: calc(108px + env(safe-area-inset-bottom)); }
+  .mk-campaigns .mk-detail .mk-lo-print, .mk-campaigns .mk-detail .mk-lo-card { max-width: 380px; margin-left: auto !important; margin-right: auto !important; }
+}
+@media (max-aspect-ratio: 3/4) and (max-width: 760px) and (max-height: 700px) {
+  .mk-campaigns .mk-detail .mk-lo-print, .mk-campaigns .mk-detail .mk-lo-card { max-width: 270px; }
+}
+/* S06b, LIGHTS OUT tab: the typed slip pinned to the sheet names the slots still in preparation */
+.mk-prepslip {
+  position: absolute; right: calc(10 * var(--mr)); top: calc(10 * var(--mr)); max-width: 64%; z-index: 1; pointer-events: none;
+  display: flex; flex-direction: column; gap: calc(3 * var(--mr)); padding: calc(5 * var(--mr)) calc(8 * var(--mr));
+  background: var(--tex-paper), #e9dfc2; background-size: calc(240 * var(--mr)); transform: rotate(1.4deg);
+  box-shadow: 0 calc(1 * var(--mr)) calc(2 * var(--mr)) rgba(0, 0, 0, .35);
+  font: 400 max(12px, calc(7.5 * var(--mr) * var(--ts))) / 1.35 var(--f-typed); color: #1a1a12;
+}
+.mk-prepslip b { font-weight: 400; color: #8a0f06; letter-spacing: .06em; }
+.mk-maptable .mk-footer .mk-row[aria-disabled='true'] { color: #77705a; }

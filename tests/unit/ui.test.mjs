@@ -68,11 +68,12 @@ test('ui: options load defaults, persist and ignore bad types', () => {
   assert.equal(OPTION_DEFAULTS.voice, 'verbose');
 });
 
-test('ui: BEL catalogue has the 20 missions, BCD tab locked', () => {
+test('ui: BEL catalogue has the 20 missions, LIGHTS OUT tab open', () => {
   assert.equal(BEL_CATALOGUE.length, 20);
   assert.equal(BEL_CATALOGUE[0].title, 'Baptism of Fire');
   assert.equal(BEL_CATALOGUE[0].date, 'Feb 20, 1941');
   assert.equal(catalogueEntry('m20').title, 'Operation Valhalla');
   assert.equal(catalogueEntry({ id: 'x', title: 'Blind Justice' }).n, 5);
-  assert.equal(CAMPAIGN_TABS.find((t) => t.id === 'BCD').locked, true);
+  assert.equal(CAMPAIGN_TABS.find((t) => t.id === 'BCD').locked, false);
+  assert.equal(CAMPAIGN_TABS.find((t) => t.id === 'BCD').label, 'Lights Out');
 });

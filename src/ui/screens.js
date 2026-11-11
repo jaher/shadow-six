@@ -2,19 +2,24 @@
  * Front end (docs/menus-art-direction.md S03–S08, S12, S13; §7 reconciliation 1): BEL's MAIN → NEW GAME hierarchy on
  * the olive live-diorama background, built from the one MenuCard (menu-kit.js). MAIN: NEW GAME, SAVE GAME, LOAD GAME,
  * OPTIONS, CREDITS, HELP, QUIT GAME. NEW GAME: SINGLE PLAYER, MULTIPLAYER GAME, TUTORIALS, RESTART MISSION,
- * LOAD QUICK SAVED GAME, PASSWORD, EXIT. SINGLE PLAYER → BEHIND ENEMY LINES (continue / start / mission select) and the
- * locked BEYOND THE CALL OF DUTY. The in-mission Esc menu opens the same MAIN card on the oxblood frozen frame
- * (menus.js). Consumes game.flow and events only.
+ * LOAD QUICK SAVED GAME, PASSWORD, EXIT. SINGLE PLAYER → the campaign choice: BEHIND ENEMY LINES and LIGHTS OUT (our
+ * own expansion campaign, code id 'BCD'), each with continue / start / mission select; LIGHTS OUT starts with the Skill
+ * screen. The in-mission Esc menu opens the same MAIN card on the oxblood frozen frame (menus.js). Consumes game.flow /
+ * game.flows (one career per campaign) and events only.
  * @module ui/screens
  */
 
 import { CONFIG } from '../config.js';
 import { MISSIONS } from '../missions/index.js';
+import { EXPANSION_SLOTS, expansionMissions } from '../missions/expansion/registry.js';
+import { decodePassword } from '../core/passwords.js';
+import { rankName } from '../core/scoring.js';
 import { hasQuickSave } from '../save.js';
 import { el } from './dom.js';
 import { photoPrint, passwordCells, typeField, stamp, nameTape } from './menu-kit.js';
 import { profileNameChar, rankLabel } from './menu-model.js';
-import { BEL_CATALOGUE, CAMPAIGN_TABS, catalogueEntry } from './catalogue.js';
+import { catalogueEntry } from './catalogue.js';
+import { lightsOutPane } from './lights-out-art.js';
 import { CREDITS_INTRO, CREDITS_SECTIONS } from './credits-data.js';
 import { MapTable } from './map-table.js';
 
@@ -41,6 +46,8 @@ export class Screens {
   get kit() { return this.hud.kit; }
   get game() { return this.hud.game; }
   get flow() { return this.hud.game.flow; }
+  /** The career of a campaign ('BEL' | 'BCD'), active or not. */
+  flowOf(campaign) { return this.game.flowFor?.(campaign) || this.flow; }
   get inMission() { return !!this.hud.world; }
   get bg() { return this.inMission ? 'mission' : 'frontend'; }
 
@@ -126,9 +133,8 @@ export class Screens {
     }
   }
 
-  /** Highest unlocked BEL mission that exists (the campaign's "continue"). */
-  nextMission() {
-    const f = this.flow;
+  /** Highest unlocked mission that exists of a career (the campaign's "continue"); the active campaign's by default. */
+  nextMission(f = this.flow) {
     if (!f) return null;
     let best = null;
     for (const m of f.missions) if (f.unlocked(m.id)) best = m;
@@ -137,14 +143,19 @@ export class Screens {
     return { id: best.id, n: f.numberOf(best.id), title: best.title || c.title || best.id };
   }
 
-  get hasProgress() {
-    const f = this.flow;
-    return !!f && (f.gold > 0 || f.missions.filter((m) => f.unlocked(m.id)).length > 1 || f.results.length > 0);
+  /** Has a career moved since it began (gold beyond its starting rank, a mission unlocked or played)? */
+  progressOf(f = this.flow) {
+    const start = CONFIG.rulesets[f?.campaign]?.careerStartGold ?? 0;
+    return !!f && (f.gold > start || f.missions.filter((m) => f.unlocked(m.id)).length > 1 || f.results.length > 0);
   }
 
-  continueCampaign(fromTab = false) {
-    const n = this.nextMission();
-    if (!n || (fromTab && !this.hud.profiles?.last && !this.hasProgress)) return;
+  get hasProgress() {
+    return this.progressOf(this.flow);
+  }
+
+  continueCampaign(fromTab = false, f = this.flow) {
+    const n = this.nextMission(f);
+    if (!n || (fromTab && !this.hud.profiles?.last && !this.progressOf(f))) return;
     this.hud.startMission(n.id);
   }
 
@@ -174,41 +185,44 @@ export class Screens {
     if (ok) this.hud.loading.restart();
   }
 
-  // ---------------------------------------------------------------- S06a SINGLE PLAYER → BEHIND ENEMY LINES
+  // ---------------------------------------------------------------- S06a SINGLE PLAYER → BEHIND ENEMY LINES | LIGHTS OUT
 
-  /**
-   * SINGLE PLAYER: BEL went straight to the briefing. While BEYOND THE CALL OF DUTY is locked the campaign-choice card
-   * adds nothing, so SINGLE PLAYER opens BEHIND ENEMY LINES directly (focus CONTINUE, or START CAMPAIGN on a fresh
-   * profile): Enter, Enter reaches the briefing.
-   */
+  /** SINGLE PLAYER: the campaign choice (focus BEHIND ENEMY LINES: Enter, Enter, Enter reaches its briefing). */
   openSinglePlayer() {
-    if (CAMPAIGN_TABS.find((t) => t.id === 'BCD')?.locked !== false) return this.openBEL();
     return this.openCampaigns();
   }
 
-  /** The campaign choice (BEL | BCD), once BCD ships. */
+  /** What the LIGHTS OUT pane prints: registered missions, slots, the career's first rank. */
+  lightsOutInfo() {
+    return { ready: expansionMissions().length, total: EXPANSION_SLOTS, start: rankName(CONFIG.rulesets.BCD?.careerStartGold ?? 0) };
+  }
+
+  /** The campaign choice: BEHIND ENEMY LINES, LIGHTS OUT (its night print and typed card in the detail pane), EXIT. */
   openCampaigns() {
     this.kit.open({
       id: 'single',
       title: 'SINGLE PLAYER',
       bg: this.bg,
+      className: 'mk-campaigns',
       rows: [
-        { label: 'BEHIND ENEMY LINES', onSelect: () => this.openBEL() },
-        { label: 'BEYOND THE CALL OF DUTY', locked: true, reason: 'COMING LATER' },
+        { label: 'BEHIND ENEMY LINES', id: 'BEL', onSelect: () => this.openBEL() },
+        { label: 'LIGHTS OUT', id: 'BCD', onSelect: () => this.openLightsOut() },
         { label: 'EXIT', onSelect: () => this.kit.pop() },
       ],
+      detail: (r, pane) => (r.id === 'BCD' ? lightsOutPane(pane, this.lightsOutInfo()) : false),
     });
   }
 
   openBEL() {
-    const n = this.nextMission();
-    const prog = this.hasProgress && n;
+    const f = this.flowOf('BEL');
+    const n = this.nextMission(f);
+    const prog = this.progressOf(f) && n;
     this.kit.open({
       id: 'bel',
       title: 'BEHIND ENEMY LINES',
       bg: this.bg,
       rows: [
-        { label: prog ? `CONTINUE — MISSION ${n.n}: ${n.title.toUpperCase()}` : 'CONTINUE', hidden: !prog, sub: rankLabel(CONFIG.mission.ranks, this.flow?.rank ?? 0), onSelect: () => this.continueCampaign() },
+        { label: prog ? `CONTINUE — MISSION ${n.n}: ${n.title.toUpperCase()}` : 'CONTINUE', hidden: !prog, sub: rankLabel(CONFIG.mission.ranks, f?.rank ?? 0), onSelect: () => this.continueCampaign(false, f) },
         { label: 'START CAMPAIGN', onSelect: () => this.startCampaign() },
         { label: 'MISSION SELECT', onSelect: () => this.map.open('BEL') },
         { label: 'EXIT', onSelect: () => this.kit.pop() },
@@ -216,10 +230,47 @@ export class Screens {
     });
   }
 
+  /**
+   * LIGHTS OUT (S06a for the expansion): CONTINUE (with progress), START CAMPAIGN (the Skill screen, then mission 1's
+   * briefing; IN PREPARATION until mission 1 is registered), MISSION SELECT (the map table on the LIGHTS OUT tab), EXIT.
+   */
+  openLightsOut() {
+    const f = this.flowOf('BCD');
+    const n = this.nextMission(f);
+    const prog = this.progressOf(f) && n;
+    const first = f?.byNumber?.(1);
+    this.kit.open({
+      id: 'lightsout',
+      title: 'LIGHTS OUT',
+      bg: this.bg,
+      className: 'mk-campaigns mk-lightsout',
+      rows: [
+        { label: prog ? `CONTINUE — MISSION ${n.n}: ${n.title.toUpperCase()}` : 'CONTINUE', id: 'continue', hidden: !prog, sub: rankLabel(CONFIG.mission.ranks, f?.rank ?? 0), onSelect: () => this.continueCampaign(false, f) },
+        { label: 'START CAMPAIGN', id: 'start', disabled: !first, reason: 'IN PREPARATION', onSelect: () => this.startLightsOut() },
+        { label: 'MISSION SELECT', id: 'select', onSelect: () => this.map.open('BCD') },
+        { label: 'EXIT', onSelect: () => this.kit.pop() },
+      ],
+      detail: (r, pane) => lightsOutPane(pane, this.lightsOutInfo()),
+    });
+  }
+
+  /** LIGHTS OUT → START CAMPAIGN: (confirm over progress,) the Skill screen, then mission 1. */
+  async startLightsOut() {
+    const f = this.flowOf('BCD');
+    const first = f?.byNumber?.(1);
+    if (!first) return false;
+    if (this.progressOf(f)) {
+      const ok = await this.kit.confirm({ id: 'startcampaign', title: 'START CAMPAIGN', lines: ['START THE CAMPAIGN FROM MISSION 1?', 'YOUR PASSWORDS STILL OPEN LATER MISSIONS.'] });
+      if (!ok) return false;
+    }
+    return this.hud.menus.showSkill(f, () => this.hud.startMission(first.id));
+  }
+
   async startCampaign() {
-    const first = this.flow?.missions?.[0];
+    const f = this.flowOf('BEL');
+    const first = f?.missions?.[0];
     if (!first) return;
-    if (this.hasProgress) {
+    if (this.progressOf(f)) {
       const ok = await this.kit.confirm({ id: 'startcampaign', title: 'START CAMPAIGN', lines: ['START THE CAMPAIGN FROM MISSION 1?', 'YOUR PASSWORDS STILL OPEN LATER MISSIONS.'] });
       if (!ok) return;
     }
@@ -262,10 +313,14 @@ export class Screens {
     const accept = () => {
       if (busy) return;
       if (cells.value.length < 5) return kit.note('ENTER ALL FIVE CHARACTERS', true);
-      const id = this.flow?.enterPassword(cells.value);
+      // either campaign's code: it goes to that campaign's career (a LIGHTS OUT code replays its mission)
+      const code = decodePassword(cells.value);
+      const flow = (code && this.game.flowFor?.(code.campaign)) || this.flow;
+      const id = flow?.enterPassword(cells.value);
       if (!id) {
+        const prep = code?.campaign === 'BCD' && flow?.campaign === 'BCD'; // a real code whose mission is not built yet
         cells.flash(false);
-        kit.note('WRONG PASSWORD', true);
+        kit.note(prep ? `LIGHTS OUT MISSION ${code.mission} — IN PREPARATION` : 'WRONG PASSWORD', true);
         busy = true;
         setTimeout(() => { busy = false; cells.set(''); }, 400);
         return;
@@ -273,9 +328,9 @@ export class Screens {
       busy = true;
       cells.flash(true);
       kit.sound.play('bell');
-      const n = this.flow.numberOf(id);
-      kit.note(`MISSION ${n} — ${rankLabel(CONFIG.mission.ranks, this.flow.rank)}`);
-      kit.announce(`Password accepted. Mission ${n}.`);
+      const n = flow.numberOf(id);
+      kit.note(`${flow.campaign === 'BCD' ? 'LIGHTS OUT · ' : ''}MISSION ${n} — ${rankLabel(CONFIG.mission.ranks, flow.rank)}`);
+      kit.announce(`Password accepted. ${flow.campaign === 'BCD' ? 'Lights Out, mission' : 'Mission'} ${n}.`);
       setTimeout(() => hud.startMission(id), 600);
     };
     kit.open({

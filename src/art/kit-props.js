@@ -18,6 +18,7 @@ import { lampParts } from './furniture/lamps.js';
 import { propParts, signTexture, fenceParts } from './furniture/street-props.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildSkigard } from './skigard.js';
+import { smoothLathe, ringSegments } from './round-roofs.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const V2 = (r, y) => new THREE.Vector2(r, y);
@@ -519,7 +520,7 @@ function waterTankCaged(g, p) {
   for (const y of [0.15, standH]) for (const s of [-1, 1]) { g.add(tbox(w, 0.12, 0.1, timber, 0, y, s * (w / 2 - 0.08), 0.8)); g.add(tbox(0.1, 0.12, w, timber, s * (w / 2 - 0.08), y, 0, 0.8)); }
   g.add(tcyl(r, r * 0.94, tankH, dressingMaterial('logHewn'), 0, standH + 0.06, 0, 18, 0.9));            // staves
   for (const t of [0.12, 0.5, 0.88]) g.add(tcyl(r + 0.02, r + 0.02, 0.06, iron, 0, standH + 0.06 + tankH * t, 0, 18, 0.5)); // hoops
-  g.add(mesh(lathe([[r + 0.12, 0], [r * 0.5, 0.32], [0.06, 0.5], [0, 0.52]], 18).translate(0, standH + 0.06 + tankH, 0), dressingMaterial('roofShingle')));
+  g.add(mesh(smoothLathe([[r + 0.12, 0], [r * 0.5, 0.32], [0.06, 0.5], [0, 0.52]], ringSegments(r + 0.12, undefined, { min: 18, max: 32, step: 2 })).translate(0, standH + 0.06 + tankH, 0), dressingMaterial('roofShingle')));
   for (const [sx, sz, along] of [[0, -1, 'x'], [0, 1, 'x'], [-1, 0, 'z'], [1, 0, 'z']]) { // slatted cage sides (a gap at the tap)
     for (let u = -w / 2 + 0.3; u < w / 2 - 0.2; u += 0.22) {
       if (sx === 1 && Math.abs(u) < 0.35) continue;

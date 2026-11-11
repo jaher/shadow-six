@@ -14,12 +14,18 @@
  *  - uboat_pen: Fangrost rib tops had their concrete stretched along 50 m ribs (striped) → object-space triplanar
  *  - chimneys: solid stacks / capped pots and stovepipes (snow-capped on the snow variants) → an open, sooty flue at
  *    every smoke anchor (art/chimney-flues.js)
+ *  - round roofs (cones, domes: the log / stone towers, domed houses, bunker and pillbox caps, tank tops): 12-28 facet
+ *    surfaces of revolution read as polygons from above → re-tessellated on the true circle (with the whole rings that
+ *    continue them, a dome's bead), the analytic normal where the file is flat-shaded, the artist's own where it is
+ *    smooth; a decimated LOD's cone gets its normals smoothed (art/round-roofs.js; user 2026-11-09 "Some round roofs
+ *    look polygonal when seen from above")
  * @module art/building-fixups
  */
 
 import * as THREE from 'three';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { openChimneyFlues } from './chimney-flues.js';
+import { roundRoofs } from './round-roofs.js';
 
 const C = { net: null, netNor: null };
 
@@ -190,5 +196,6 @@ export function applyAssetFixups(root, name, lod, base = 'assets/', meta = null)
   if (fixBunkerNet(root, base, name)) out.push('camo-net'); // every kit camo net; the desert/snow bunker hessian drapes
   if (fixPalmFrond(root)) out.push('palm-frond-cutout'); // every desert asset with frond shades/thatch
   if (/^uboat_pen/.test(name) && fixUboatConcrete(root)) out.push('uboat-triplanar');
+  if (roundRoofs(root, lod)) out.push('round-roofs'); // every cone / dome of every asset (its own LOD's tolerance)
   return out;
 }

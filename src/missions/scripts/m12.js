@@ -15,6 +15,7 @@ import { terrainPrism } from '../../art/kit-terrain.js';
 import { dressingMaterial } from '../../art/dressing.js';
 import { paintedMaterial } from '../../art/kit-props.js';
 import { Geo, buildStairFlight } from '../../art/castle-kit.js';
+import { ringSegments } from '../../art/round-roofs.js';
 import { B, MAX_STEP } from '../../world/grid.js';
 import { CONFIG } from '../../config.js';
 import { hears } from '../../ai/perception.js';
@@ -247,7 +248,7 @@ export function buildDome(root, d) {
   const g = new THREE.Group();
   const drum = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r * 1.05, d.drum ?? 1.2, 8), mat(ART.stone));
   drum.position.y = (d.drum ?? 1.2) / 2; g.add(drum);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(d.r * 0.96, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(d.color ?? ART.stone));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(d.r * 0.96, ringSegments(d.r * 0.96, undefined, { min: 24, max: 64, step: 4 }), 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(d.color ?? ART.stone)); // (a 24-gon rim of a 3 m dome is 2.5 px off a circle at zoom 2)
   dome.position.y = d.drum ?? 1.2; dome.castShadow = true; g.add(dome);
   const ribM = mat(ART.trim);
   for (let k = 0; k < 12; k++) {

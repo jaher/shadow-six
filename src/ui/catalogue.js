@@ -3,8 +3,12 @@
  * Gameplay data lives in the mission defs (MISSIONS team); this is only what the menus show before a mission
  * is authored: number, title, place, date, a rough map position for the briefing's Europe map, and a short
  * historical context written by us (never copied from the original game).
+ * LIGHTS OUT (our own expansion campaign, internal id 'BCD') has no fixed table: its entries come from the registered
+ * mission defs themselves (src/missions/expansion/registry.js), so a slot still in preparation has no entry.
  * @module ui/catalogue
  */
+
+import { expansionMissions } from '../missions/expansion/registry.js';
 
 /** [n, title, place, date, lat, lon, context] */
 const ROWS = [
@@ -35,17 +39,37 @@ export const BEL_CATALOGUE = ROWS.map(([n, title, place, date, lat, lon, context
   n, id: `m${String(n).padStart(2, '0')}`, title, place, date, lat, lon, context, campaign: 'BEL',
 }));
 
-/** Catalogue entry for a mission def or id (matches `mNN` ids, then titles). */
+/**
+ * LIGHTS OUT catalogue: one entry per registered mission, in number order, read from its def (title, place, ISO date,
+ * pin, context; docs/expansion/STATUS.md). Same shape as BEL_CATALOGUE, plus the def's theater.
+ * @returns {{n:number, id:string, title:string, place:string, date:string, lat:number, lon:number, context:string, campaign:'BCD', theater:string}[]}
+ */
+export function expansionCatalogue() {
+  return expansionMissions().map((d) => ({
+    n: d.number, id: d.id, title: d.title, place: d.place, date: formatMissionDate(d.date), lat: d.pin.lat, lon: d.pin.lon,
+    context: d.context, campaign: 'BCD', theater: d.theater || 'temperate',
+  }));
+}
+
+/** The catalogue of a campaign id: BEL's twenty, or the LIGHTS OUT missions registered so far. */
+export function catalogueFor(campaign) {
+  return campaign === 'BCD' ? expansionCatalogue() : BEL_CATALOGUE;
+}
+
+/** Catalogue entry for a mission def or id (matches `mNN` / `eNN` ids, then titles). */
 export function catalogueEntry(defOrId) {
   const id = typeof defOrId === 'string' ? defOrId : defOrId?.id;
   const title = typeof defOrId === 'object' ? defOrId?.title : null;
-  return BEL_CATALOGUE.find((c) => c.id === id) || (title && BEL_CATALOGUE.find((c) => c.title === title)) || null;
+  const bel = BEL_CATALOGUE.find((c) => c.id === id) || null;
+  if (bel) return bel;
+  const lo = expansionCatalogue();
+  return lo.find((c) => c.id === id) || (title && (BEL_CATALOGUE.find((c) => c.title === title) || lo.find((c) => c.title === title))) || null;
 }
 
-/** Campaign tabs for mission select (BCD is locked: built later, ARCHITECTURE "Campaigns & rulesets"). */
+/** Campaign tabs for mission select: BEL and LIGHTS OUT (our own expansion campaign, code id 'BCD'). */
 export const CAMPAIGN_TABS = [
   { id: 'BEL', label: 'Behind Enemy Lines', locked: false },
-  { id: 'BCD', label: 'Beyond the Call of Duty', locked: true, note: 'Coming later' },
+  { id: 'BCD', label: 'Lights Out', locked: false },
 ];
 
 /** Enemy tooltip labels (§6.4 examples). */
