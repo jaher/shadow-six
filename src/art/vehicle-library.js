@@ -329,13 +329,31 @@ function buildInstance(model, swap, meta) {
 }
 
 /**
+ * Every attribute of `geo` as a plain Float32 one, in place (dequantised: the library's GLBs are KHR_mesh_quantization —
+ * Uint16 positions read through the node's scale, Int8 / Uint8 normalised normals and colours, often interleaved).
+ * A matrix baked into a quantized attribute is written back into its integer array: metres truncated to whole units and
+ * negatives wrapped to 65535 — the 65 km slab M0's merged Opel Blitz drew over the canal (fix/lorry-slab).
+ * @param {THREE.BufferGeometry} geo @returns {THREE.BufferGeometry} geo
+ */
+export function floatAttributes(geo) {
+  for (const [name, a] of Object.entries(geo.attributes)) {
+    if (a.array instanceof Float32Array && !a.normalized && !a.isInterleavedBufferAttribute) continue;
+    const n = a.count, k = a.itemSize, dst = new Float32Array(n * k);
+    for (let i = 0; i < n; i++) for (let c = 0; c < k; c++) dst[i * k + c] = a.getComponent(i, c);
+    geo.setAttribute(name, new THREE.Float32BufferAttribute(dst, k));
+  }
+  return geo;
+}
+
+/**
  * Draw-call cut for a parked model (static-vehicles.js `vehicleArtMerge`): in every LOD of the instance, the opaque rigid
  * meshes that share a material (and shadow flags) become ONE mesh in the LOD's frame, at the pose they have now. Only for
  * a model the mission keeps still (no door, hatch or wheel is ever posed afterwards: part nodes stay but their meshes move
  * into the merged one); skinned / transparent / instanced ones stay as they are. Pixels unchanged (same triangles, materials, order within a material).
+ * The copies are dequantised first (floatAttributes): the node transform baked into them carries the GLB's dequantisation scale.
  * @returns {THREE.Mesh[]} the merged meshes (their geometry is the caller's to dispose)
  */
-function mergeParked(inst) {
+export function mergeParked(inst) {
   const out = [];
   for (const lod of inst.lods.values()) {
     lod.updateMatrixWorld(true);
@@ -350,7 +368,7 @@ function mergeParked(inst) {
     for (const list of groups.values()) {
       if (list.length < 2) continue;
       const idx = list.every((o) => o.geometry.index), geos = list.map((o) => {
-        const g = (idx ? o.geometry : o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone();
+        const g = floatAttributes((idx ? o.geometry : o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone());
         return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
       });
       const geo = mergeGeometries(geos, false);

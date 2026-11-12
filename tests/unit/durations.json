@@ -88,6 +88,7 @@
  "flags-insignia.test.mjs": 46,
  "fuel-tanks.test.mjs": 587,
  "gate-smash.test.mjs": 2287,
+ "glb-bounds.test.mjs": 18000,
  "grid.test.mjs": 3,
  "gridext.test.mjs": 21,
  "hud-eye.test.mjs": 49,
