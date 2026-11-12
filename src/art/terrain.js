@@ -14,7 +14,7 @@ import { T } from '../world/grid.js';
 import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
 import { footOf } from '../ai/footprints.js';
 import { buildFlatMaskG, PALETTES } from './terrain/terrain-layers.js';
-import { pretrampleRoads, terrainPainter } from '../world/roads.js';
+import { pretrampleRoads, terrainPainter, RoadIndex } from '../world/roads.js';
 import { createVegetation, vegetationStripUrls } from './terrain/vegetation.js';
 import { earlyFetch } from '../engine/early-fetch.js';
 import { vegetationProfile } from './terrain/veg-profile.js';
@@ -479,6 +479,35 @@ function paintKeyOf(ctx) {
 
 export function buildTerrain(grid, theater = 'temperate', ctx = {}) { return runSync(buildTerrainG(grid, theater, ctx)); }
 
+/**
+ * The roads as drawn (render-only): a road with an `art` centre line (art/pavement/index.js draws it there) has its
+ * verge painted and its tufts kept off along that line too, not along the gameplay one (which would leave a gravel
+ * ghost of the old line beside the cobbles); the gameplay index (ctx.roads) itself is untouched.
+ */
+const DRAWN = new WeakMap();
+function drawnRoads(ctx, grid) {
+  const net = ctx.roads?.net;
+  if (!net || !net.roads.some((r) => r.art)) return ctx.roads;
+  if (DRAWN.has(net)) return DRAWN.get(net);
+  const roads = net.roads.map((r) => (r.art ? { ...r, points: r.art.points.map((p) => [+p[0], +p[1]]), width: r.art.width ?? r.width, spline: r.art.spline ?? true } : r));
+  const idx = new RoadIndex({ ...net, roads }, grid.width, grid.depth, ctx.roads.cell);
+  DRAWN.set(net, idx);
+  return idx;
+}
+
+/**
+ * Where no ground cover (grass tufts, clutter) is planted: hard pavement (step 3p) and the mission's `bareGround`
+ * polygons (render-only: e.g. the bank under a bridge deck's ends, where tufts poked up between the planks).
+ */
+function groundExclude(ctx, mission, grid) {
+  const roads = ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? drawnRoads(ctx, grid) : null;
+  const bare = (mission?.bareGround || []).map((b) => b.points || b).filter((p) => Array.isArray(p) && p.length >= 3);
+  if (!roads && !bare.length) return undefined;
+  if (!bare.length) return (x, z) => roads.covers(x, z);
+  const inside = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+  return (x, z) => (roads ? roads.covers(x, z) : false) || bare.some((P) => inside(x, z, P));
+}
+
 /** buildTerrain() as a sliced job (engine/slice.js): the same ground, pausing inside the apron / shore fields. */
 export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   const R = ctx.renderer || null;
@@ -495,7 +524,7 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   const dry = missionCarves(mission); // dry wadis cut into the ground (art/terrain/carve.js): rock banks, gravel bed
   const paint = composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
     carvePainter(dry, (PALETTES[theater] || PALETTES.temperate).layers),
-    ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
+    ctx.roads ? terrainPainter(drawnRoads(ctx, grid), theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
   // continuous shorelines (world/shore-field.js): one field over the map + apron drives both carves, the splat's
   // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)
   let apronField = null, shore = null;
@@ -525,7 +554,7 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
     roads: ruts, paint,
     // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
     paintKey: paintKeyOf(ctx),
-    exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
+    exclude: groundExclude(ctx, mission, grid),
     onSpray: ctx.onSpray, texRes: terrainLoadRes(quality, theater), mission, // mission → vegetation profile (season, mix)
     gate: ctx.gate, // (the map builder's: nothing of the terrain's async build takes effect before the map is built)
   });

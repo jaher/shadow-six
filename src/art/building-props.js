@@ -42,19 +42,20 @@ export const VARIANT_HINTS = {
     guard_hut: ['guard_hut_a'], fishing_shed: ['fishing_shed_a', 'fishing_shed_b'], boathouse: ['naust_a', 'naust_b'],
     hut_timber_barrack: ['hut_timber_barrack_a', 'hut_timber_barrack_b', 'hut_timber_barrack_c', 'hut_timber_barrack_d'],
     open_shed_bench: null, // M20's range bench: drawn by its art module (the outhouses of M5 / M19 keep their library pick)
+    sentry_box_m20: null, // M20's painted sentry boxes (art/m20-occupation.js buildSentryBox, swapped in by scripts/m20-art.js)
   },
   house: {
     timber_2storey: ['house_timber_a', 'house_timber_b', 'house_timber_c'], admin_brick: ['dam_house_a', 'dam_house_b', 'house_timber_c'],
     house_half_timber_steeple: ['house_halftimber_e'], house_half_timber_turret: ['house_halftimber_d'],
     // M20 castle masonry drawn by the mission's art module (missions/scripts/m20-art.js → art/castle-kit.js)
-    castle_range_block: null, stair_tower: null, stair_block: null, chateau_wing: null, house_turret_small: null,
+    castle_range_block: null, stair_tower: null, stair_block: null, chateau_wing: null, house_turret_small: null, castle_church: null,
     chateau_hq: ['chateau_hq'], // the Neo-Gothic chateau HQ (tools/blender/military/scripts/chateau_hq.py)
   },
   bunker: { surveillance: ['bunker'], mg_nest: ['mg_nest'] },
   watchtower: { timber_mg: ['watchtower'], turret_round_crenellated: null, bartizan_round_decor: null, mg_platform: null }, // mg_platform: art/mg-platform.js (procedural)
   hangar: { shed: ['barn_b', 'barn_a'] },
   ruins: { rubble: null, wall_ruin: null },
-  bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null },
+  bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null, footbridge_timber: null }, // (M20's: art/m20-castle.js)
   dam: { concrete_arch: ['dam_arch'] },
   gate: { barrier_boom: null, chainlink: null, plank_gate: null, // plank_gate: a pen's own leaf (M19), never the stockade gatehouse
     plank_double_gate: null, // M19's 4 m palisade gate: its own two plank leaves (props.js gateModel), not the 12 m gatehouse

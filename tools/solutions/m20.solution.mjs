@@ -489,6 +489,27 @@ const V2_IDS = ['v2a', 'v2b'];
  * The tank's gun (its machine gun close in) on every live guard within `r` m of it, nearest first, each until he falls
  * or for a few seconds (out of its line of fire: the next).
  */
+/**
+ * The tank's gun takes every man standing in its way to (x, z) before it rolls (within `lane` m of the leg, `r` m of
+ * the hull): a man stepping out of its way would know it for the enemy's (vehicle.js runover dodge: the taint). Nobody
+ * in the way: nothing fired, the drive as before.
+ */
+async function clearWay(D, tank, x, z, { r = 24, lane = 3.4 } = {}) {
+  const tried = new Set(), L = Math.hypot(x - tank.x, z - tank.z) || 1, tx = (x - tank.x) / L, tz = (z - tank.z) / L;
+  for (;;) {
+    const e = D.world.enemies.filter((q) => {
+      if (!q.alive || q.removed || tried.has(q) || (q.y ?? 0) > 1.5) return false;
+      const dx = q.x - tank.x, dz = q.z - tank.z, along = dx * tx + dz * tz;
+      return Math.hypot(dx, dz) < r && along > -1 && along < L + 3 && Math.abs(-dx * tz + dz * tx) < lane;
+    }).sort((a, b) => Math.hypot(a.x - tank.x, a.z - tank.z) - Math.hypot(b.x - tank.x, b.z - tank.z))[0];
+    if (!e) return;
+    tried.add(e);
+    try { await D.until(() => { if (!e.alive) return true; try { D.ability('driver', 'vehicleFire', e); } catch { /* reloading, or no line */ } return false; }, 6, `${e.tag} in the tank's way shot`); } catch (err) { if (!/timeout/i.test(err.message)) throw err; }
+  }
+}
+
+/** How far round the tank its gun clears the men at the SW gate's mouth before each move (m). */
+const GATE_CLEAR = 24;
 async function clearAround(D, tank, r = 14) {
   const tried = new Set();
   for (;;) {
@@ -1591,16 +1612,20 @@ export const STAGES = [
       // its way off the bridge's far end; through the arch and over the bridge, down the road to the meadow's SW corner where
       // the Spy and the Marine wait; they climb in; off the map
       const tank = tankOf(D);
-      await drive(D, tank, TANK_OUT);
+      // (leg by leg, the gun clearing the way first: since the alarm men walk the courts, and one in the way stepping
+      // aside would know the tank for the enemy's)
+      for (const pt of TANK_OUT) { await clearWay(D, tank, ...pt); await drive(D, tank, [pt]); }
       // (the castle is up: men come at the tank. One in the way of its slow turns would have to step aside, and would know
       // it for the enemy's: from here its gun takes every man near it before each move)
-      for (const pt of TANK_GATE) { await clearAround(D, tank); await drive(D, tank, [pt], { stop: true }); }
+      // (and round the gate's mouth, where its slow turns and back-and-forth take the most room, a man running up from
+      // the courts is taken while he is still coming: 24 m)
+      for (const pt of TANK_GATE) { await clearAround(D, tank, GATE_CLEAR); await drive(D, tank, [pt], { stop: true }); }
       // into the mouth, then through the arch and over the bridge in one straight run — the click a player finds with
       // the drive cursor (bridgeClick); none from where it stands (the turn it would take there leaves it off the axis):
       // back out and into the mouth again at the next spot
       let run = null;
       for (const m0 of GATE_MOUTHS) {
-        await clearAround(D, tank);
+        await clearAround(D, tank, GATE_CLEAR);
         // (the mouth click whose stop leaves a straight run through the arch: mouthClick looks ahead; none, the next spot)
         // (sliced: up to ~160 drive plans and runs looked at — ~50 ms of one frame in the live replay)
         const m = (await D.runSliced(mouthClickG(tank)))?.[0] ?? m0;
@@ -1614,7 +1639,7 @@ export const STAGES = [
       // man stepping out of its way would know it for the enemy's; s25d, E of its way, is out of the arch's line of fire)
       const s25c = D.get('s25c');
       await D.until(() => { if (!s25c.alive) return true; try { D.ability('driver', 'vehicleFire', s25c); } catch { /* reloading */ } return false; }, 30, 's25c shot from the tank');
-      await clearAround(D, tank);
+      await clearAround(D, tank, GATE_CLEAR);
       await drive(D, tank, [run], { stop: true });
       await drive(D, tank, TANK_ROAD);
       for (const role of ['spy', 'diver']) {

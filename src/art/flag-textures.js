@@ -127,3 +127,47 @@ function weatherPass(g, W, H, hist, wx, heading) {
   }
   g.putImageData(img, 0, 0);
 }
+
+/** Hanging banner (portrait): BANNER_W × BANNER_H, top edge at canvas y = 0 (uv.y = 1). */
+export const BANNER_W = 256, BANNER_H = 640;
+
+/**
+ * Paint a hanging banner (the period's vertical form, hung from a rod against a façade): 'historical' = red cloth, the
+ * white disc high on its centre line with the black swastika at 45° (the flag's proportions: disc ⅜ of the width ×2,
+ * arms as on the flag); 'neutral' = field-grey cloth with the Balkenkreuz. Wool bunting with a rod sleeve at the top,
+ * a fringe-less stitched hem, slow dye mottling and grime toward the hem. Same modes as paintFlag (art/insignia.js).
+ * @param {CanvasRenderingContext2D} g
+ * @param {{mode?: 'historical'|'neutral', theater?: string}} [o]
+ */
+export function paintBanner(g, o = {}) {
+  const W = BANNER_W, H = BANNER_H, hist = o.mode !== 'neutral', wx = flagWeather(o.theater);
+  g.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.3, R = W * 0.4;
+  if (hist) {
+    g.fillStyle = '#b5141c'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ebe7dc'; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#151413'; swastika(g, cx, cy, R * 0.6, R * 0.6 * 2 * 0.19);
+  } else {
+    g.fillStyle = '#5e6456'; g.fillRect(0, 0, W, H);
+    const L = W * 0.36, A = W * 0.075, E = W * 0.035;
+    const cross = (half, arm, col) => { g.fillStyle = col; g.fillRect(cx - half, cy - arm, half * 2, arm * 2); g.fillRect(cx - arm, cy - half, arm * 2, half * 2); };
+    cross(L + E, A + E, '#e9e6dc'); cross(L, A, '#121212');
+  }
+  // the rod sleeve at the top, the stitched side and bottom hems
+  g.fillStyle = hist ? '#8e0f15' : '#4a4f44'; g.fillRect(0, 0, W, 18);
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 18, W, 2);
+  const hc = hist ? 'rgba(70,6,8,0.6)' : 'rgba(30,32,26,0.6)';
+  stitch(g, [[6, 22], [6, H - 6], [W - 6, H - 6], [W - 6, 22]], hc);
+  // weave, mottling, grime toward the hem, the theater's fade
+  const img = g.getImageData(0, 0, W, H), px = img.data, rnd = rng(hist ? 1936 : 7654321);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const k = (y * W + x) * 4, v = y / H;
+    const n = ((x + y) & 1 ? 4 : -4) + (rnd() - 0.5) * 10 + Math.sin(x * 0.05 + y * 0.013) * 4;
+    const dark = 1 - Math.min(0.5, wx.grime * Math.max(0, v - 0.6) * 1.6);
+    const fade = wx.fade * 0.6;
+    px[k] = (px[k] + n + (232 - px[k]) * fade * 0.4) * dark;
+    px[k + 1] = (px[k + 1] + n + (176 - px[k + 1]) * fade * 0.4) * dark;
+    px[k + 2] = (px[k + 2] + n * 0.9 + (160 - px[k + 2]) * fade * 0.4) * dark;
+  }
+  g.putImageData(img, 0, 0);
+}

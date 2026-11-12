@@ -13,7 +13,7 @@ import { buildingMeta, BAKED_FLAG } from './building-library.js';
 import { dressingMaterial } from './dressing.js';
 import { VerletCloth, CLOTHS, registerCloth } from './cloth.js';
 import { WindField, resolveWind } from '../world/wind.js';
-import { FLAG_W, FLAG_H, DISC, paintFlag } from './flag-textures.js';
+import { FLAG_W, FLAG_H, DISC, paintFlag, BANNER_W, BANNER_H, paintBanner } from './flag-textures.js';
 import { getInsignia, onInsignia } from './insignia.js';
 
 export { registerCloth };
@@ -100,11 +100,71 @@ export function flagClothMaterial(theater) {
   return m;
 }
 
+/** Hanging-banner texture for the current insignia mode and a theater (canvas, 256×640; null outside the browser). */
+export function bannerTexture(theater, mode = getInsignia()) {
+  if (typeof document === 'undefined') return null;
+  const key = `banner:${mode}:${theaterKey(theater)}`;
+  if (C.tex.has(key)) return C.tex.get(key);
+  const cv = document.createElement('canvas');
+  cv.width = BANNER_W; cv.height = BANNER_H;
+  paintBanner(cv.getContext('2d', { willReadFrequently: true }), { mode, theater: theaterKey(theater) });
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  t.name = `banner_${mode}:${theaterKey(theater)}`;
+  C.tex.set(key, t);
+  return t;
+}
+
+/** Hanging-banner cloth material (one per theater; repainted with the flags when INSIGNIA changes). */
+export function bannerMaterial(theater) {
+  const name = `banner:${theaterKey(theater)}`;
+  if (C.mats.has(name)) return C.mats.get(name);
+  const m = new THREE.MeshStandardMaterial({ map: bannerTexture(theater), roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+  m.name = 'flag_banner';
+  m.userData.shared = true;
+  m.userData.snowCover = true;
+  m.userData.flagTheater = theaterKey(theater);
+  m.userData.flagKind = 'banner';
+  C.mats.set(name, m);
+  return m;
+}
+
+/**
+ * A hanging banner (the period's vertical form) against a façade: the cloth hangs from a rod along its top edge, a few
+ * loose folds and a slight belly; origin at the rod's centre, the cloth in the local x/y plane hanging down −y, its face
+ * toward +z. Follows Options → INSIGNIA like every flag (bannerMaterial). o: {w = 1.4, h = 4.5, theater, folds = 3, seed}
+ * @returns {THREE.Group}
+ */
+export function makeBanner(o = {}) {
+  const w = o.w ?? 1.4, h = o.h ?? 4.5, folds = o.folds ?? 3, seed = o.seed ?? 1, nu = 8, nv = 12;
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+    const u = i / nu, v = j / nv;
+    const fold = Math.sin(u * Math.PI * 2 * folds / 2 + seed) * 0.035 * (0.4 + v) + Math.sin(seed * 2.3 + v * 3) * 0.02 * v;
+    pos.push((u - 0.5) * w, -v * h, 0.03 + fold + v * v * 0.05);
+    uv.push(u, 1 - v);
+  }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, c = a + nu + 1; idx.push(a, c, a + 1, a + 1, c, c + 1); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const g = new THREE.Group(); g.name = 'banner';
+  const cloth = new THREE.Mesh(geo, bannerMaterial(o.theater));
+  cloth.name = 'flag_banner'; cloth.castShadow = true; cloth.receiveShadow = true;
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, w + 0.06, 6), poleMaterial());
+  rod.rotation.z = Math.PI / 2; rod.position.set(0, 0.02, 0.06);
+  g.add(cloth, rod);
+  return g;
+}
+
 /** Options → INSIGNIA changed: repaint every live flag material (same meshes, new map). */
 function applyInsignia(mode) {
   FABRIC_UNIFORMS.uFlagMirror.value = mode === 'neutral' ? 0 : 1;
   for (const m of C.mats.values()) {
-    const t = flagTexture(m.userData.flagTheater, mode);
+    const t = m.userData.flagKind === 'banner' ? bannerTexture(m.userData.flagTheater, mode) : flagTexture(m.userData.flagTheater, mode);
     if (t && m.map !== t) { m.map = t; m.needsUpdate = true; }
   }
 }

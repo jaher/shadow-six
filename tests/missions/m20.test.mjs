@@ -102,7 +102,7 @@ test('m20: levels — terraces, wall walk, turret and HQ ledge at their heights;
   assert.equal(at(47, 50), Y.NW, 'T_nw');
   assert.equal(at(70, 22), Y.N, 'the N rampart');
   assert.equal(at(60, 50), Y.WB, 'T_wb');
-  assert.equal(at(110, 45), Y.NE, 'T_ne');
+  assert.equal(at(104, 47), Y.NE, 'T_ne'); // (its W walk: the castle church stands on its middle, castle pass)
   for (const [x, z] of [[45, 103], [80, 123.5], [129, 104], [139, 90], [139, 62], [122, 36]]) assert.equal(at(x, z), Y.BAT, `wall walk at (${x}, ${z})`);
   assert.equal(at(57, 114), 0, 'the SW gate passage is at ground level');
   assert.equal(at(116, 114), 0, 'the SE gate passage');
@@ -138,9 +138,12 @@ test('m20: §3.8 row 20 loadout exactly (all six; Sniper 5 rounds; Sapper trap +
   assert.equal(V.atgun.vehicleType, 'atgunM20');
 });
 
-test('m20: census = Prima 1–57 (no 41) + ours: 74 men, 4 at each gate, P26 of 4, P57 of 3, the AT gunner, 2 garrisons of 6', () => {
+test('m20: census = Prima 1–57 (no 41) + ours: 78 men (74 + the firing line), 4 at each gate, P26 of 4, P57 of 3, the AT gunner, 2 garrisons of 6', () => {
   const es = M().enemies;
-  assert.equal(es.length, 74);
+  assert.equal(es.length, 78);
+  // the castle pass's firing line: three riflemen at practice and their NCO, last in the roster
+  assert.deepEqual(es.slice(-4).map((e) => e.id), ['e68', 'e69', 'e70', 'e71']);
+  assert.ok(es.slice(-4).every((e) => e.range && !e.prima));
   const nums = new Set(es.filter((e) => e.prima).map((e) => e.prima));
   for (let n = 1; n <= 57; n++) if (n !== 41) assert.ok(nums.has(n), `Prima's ${n} is on the map`);
   assert.ok(!nums.has(41));

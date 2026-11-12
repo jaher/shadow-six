@@ -49,9 +49,12 @@ export const CASTLE_SETS = {
 };
 
 const TEX = new Map(), MATS = new Map();
-let FROST = 0;
+let FROST = 0, TONE = null;
 /** Hoar frost on up-facing surfaces of everything built from now on (0 = none; M20's frost theater ~0.3). */
 export function setCastleFrost(v) { FROST = Math.max(0, Math.min(1, v || 0)); }
+/** A per-material brightness on the vertex colours of everything built from now on ({mat: k}; null = none): M20's
+ *  well-kept limestone reads against the winter ground (castle pass review 2026-11-11: "dark and flat" overview). */
+export function setCastleTone(t) { TONE = t || null; }
 function tex(file, srgb) {
   const { url, hd } = libTextureURL(file); // (hd: the full copy, after the loading screen — engine/hd-textures.js)
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
@@ -189,6 +192,7 @@ export class Geo {
       const N = geo.attributes.normal, n = pos.length / 3, tile = (CASTLE_SETS[mat] || CASTLE_SETS.ashlar)[3];
       const uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
       const stone = /ashlar|rubble|field|dressed|flags|setts|plaster/.test(mat), amp = /flags|setts/.test(mat) ? 0.22 : 0.1; // walk tops: worn / damp patches
+      const tk = TONE?.[mat] ?? 1;
       for (let i = 0; i < n; i++) {
         const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
         const nx = N.getX(i), ny = N.getY(i), nz = N.getZ(i), ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
@@ -209,6 +213,7 @@ export class Geo {
           const f = FROST * Math.min(1, (ny - 0.55) / 0.3) * (0.6 + 0.4 * Math.max(0, fbm(x * 0.6, 0, z * 0.6, s + 29, 2) + 0.5));
           r += f * (1.08 - r * 0.5); gg += f * (1.12 - gg * 0.5); b += f * (1.2 - b * 0.5);
         }
+        if (tk !== 1) { r *= tk; gg *= tk; b *= tk; }
         col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
       }
       geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
@@ -768,12 +773,13 @@ export function buildInnerGate(o) {
 /**
  * Timber moat bridge: a plank deck on stringers over two braced trestle bents, rubble abutments, railings with
  * braces, optional stone lantern pillars at the outer (+u) end. o: {x, z, rot, w (length), d (width), deckY=0,
- * water=-1.5, lanterns=false, seed}
+ * water=-1.5, lanterns=false, seed; drawn variants only: deckU0 (where the planks start at the −u end), railU0 (where
+ * the railings start)}
  */
 export function buildMoatBridge(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), F = localFrame(o.x, o.z, o.rot ?? 0), R = G.R;
-  const L2 = o.w / 2, D2 = o.d / 2, y = o.deckY ?? 0, wy = o.water ?? -1.5;
-  for (let u = -L2 - 0.6; u < L2 + 0.6; u += 0.3) segBox(G, 'planks', F, u, u + 0.28, -D2, D2, y - 0.1, y + 0.04, 0.85 + R() * 0.25);
+  const L2 = o.w / 2, D2 = o.d / 2, y = o.deckY ?? 0, wy = o.water ?? -1.5, d0 = o.deckU0 ?? -Infinity, r0 = o.railU0 ?? -Infinity;
+  for (let u = -L2 - 0.6; u < L2 + 0.6; u += 0.3) { const t = 0.85 + R() * 0.25; if (u + 0.28 > d0) segBox(G, 'planks', F, Math.max(u, d0), u + 0.28, -D2, D2, y - 0.1, y + 0.04, t); }
   for (const w of [-D2 + 0.3, -0.6, 0.6, D2 - 0.3]) segBox(G, 'timber', F, -L2 - 0.6, L2 + 0.6, w - 0.15, w + 0.15, y - 0.5, y - 0.1, 0.8);
   for (const ub of [-L2 / 3, L2 / 3]) {
     for (const w of [-D2 + 0.35, -0.8, 0.8, D2 - 0.35]) segBox(G, 'timber', F, ub - 0.15, ub + 0.15, w - 0.15, w + 0.15, wy - 1.5, y - 0.5, 0.75);
@@ -782,10 +788,11 @@ export function buildMoatBridge(o) {
   }
   for (const s of [-1, 1]) segBox(G, 'rubble', F, s > 0 ? L2 - 0.4 : -L2 - 1.4, s > 0 ? L2 + 1.4 : -L2 + 0.4, -D2 - 0.4, D2 + 0.4, wy - 1.2, y - 0.12, 0.9);
   for (const s of [-1, 1]) {
-    const w = s * (D2 - 0.08);
-    for (let u = -L2; u <= L2 + 0.01; u += L2 / 3) segBox(G, 'timber', F, u - 0.09, u + 0.09, w - 0.09, w + 0.09, y, y + 1.15, 0.8);
-    segBox(G, 'timber', F, -L2, L2, w - 0.07, w + 0.07, y + 1.05, y + 1.2, 0.85);
-    segBox(G, 'timber', F, -L2, L2, w - 0.05, w + 0.05, y + 0.55, y + 0.65, 0.8);
+    const w = s * (D2 - 0.08), ra = Math.max(-L2, r0);
+    for (let u = -L2; u <= L2 + 0.01; u += L2 / 3) if (u >= r0 - 0.09) segBox(G, 'timber', F, Math.max(u - 0.09, r0), u + 0.09, w - 0.09, w + 0.09, y, y + 1.15, 0.8);
+    if (r0 > -L2) segBox(G, 'timber', F, r0, r0 + 0.18, w - 0.09, w + 0.09, y, y + 1.15, 0.8); // (a post where a drawn railing starts)
+    segBox(G, 'timber', F, ra, L2, w - 0.07, w + 0.07, y + 1.05, y + 1.2, 0.85);
+    segBox(G, 'timber', F, ra, L2, w - 0.05, w + 0.05, y + 0.55, y + 0.65, 0.8);
     if (o.lanterns) {
       const [px, pz] = F.at(L2 + 0.8, s * (D2 + 0.95)); // clear of a tank's turret overhang on the deck
       G.box('ashlar', px, y + 1.0, pz, 0.8, 2.4, 0.8, F.rot, 1);
@@ -827,14 +834,18 @@ export function buildStairFlight(a, b, o = {}) {
   const G = o.G || new Geo(o.seed ?? `${a.x},${a.z}`), W = o.width ?? 1.8, body = o.body ?? 'ashlar', tread = o.tread ?? 'dressed';
   const run = Math.hypot(b.x - a.x, b.z - a.z), rise = b.y - a.y, n = Math.max(2, Math.ceil(Math.abs(rise) / 0.2));
   const F = segFrame([a.x, a.z], [b.x, b.z], null), tr = run / n, y0 = Math.min(a.y, b.y) - 0.15;
+  // (o.stopAt: where the flight runs into the floor it climbs to — nothing drawn past it: the steps there were inside
+  // the level's masonry, the top tread coplanar with its paving and the cheek walls standing up out of the floor)
+  const stop = o.stopAt ?? Infinity;
   for (let i = 0; i < n; i++) {
     const top = a.y + (rise * (i + 1)) / n, u0 = i * tr, u1 = run + 0.02;
+    if (u0 >= stop) break;
     segBox(G, body, F, u0, Math.min(u1, u0 + tr + 0.02), -W / 2, W / 2, y0, top - 0.06, 1);
     segBox(G, tread, F, u0 - 0.04, u0 + tr + 0.02, -W / 2, W / 2, top - 0.06, top, 0.95 + ((i * 7) % 5) * 0.03);
     for (const s of o.cheeks ?? [-1, 1]) {
       const w0 = s < 0 ? -W / 2 - 0.3 : W / 2, w1 = s < 0 ? -W / 2 : W / 2 + 0.3;
-      segBox(G, body, F, u0, u0 + tr + 0.02, w0, w1, y0, top + 0.55, 0.97);
-      segBox(G, tread, F, u0 - 0.02, u0 + tr + 0.04, w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
+      segBox(G, body, F, u0, Math.min(u0 + tr + 0.02, stop), w0, w1, y0, top + 0.55, 0.97);
+      segBox(G, tread, F, u0 - 0.02, Math.min(u0 + tr + 0.04, stop), w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
     }
   }
   return o.G ? G : G.build(o.name || 'stairs', { ground: y0 });

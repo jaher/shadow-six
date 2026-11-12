@@ -35,6 +35,7 @@ import { plateauWalkways, rectPoly } from './scripts/m05.js';
 import { m20Script } from './scripts/m20.js';
 import { joinStructures } from './schema.js';
 import { M20_DRESSING, M20_DRESSING_JOINS } from '../art/m20-dressing.js';
+import { churchFootprint } from '../art/m20-church.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
@@ -85,13 +86,37 @@ export const PARAPETS = [
   ['t_par_hq_b2', [[33.5, 68.5], [37.4, 68.5], [37.4, 69], [33.5, 69]], Y.HQ, BALUSTRADE_H],
   ['t_par_n', [[92, 31.4], [104, 31.4], [104, 32], [92, 32]], Y.N],
 ];
-/** The crag under the HQ and the W wall (impassable). */
-const CRAG = [[0, 10], [40, 10], [40, 14], [38, 14], [38, 32], [27, 32], [27, 38], [4.5, 38], [4.5, 79], [22, 80], [22, 82], [0, 82]];
-const FOREST = [[0, 0], [157, 0], [157, 18], [140, 24], [118, 12], [40, 9], [0, 12]];
+/**
+ * The crag under the HQ and the W wall (impassable). Castle pass (user 2026-11-10, the moat all round): its W and N
+ * faces stand in the moat ring (x 4, z 10), no longer at the map edge.
+ */
+const CRAG = [[4, 10], [40, 10], [40, 14], [38, 14], [38, 32], [27, 32], [27, 38], [4.5, 38], [4.5, 79], [22, 80], [22, 82], [4, 82]];
+/** The Black Forest edge, cut back N of the moat's N legs (a strip of meadow on the counterscarp). */
+const FOREST = [[0, 0], [157, 0], [157, 18], [140, 24], [118, 9.5], [110, 7.5], [44, 7.5], [41, 3.5], [0, 3.5]];
 
 // ---------------------------------------------------------------- water and roads (dossier §4.5 T3–T5)
 /** The moat: 4 m outside the curtain, from the SW bastion round S, SE and E to the pond. */
 export const MOAT = [[31, 96], [49.8, 114.2], [55.1, 120.8], [60.7, 121.6], [97.7, 132.3], [101.2, 131.9], [141.7, 100.6], [143.5, 97], [143.5, 74]];
+/**
+ * Castle pass (user 2026-11-10: "M20 should look like a large castle, moat should circle all around castle"): the rest
+ * of the ring, deep water like the S and E moat (Marine only), so the castle stands in water on every side:
+ *  - the NE leg from the pond up the E face and along the NE wall (2.5-6.5 m off its line, as the E moat) to the N
+ *    range's corner; the N legs along the N range's back (z 10-14) and the crag's N face (z 6-10); the W leg along the
+ *    crag, the château's terrace and the outer ward (x 0.5-4; the map edge keeps a strip of bank);
+ *  - the outer ward's S leg (z 94-98) from the W leg to the SW moat: the W pair start inside the ring, in the outer
+ *    ward under the W wall (the climb spot as it was), and a plank footbridge carries the way S out of it (BR_W).
+ * Nobody's beat, post or route crosses a new leg (the solution's men only the footbridge); rock rk_e3 stands 3 m out
+ * of the NE leg. Polygons in true metres, inner edges on the masonry's outer faces.
+ */
+export const MOAT_RING = [
+  { id: 'ne', points: [[104.5, 10], [138.24, 41.07], [145.5, 46.88], [145.5, 74], [141.5, 74], [141.5, 48.8], [135.63, 44.1], [108, 18.64], [108, 14], [104.5, 14]] },
+  { id: 'n', points: [[40, 10], [108, 10], [108, 14], [40, 14]] },
+  { id: 'nw', points: [[0.5, 6], [42.5, 6], [42.5, 10], [0.5, 10]] },
+  { id: 'w', points: [[0.5, 6], [4, 6], [4, 98], [0.5, 98]] },
+  { id: 'ward', points: [[0.5, 94], [30.5, 94], [32.4, 94.6], [29.6, 97.4], [0.5, 98]] },
+];
+/** The outer ward's plank footbridge over the S leg (on the way S out of it). */
+export const BR_W = { x: 6, z: 96, w: 6, d: 1.8 };
 export const POOL = { x: 131, z: 79, w: 4.5, d: 8 };
 export const CHANNEL = { x: 135.5, z: 81, w: 6, d: 2.5 };
 /** The water gate's wall cells (blocked while shut; the set-piece `wg_ctl`). */
@@ -99,10 +124,47 @@ export const WATER_GATE = { x: 136.5, z: 81, w: 5, d: 2.5 };
 export const LEVER = [135.8, 75.5];
 const ROAD_SW_OUT = [[54, 125.5], [48, 130], [32, 141], [0, 157]];
 const ROAD_SE_OUT = [[124.5, 122.5], [140, 138], [157, 147]];
-/** Inside: SW gate → junction → tunnel → N court; junction → SE gate; junction → the E road court. */
-export const ROAD_IN = [[58, 110], [66, 101.1], [80, 93], [76, 82], [72, 72], [72, 56], [80, 46]];
-const ROAD_SE_IN = [[80, 93], [98, 99], [113.5, 111.5]];
-const ROAD_E = [[80, 93], [95, 86], [108, 74], [116, 62], [104, 55.07]]; // last leg ∥ the V2 trailers (30°)
+/**
+ * Inside (castle pass layout audit, user 2026-11-10: "Make sure all buildings are well located inside the castle and dont
+ * intersect paths"): the SW gate's cobbled lane along the Panzer III's way out — between the store and the guardhouse,
+ * round the guardhouse's N side — to the junction below the inner gate (ROAD_IN_S, 3.2 m); the inner road on through the
+ * tunnel to the N court (ROAD_IN_N); the SE street from the junction past the guardhouse's N corner to the SE gate; the
+ * range road to the E road court (the church, on the NE terrace, is reached by the terrace's stairs). No building stands
+ * on any of them (tests/unit/m20-castle.test.mjs layout test). Road cells only change a running man's step noise (the
+ * solution never runs).
+ */
+// (the road bed is the tank's ground: its lane keeps the line the Panzer III was tuned on, under the guardhouse's eaves)
+export const ROAD_IN_S = [[58, 110], [59.6, 107], [63.5, 105.15], [66.9, 103.4], [67.2, 100.5], [66.9, 96.6], [67.7, 93.2], [69.6, 92.1], [72.8, 89.4], [74.2, 86.5], [74, 82]];
+export const ROAD_IN_N = [[74, 82], [72, 72], [72, 61.5]]; // (to the tunnel's N mouth: the N court beyond is all paved)
+/** The whole inner road, SW gate to the N court (the art tests' tank road). */
+export const ROAD_IN = [...ROAD_IN_S, ...ROAD_IN_N.slice(1)];
+const ROAD_SE_IN = [[74.2, 86.5], [82.5, 87.6], [99.5, 96.5], [113.5, 111.5]];
+const ROAD_E = [[82.5, 87.6], [95, 85], [104.6, 76.4], [106.8, 66.2]];
+/**
+ * The drawn roads where they meet the moat bridges and the gates (render-only, see TERRAIN): the approach roads start
+ * square on the bridges' landings (scripts/m20-art.js BRIDGE_LANDING: 13.45 m out along the passage from the gates'
+ * centres), as wide as the decks (4.5 m), the SW one straight on the bridge's axis for 2 m and round a 7 m bend onto its
+ * line to the forest; the inner roads end square at the gate passages' floors (4.3 m in) and at the inner gate's
+ * tunnel floor (z 70.2), never over them.
+ */
+const ROAD_ART = {
+  swOut: { width: 4.5, spline: false, points: [[53.52, 126.99], [52.99, 128.97], [52.77, 129.64], [52.5, 130.28], [52.15, 130.88], [51.75, 131.46], [51.3, 131.99],
+    [50.79, 132.47], [50.24, 132.89], [49.65, 133.27], [49.02, 133.58], [32, 141], [0, 157]] },
+  seOut: { width: 4.5, spline: false, points: [[125.51, 123.51], [140, 138], [157, 147]] },
+  inS: { spline: false, points: [[58.12, 109.84], [58.45, 108.59], ...ROAD_IN_S.slice(1)] },
+  inN: { spline: false, points: [[74, 82], [72, 72], [72, 70.21]] },
+  seIn: { spline: false, points: [...ROAD_SE_IN.slice(0, -1), [111.76, 109.76], [112.95, 110.95]] },
+};
+/**
+ * The castle church (Burgkirche, castle pass: user 2026-11-10 "If the castle can have a church too") on its own plot:
+ * the NE terrace (T_ne, y 4) W of the stair block, clear of the firing range (which it hid from the camera on the SE
+ * ward) — its tower at the S end over the E road court, its portal on the terrace's S walk between the stairs S_e and
+ * S_ne1, the nave and the apse N toward the N range. Its art (art/m20-church.js) is measured; the terrace's walk has a
+ * hole for it as for the stair block. `plan`: the church's lengths (m) along its axis and half-widths across.
+ */
+export const CHURCH = { x: 108.6, z: 41.1, rot: -90, w: 15.0, d: 6.9, baseY: Y.NE,
+  plan: { tower: [0, 5.0], towerH: 2.4, nave: [5.0, 11.8], naveH: 3.0, choir: [11.8, 13.2], choirH: 2.4, apseR: 2.3, buttressOut: 0.45, steps: 0.9,
+    buttressU: [6.4, 8.4, 10.4], towerTop: 15.5, spireTop: 26.5, naveEave: 7.2, naveRidge: 11.6, choirEave: 6.4, choirRidge: 10.0, apseEave: 5.8 } };
 export const RANGE = [[100, 68], [118, 68], [135, 72], [135, 106], [122, 106], [108, 104], [100, 98]];
 
 const TERRAIN = [
@@ -111,13 +173,18 @@ const TERRAIN = [
   { type: 'rect', terrain: 'road', x: 70, z: 33, w: 32, d: 29 }, // the N court's cobbles
   { type: 'rect', terrain: 'road', x: 104, z: 52, w: 16, d: 14 }, // the E road court
   // art pass: the castle's roads are granite setts, the approach roads domed cobbles (pavement pipeline 3p)
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_SW_OUT, surface: 'belgian' },
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_SE_OUT, surface: 'belgian' },
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_IN, surface: 'setts' },
-  { type: 'path', terrain: 'road', width: 4, points: ROAD_SE_IN, surface: 'setts' },
+  // (`art`: render-only centre lines — art/pavement/index.js — where the drawn road meets a bridge or a gate: squared
+  // onto its axis and ending at its landing or its passage floor, user 2026-11-11 "Bridge and path overlap looks strange
+  // in the castle"; the gameplay road — surfaces, footsteps, trails, ground — stays `points`/`width`)
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_SW_OUT, surface: 'belgian', art: ROAD_ART.swOut },
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_SE_OUT, surface: 'belgian', art: ROAD_ART.seOut },
+  { type: 'path', terrain: 'road', width: 3.2, points: ROAD_IN_S, surface: 'setts', art: ROAD_ART.inS },
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_IN_N, surface: 'setts', art: ROAD_ART.inN },
+  { type: 'path', terrain: 'road', width: 4, points: ROAD_SE_IN, surface: 'setts', art: ROAD_ART.seIn },
   { type: 'path', terrain: 'road', width: 4, points: ROAD_E, surface: 'setts' },
   // last: water over everything else
   { type: 'path', terrain: 'water', width: 4, points: MOAT },
+  ...MOAT_RING.map((m) => ({ type: 'poly', terrain: 'water', points: m.points })),
   { type: 'circle', terrain: 'water', x: 143.5, z: 73, r: 3 },
   { type: 'rect', terrain: 'water', ...CHANNEL },
   { type: 'rect', terrain: 'water', ...POOL },
@@ -135,18 +202,24 @@ const PAVEMENTS = [
  */
 const FURNITURE = [
   { type: 'lamp', variant: 'platform', x: 65.6, z: 106.2, rot: deg(-135), block: false },
-  { type: 'lamp', variant: 'platform', x: 83.5, z: 89.5, rot: deg(160), block: false },
+  { type: 'lamp', variant: 'platform', x: 83.0, z: 91.0, rot: deg(160), block: false },
   { type: 'lamp', variant: 'platform', x: 69.2, z: 77.5, rot: deg(20), block: false },
   { type: 'lamp', variant: 'platform', x: 110.5, z: 57.5, rot: deg(200), hooded: true, block: false },
-  { type: 'lamp', variant: 'platform', x: 109.5, z: 104.5, rot: deg(135), block: false },
+  { type: 'lamp', variant: 'platform', x: 110.3, z: 104.0, rot: deg(135), block: false },
   { type: 'floodlight', x: 101.5, z: 58.5, rot: deg(200), block: false },
   { type: 'floodlight', x: 100.5, z: 69.5, rot: deg(120), block: false },
-  { type: 'sign', variant: 'wehrmacht', x: 53.0, z: 130.5, rot: deg(-60), text: 'HALT!\nAUSWEIS VORZEIGEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 55.6, z: 129.7, rot: deg(-60), text: 'HALT!\nAUSWEIS VORZEIGEN', block: false }, // (by the drawn road, not on it)
   { type: 'sign', variant: 'wehrmacht', x: 124.5, z: 127.8, rot: deg(-135), text: 'HALT!\nSPERRGEBIET', block: false },
   { type: 'sign', variant: 'wehrmacht', x: 101.5, z: 72.5, rot: deg(180), text: 'SCHIESSSTAND\nBETRETEN VERBOTEN', block: false },
   { type: 'sign', variant: 'wehrmacht', x: 101.8, z: 45.5, rot: deg(180), text: 'RAUCHEN\nVERBOTEN', block: false },
   { type: 'sign', variant: 'fingerpost', x: 27.5, z: 146.5, rot: deg(-30), text: 'FREIBURG 9 km', block: false },
   { type: 'sign', variant: 'fingerpost', x: 145.5, z: 147.5, rot: deg(30), text: 'EMMENDINGEN 11 km', block: false },
+  // the occupation layer's stencilled boards (castle pass: German, no insignia) and the junction's unit signpost
+  { type: 'sign', variant: 'wehrmacht', x: 70.2, z: 107.8, rot: deg(-45), text: 'ACHTUNG!\nFEINDBEOBACHTUNG', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 78.6, z: 85.3, rot: deg(160), text: 'STAB\nEINTRITT VERBOTEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 121.6, z: 58.4, rot: deg(180), text: 'KFZ-PARK\nNUR MIT FAHRBEFEHL', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 113.2, z: 106.6, rot: deg(135), text: 'MUNITIONSLAGER\nRAUCHEN VERBOTEN', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 77.4, z: 84.8, rot: deg(20), text: 'KOMMANDANTUR / FERNSPRECHER / KFZ-PARK', block: false },
   { type: 'bench', x: 47.5, z: 88.5, rot: deg(-30), block: false },
   { type: 'bench', x: 92.5, z: 98.0, rot: deg(-30), block: false },
 ];
@@ -188,6 +261,8 @@ const CURTAIN = [
   // the timber bridges over the moat, on each gate's axis
   { id: 'br_sw', type: 'bridge', variant: 'bridge_timber_moat_lanterns', x: 55.06, z: 121.25, rot: deg(105), w: 9, d: 4.5, h: 0.5 },
   { id: 'br_se', type: 'bridge', variant: 'bridge_timber_moat', x: 121.3, z: 119.3, rot: deg(45), w: 9, d: 4.5, h: 0.5 },
+  // the outer ward's plank footbridge over the ring's S leg (castle pass)
+  { id: 'br_w', type: 'bridge', variant: 'footbridge_timber', x: BR_W.x, z: BR_W.z, rot: deg(90), w: BR_W.w, d: BR_W.d, h: 0.4 },
   curtain('cw_e1', [[119.8, 110.3], [139, 97], [139, 83.6]]),
   curtain('cw_e2', [[139, 80.9], [139, 50], [134, 46], [106, 20.2]]),
   { id: 'cw_w', type: 'castle_wall', variant: 'curtain_limestone_crag', points: [[4, 78.5], [22, 79.5]], width: 4, h: Y.HQ, mat: 'stone' },
@@ -200,7 +275,9 @@ const CURTAIN = [
 
 /** §4.3 the raised levels (prisms drawn by scripts/m20.js); the turret after T_hq (its deck wins). */
 const LEVELS = [
-  level('t_ne', 'terrace_limestone', T_NE, Y.NE, [{ poly: rectPoly(119, 42, 10, 6, deg(42.7)) }]), // blk_ne stands on it
+  // blk_ne and the castle church stand on it (the church's walls, buttresses, choir and apse: its own footprint)
+  level('t_ne', 'terrace_limestone', T_NE, Y.NE, [{ poly: rectPoly(119, 42, 10, 6, deg(42.7)) },
+    ...churchFootprint({ x: CHURCH.x, z: CHURCH.z, rot: deg(CHURCH.rot), w: CHURCH.w, church: CHURCH.plan }).filter((f) => f.id !== 'steps').map((f) => ({ poly: f.poly }))]),
   level('t_wb', 'terrace_limestone', T_WB, Y.WB),
   level('t_nw', 'terrace_limestone', T_NW, Y.NW),
   level('t_n', 'range_roof_rampart', T_N, Y.N),
@@ -229,15 +306,24 @@ const BUILDINGS = [
   { id: 'bk_e', type: 'barracks', variant: 'house_half_timber_turret', label: 'Range barracks', x: 126, z: 62.5, rot: 0, w: 12, d: 11, h: 12,
     mat: 'plaster', roof: 'roofSlate', flag: true, garrison: true, door: deg(90), destructible: true },
   { id: 'bk_s', type: 'barracks', variant: 'hut_timber_barrack', label: 'Barracks', x: 76, z: 97, rot: deg(-30), w: 11, d: 7, h: 4.5,
-    mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true, chimney: STOVE },
-  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate', chimney: false },
+    mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true, chimney: STOVE,
+    alignFree: 'square to the S court and the SW lane\'s first bend; the lane swings 10° past its N corner toward the junction' },
+  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate', chimney: false,
+    alignFree: 'the chapel keeps its liturgical orientation (altar to the east), not the lane\'s' },
   // (h_w3 ∥ cw_sw, 6 m long: 2 m shorter at its SW end than first drawn, its NE end and NW face where they were — the
   // Panzer III turns into the SW gate's mouth past its S corner; e24's beat round it is unchanged)
   hut('h_w1', 54, 82, -30, { chimney: STOVE }), hut('h_w2', 50, 97, -45, { artOffset: [0.5, -0.5] }), hut('h_w3', 60.71, 99.79, -45, { w: 6, d: 5 }),
   hut('h_s1', 88, 106, -30, { chimney: STOVE }), hut('h_s2', 72, 110, -30),
-  hut('h_s3', 88, 118, 15.6, { label: 'Hut', enterable: true, door: deg(270) }), // ∥ cw_s
-  hut('h_s4', 96, 106, -30, { w: 8 }), hut('h_s5', 103.55, 114.1, 20, { w: 8, d: 5 }),
-  { id: 'h_tur', type: 'house', variant: 'house_turret_small', x: 95, z: 118.5, rot: 0, w: 4, d: 4, h: 8, mat: 'plaster', roof: 'roofSlate', chimney: false },
+  // (castle pass layout audit: the steward's house and its stair turret 0.5 m N off the S curtain, a lane behind them;
+  // the brewhouse h_s4 that overlapped the bakehouse's corner is gone; the gate warden's lodge stands free of the SE
+  // gatehouse and the curtain, its door on the SE street)
+  hut('h_s3', 88.13, 117.52, 15.6, { label: 'Hut', enterable: true, door: deg(270) }), // ∥ cw_s
+  hut('h_s5', 102.5, 112.8, 20, { w: 8, d: 5 }),
+  { id: 'h_tur', type: 'house', variant: 'house_turret_small', x: 95.13, z: 118.02, rot: 0, w: 4, d: 4, h: 8, mat: 'plaster', roof: 'roofSlate', chimney: false },
+  // the castle church (castle pass): its own art, measured (scripts/m20-art.js church); this box is its logic footprint
+  // on the NE terrace (its tower's face to the choir's end; the apse's tip, the buttresses and the steps are the art's)
+  { id: 'church', type: 'house', variant: 'castle_church', label: 'Castle church', x: CHURCH.x, z: CHURCH.z, rot: deg(CHURCH.rot), w: CHURCH.w, d: CHURCH.d, h: 11,
+    baseY: CHURCH.baseY, church: CHURCH.plan, mat: 'stone', roof: 'roofSlate', chimney: false },
   { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 44, z: 78.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks', chimney: false },
   { id: 'shelter', type: 'hut', variant: 'open_shed_bench', x: 104.5, z: 89, rot: deg(-42.7), w: 4, d: 8, h: 3, mat: 'planks', block: 1, chimney: false },
 ];
@@ -255,8 +341,11 @@ const MILITARY = [
   { id: 'flak_court', type: 'aa_gun', variant: 'flak38_quad_towed', x: 86, z: 73.5, rot: 0, w: 4, d: 2.5, h: 2.2, block: 1 },
   { id: 'flak_road', type: 'aa_gun', variant: 'flak38_quad_towed', x: 111, z: 66.5, rot: 0, w: 4, d: 2.5, h: 2.2, block: 1 },
   // the AT gun's sandbag half-ring, open to the N (the gun faces the tank)
-  bags('atgun_bag_w', 74.8, 51.5, 80, 2.6), bags('atgun_bag_s', 77, 52.9, 0, 2.6), bags('atgun_bag_e', 79.2, 51.5, 100, 2.6),
-  { ...bags('sandbag_se', 108, 108, 45, 3), alignFree: 'square to the SE gatehouse (−45°) whose inner corner it guards' }, // the SE gate's inner corner [fd]
+  { ...bags('atgun_bag_w', 74.8, 51.5, 80, 2.6), alignFree: 'the half-ring\'s W flank, splayed 10° round the gun' },
+  bags('atgun_bag_s', 77, 52.9, 0, 2.6),
+  { ...bags('atgun_bag_e', 79.2, 51.5, 100, 2.6), alignFree: 'the half-ring\'s E flank, splayed 10° round the gun' },
+  // (castle pass layout audit: off the SE street, against the gate warden's lodge, square to it)
+  { ...bags('sandbag_se', 106.6, 109.2, 20, 3), alignFree: 'square to the gate warden\'s lodge (20°) it stands by, off the SE street' }, // the SE gate's inner side [fd]
   // on the terraces (visual only: lifted by the script; raised cells carry no block)
   { id: 'flak_hq', type: 'flak', variant: 'flak38_quad_round_emplacement', x: 35.5, z: 55, r: 2.2, h: 1, block: 0, baseY: Y.HQ },
   { id: 'flak_n', type: 'flak', variant: 'flak38_quad_round_emplacement', x: 88, z: 19, r: 2.2, h: 1, block: 0, baseY: Y.N },
@@ -274,14 +363,34 @@ const MILITARY = [
   { id: 'lamp_rng', type: 'lamp_post', x: 108, z: 84.5, r: 0.2, h: 4 },
 ];
 
+/**
+ * The occupation layer's solid pieces (castle pass, user 2026-11-10: "Just make sure th3 castle is a medieval castle in
+ * the nazi era"): the painted sentry boxes at the gates (art/m20-occupation.js, swapped in by scripts/m20-art.js) and the
+ * vehicle park against the NE terrace's retaining wall in the E road court — an Opel Blitz, the staff car (Horch), a
+ * Kübelwagen and an R75 with its sidecar (library models: art/static-vehicles.js `vehicleArt`). Off every road, route
+ * and the tank's way (tests/unit/m20-castle.test.mjs layout test); nobody's walk comes near them.
+ */
+const sentryBox = (id, x, z, rot, extra = {}) => ({ id, type: 'hut', variant: 'sentry_box_m20', label: 'Sentry box', x, z, rot: deg(rot), w: 1.3, d: 1.3, h: 2.8, block: 2, chimney: false, flag: false, ...extra });
+const parked = (id, x, z, rot, w, d, h, art, label) => ({ id, type: 'crates', variant: 'vehicle_parked', label, x, z, rot: deg(rot), w, d, h, block: 2, fixed: true, vehicleArt: art });
+export const OCCUPATION = [
+  sentryBox('gbox_sw', 60.9, 128.9, 15), sentryBox('gbox_se', 126.2, 118.6, -45, { alignFree: 'square to the SE bridge and its road (45°), whose head it guards' }), sentryBox('gbox_in', 77.7, 71.3, 0),
+  // (either side of the stairs S_e up to the NE terrace, which stay clear)
+  parked('vp_truck', 116.3, 54.6, -90, 6.2, 2.3, 2.9, 'opel_blitz_cargo', 'Lorry'),
+  parked('vp_staff', 119.0, 54.0, -90, 4.7, 1.8, 1.8, 'horch901', 'Staff car'),
+  parked('vp_kubel', 110.2, 53.4, -90, 3.8, 1.7, 1.7, 'kubelwagen', 'Kübelwagen'),
+  parked('vp_moto', 107.6, 53.2, -90, 2.4, 1.7, 1.1, 'r75_sidecar', 'Motorcycle'),
+];
+
 /** §5.4 the firing range, the well, the pool and the water gate. */
 const RANGE_PROPS = [
   { id: 'range', type: 'firing_range', variant: 'firing_range_targets', x: 120, z: 74, rot: 0, w: 14, d: 4, h: 1.2 },
-  ...[[115, 78], [118, 82], [124, 83], [127, 88], [121, 94], [117, 98.5], [112, 99.5]].map(([x, z], k) =>
-    ({ id: `tgt_${k + 1}`, type: 'sign', variant: 'target_frame_silhouette', x, z, rot: 0, w: 1, d: 0.3, h: 1.8, block: 1 })),
-  { id: 'stop_1', type: 'fence', variant: 'bullet_stop_timber_sandbag', points: [[116.5, 71.5], [122, 75.5]], width: 0.8, h: 2.2, block: 2 },
-  { id: 'stop_2', type: 'fence', variant: 'bullet_stop_timber_sandbag', points: [[128.5, 93], [131, 100]], width: 0.8, h: 2.2, block: 2 },
-  { id: 'stop_3', type: 'fence', variant: 'bullet_stop_timber_sandbag', points: [[116, 105], [124, 100]], width: 0.8, h: 2.2, block: 2 },
+  // (castle pass layout audit: the old silhouette frames in the firing line's lanes and behind its back, and the three
+  // bullet stops — through the berm, against the curtain, behind the line's back — are gone; a range shoots one way, the
+  // berm is the backstop)
+  ...[[124, 83, 3], [127, 88, 4]].map(([x, z, k]) =>
+    ({ id: `tgt_${k}`, type: 'sign', variant: 'target_frame_silhouette', x, z, rot: 0, w: 1, d: 0.3, h: 1.8, block: 1 })),
+  // the firing line's ring targets (castle pass), one per lane, in front of the earth backstop
+  ...[114.5, 117.0, 119.5].map((x, k) => ({ id: `tgt_${8 + k}`, type: 'sign', variant: 'target_board_bullseye', x, z: 77.6, rot: 0, w: 1.1, d: 0.3, h: 1.9, block: 1 })),
   { id: 'well', type: 'well', x: 128, z: 77.5, r: 0.9, h: 1, block: 1 },
   { id: 'water_gate', type: 'water_gate', variant: 'water_gate_grated_arch', x: 139, z: 82.25, rot: deg(90), w: 2.7, d: 5, h: 3 },
   { id: 'lever_box', type: 'lever', variant: 'lever_box_red_lamp', x: LEVER[0], z: LEVER[1], rot: 0 },
@@ -291,14 +400,14 @@ const RANGE_PROPS = [
 const NATURE = [
   rock('rk_w1', 10.5, 87, 3), rock('rk_w2', 20, 115, 3), rock('rk_w3', 14, 122, 1.5), rock('rk_w4', 15, 141, 2.5),
   rock('rk_w5', 46, 140.5, 2.5), rock('rk_w6', 42, 150, 2),
-  rock('rk_e1', 130, 27, 1.8), rock('rk_e2', 148, 34, 3), rock('rk_e3', 137, 40, 2.5), rock('rk_e4', 149, 50, 1.5),
+  rock('rk_e1', 130, 27, 1.8), rock('rk_e2', 148, 34, 3), rock('rk_e3', 140, 38, 2.5), rock('rk_e4', 149, 50, 1.5), // (rk_e3: 3 m off the NE moat leg)
   rock('rk_e5', 150, 68, 2.5), rock('rk_e6', 150, 98, 2.5), rock('rk_e7', 130, 128, 2.5),
   ...[[33, 118], [39, 125], [146, 60], [152, 88], [134, 150], [152, 108], [145, 26], [153, 22], [6, 105]].map(([x, z], k) => tree(x, z, k)),
 ];
 
 // (art pass 2 set dressing: the forest-edge log piles, the range's works corner, the N Flak's ammunition and rangefinder,
 // the NE terrace's fire point, the SE road's wayside cross: art/m20-dressing.js)
-const STRUCTURES = [...CURTAIN, ...LEVELS, ...BUILDINGS, ...MILITARY, ...RANGE_PROPS, ...NATURE, ...M20_DRESSING];
+const STRUCTURES = [...CURTAIN, ...LEVELS, ...BUILDINGS, ...MILITARY, ...OCCUPATION, ...RANGE_PROPS, ...NATURE, ...M20_DRESSING];
 
 // ---------------------------------------------------------------- links (dossier §6.1): climbs (GB), ladders + stairs (everyone)
 /** The castle's single climb spot: the W wall below the HQ [P][DE "only one possibility"][NL][ooc]. */
@@ -385,11 +494,11 @@ const WALL_MEN = [ // §8.2 the battlements, counter-clockwise (Prima Phase 2)
 const RANGE_MEN = [ // §8.3 the firing range (Prima Phase 3)
   sentry('e12', 12, 132, 73.5, 0, 200, 40),
   walker('e13', 13, 0, [P(127, 70.5, 3, 0), P(108, 70.5, 3, 180)]),
-  sentry('e14', 14, 121, 79.5, 0, 135, 40),
+  sentry('e14', 14, 123.6, 80.2, 0, 135, 40), // (castle pass: 2.7 m E, clear of the firing line's targets)
   sentry('e18', 18, 110, 80, 0, 0, 60, { post: { heading: 0, sweep: 60, period: 12 } }), // watches the ladder corner [P]
   sentry('e15', 15, 128.5, 88.5, 0, 180, 40), // "15's post", 4 m from the pool
-  sentry('e16', 16, 125, 99, 0, 270, 30),
-  sentry('e17', 17, 119, 89, 0, 180, 40),
+  sentry('e16', 16, 125.2, 89.6, 0, 270, 30), // (castle pass: by the firing line's E end, watching the range from behind it)
+  sentry('e17', 17, 122.8, 89.2, 0, 180, 40), // (castle pass: 3.8 m E, at the firing line's E end)
   walker('e19', 19, 0, [P(108, 95, 12, 0), P(115, 97, 5, 0)]), // the shooter, "checking his target" [P]
   sentry('e20', 20, 113, 101.5, 0, 90, 40),
   sentry('e21', 21, 105, 100.5, 0, 225, 30),
@@ -398,19 +507,41 @@ const RANGE_MEN = [ // §8.3 the firing range (Prima Phase 3)
 /** Patrol 26 (4 men): through the SW gate, the junction, the SE gate and back round the S field outside [P][ooc][DE]. */
 // (the halt by the barracks' S corner at (81, 92.2): the game draws the barracks wider than its footprint, and at (80, 93)
 // the four never reached their halt — their walks ended 1.3 m short, past the route's tolerance — and stood re-planning)
-export const P26_ROUTE = [P(36, 140, 5, 0), P(54, 127.5), P(57, 114), P(70, 101), P(81, 92.2, 4, 0), P(98, 99), P(116, 114),
-  P(124.5, 123), P(110, 140, 5, 90), P(70, 145)];
+// (castle pass layout audit: the pass-through corners where the four walked round the guardhouse's W and N corners and
+// the workshop's N corner anyway — the route as walked, clear of every building)
+export const P26_ROUTE = [P(36, 140, 5, 0), P(54, 127.5), P(57, 114), P(70, 101), P(67.9, 96.6), P(78.9, 89.85), P(80.3, 89.95),
+  P(81, 92.2, 4, 0), P(98, 99), P(100.2, 99.6), P(116, 114), P(124.5, 123), P(110, 140, 5, 90), P(70, 145)];
+/**
+ * The firing line (castle pass, user 2026-11-10: "shooting range with soldiers actively shooting inside the castle"):
+ * three riflemen at practice — lying, kneeling, standing — on their lanes N to ring targets (tgt_8-10) in front of the
+ * range's earth backstop (the berm `range`), their NCO pacing behind them. While the castle is calm they shoot at their
+ * targets (scripts/m20-range.js: aimed rounds, a fresh clip now and then); a man alarmed, sent to look or fighting is a
+ * soldier like any other. Their practice is why a pistol shot on the range goes unnoticed (set-piece range_sp `live`:
+ * only while one of them is still at it). Their cones look N down the lanes; the NCO watches his men (his sight 22 m).
+ */
+export const RANGE_LANES = [
+  { id: 'e68', pose: 'prone', at: [114.5, 89.5], target: [114.5, 77.6] },
+  { id: 'e69', pose: 'kneel', at: [117.0, 89.5], target: [117.0, 77.6] },
+  { id: 'e70', pose: 'stand', at: [119.5, 89.5], target: [119.5, 77.6] },
+];
+export const RANGE_NCO = [P(113.5, 92.6, 5, 270), P(120.5, 92.6, 5, 270)];
+const RANGE_LINE = [
+  ...RANGE_LANES.map((l, k) => sentry(l.id, null, l.at[0], l.at[1], 0, 270, 10,
+    { range: { pose: l.pose, target: l.target, seed: k + 1 }, flags: { holdsPost: true, investigates: false } })),
+  // (the NCO keeps to his line like his men: no noise draws him off it — only the alarm, a body or a man in his sight)
+  walker('e71', null, 0, RANGE_NCO, { soldierType: 'sergeant', range: { nco: true }, vision: { near: 12, far: 22 }, flags: { investigates: false } }),
+];
 const SW_MEN = [ // §8.4 the SW gate and the W quarter (Prima Phase 4)
   ...patrol(['p26', 'p26b', 'p26c', 'p26d'], 26, 'p26', P26_ROUTE),
   sentry('s25a', 25, 55.5, 115.7, 0, 105, 20), sentry('s25b', 25, 57.5, 116.2, 0, 105, 20), // rear pair, in the arch
   sentry('s25c', 25, 52.5, 127.5, 0, 105, 30), sentry('s25d', 25, 58, 128.5, 0, 105, 30), // front pair, beyond the bridge
   sentry('e22', 22, 60, 107.5, 0, 60, 40),
   sentry('e23', 23, 51, 103, 0, 300, 40),
-  walker('e24', 24, 0, [P(55, 101, 3, 270), P(66, 96, 3, 0)]),
+  walker('e24', 24, 0, [P(55, 101, 3, 270), P(55.5, 99.4), P(60.5, 94.6), P(61.9, 94.65), P(66, 96, 3, 0)]), // (round the store's W and N corners, as he walked)
   sentry('e27', 27, 69, 97, 0, 225, 40),
   sentry('e65', null, 73, 104, 0, 225, 40), // "the soldier across the street from 27" [P]
   sentry('e28', 28, 48, 91, 0, 300, 40),
-  walker('e29', 29, 0, [P(48, 75, 4, 270), P(58, 76.5, 4, 0)]),
+  walker('e29', 29, 0, [P(48, 75, 4, 270), P(58.2, 75.4), P(58, 76.5, 4, 0)]), // (his E halt reached from the N, round the stable's corner)
   sentry('e30', 30, 47, 84, 0, 180, 40), // watches the clothesline [P]
   sentry('e31', 31, 45.5, 80.5, 0, 90, 40), // by the outhouse [fd]
   sentry('e32', 32, 61, 78.5, 0, 180, 60), // at the foot of S_gw: "the stairs by 32's post" [P]
@@ -438,12 +569,12 @@ const TANK_MEN = [ // §8.6 the tank corner (Prima Phase 6)
   sentry('e50', 50, 104, 53.5, 0, 270, 30),
   sentry('e51', 51, 99, 59, 0, 0, 40),
   sentry('e52', 52, 100, 45, 0, 180, 40),
-  walker('e53', 53, 0, [P(97.5, 74, 4, 90), P(97.5, 40, 4, 270)]),
+  walker('e53', 53, 0, [P(97.5, 74, 4, 90), P(101.5, 68.2), P(101.4, 66.8), P(88.4, 47.6), P(92.6, 40.7), P(97.5, 40, 4, 270)]), // (round the V2 trailers' ends, as he walked)
   sentry('e54', 54, 93, 57, 0, 180, 60), // between the V2s
   { id: 'e55', prima: 55, soldierType: 'gunner', x: ATGUN.x, z: ATGUN.z, heading: deg(294), emplacement: 'atgun', elevated: true, jail: false,
     post: { heading: deg(294), sweep: 40, giro: 180 } }, // the AT gunner: shoot him (knife/syringe refused)
   sentry('e56', 56, 86, 41.5, 0, 0, 40), // beside the tank
-  ...patrol(['p57', 'p57b', 'p57c'], 57, 'p57', [P(74, 42, 4, 90), P(74, 56), P(76, 76), P(100, 77), P(111, 71, 3, 0), P(104, 58), P(84, 55)]),
+  ...patrol(['p57', 'p57b', 'p57c'], 57, 'p57', [P(74, 42, 4, 90), P(73.25, 50.8), P(74, 56), P(76, 76), P(100, 77), P(111, 71, 3, 0), P(107.4, 67.8), P(104, 58), P(84, 55)]), // (past the AT gun's bags and the E court's Flak, as walked)
 ];
 const OTHER_MEN = [ // §8.7 the SE gate and the rest
   sentry('e58', null, 116.7, 116.1, 0, 45, 20), sentry('e59', null, 118.1, 114.7, 0, 45, 20), // rear pair, in the SE arch
@@ -452,7 +583,8 @@ const OTHER_MEN = [ // §8.7 the SE gate and the rest
   walker('e67', null, Y.N, [P(60, 26, 6, 90), P(100, 26, 6, 90)]),
 ];
 
-const ENEMIES = [...HQ_MEN, ...WALL_MEN, ...RANGE_MEN, ...SW_MEN, ...HQ_GUARD, ...TANK_MEN, ...OTHER_MEN];
+// (the firing line last: every other man keeps his place in the roster)
+const ENEMIES = [...HQ_MEN, ...WALL_MEN, ...RANGE_MEN, ...SW_MEN, ...HQ_GUARD, ...TANK_MEN, ...OTHER_MEN, ...RANGE_LINE];
 
 // ---------------------------------------------------------------- vehicles (dossier §6.2)
 const VEHICLES = [
@@ -521,9 +653,17 @@ export default {
     historical: 'February 1945. The Red Army is in East Prussia and the end of the Reich is in sight. But a coded signal has shaken Allied headquarters: an enemy agent has stolen plans from the Manhattan Project, our atomic bomb programme. They lie in Gundelfingen castle, north of Freiburg, waiting to go east to a hidden German laboratory.',
     text: 'Officer, this is the most important job we have ever handed you, and I can tell you almost nothing about it. You will be on your own. Get inside that fortress and leave nothing standing: the headquarters, and the two rockets parked in its courtyard. Then take the tank they keep there and drive out through the south-west gate. Do this and the war may be over. Fail, and heaven help us all. Every eye in London is on you and your men. Good luck, son.',
     objectivesSummary: 'Blow up the headquarters and destroy both V2 rockets, then everyone into the Panzer III and out through the south-west gate.',
+    // the Colonel's tour as it was before the castle pass (its narrated captions are recorded: art/ui tour.js would now
+    // count the firing line's men round the range's busiest spot); the same stops, in the same words
+    tour: [
+      { kind: 'start', x: 103.83, z: 51.92, text: 'Officer, your 6 men go in here. Keep them together until you know the ground.' },
+      { kind: 'objective', x: 15.5, z: 50, text: 'Your objective: blow up the headquarters. I have circled it in red.' },
+      { kind: 'objective', x: 96, z: 50, text: 'Your objective: destroy both V2 rockets. I have circled it in red.' },
+      { kind: 'danger', x: 120.5, z: 79.5, text: 'Watch this spot: 6 guards cover it. Study their cones before you move.' },
+    ],
     hints: [
       'Four sentries stand at each gate. There is only one place on the walls a climber can get up: the west wall, below the headquarters.',
-      'On the firing range a pistol shot is just practice. The guards may come to look, but nobody sounds the alarm for it.',
+      'The firing range is at practice all day: there a pistol shot is just one more round. The guards may come to look, but nobody sounds the alarm for it - as long as the riflemen are still shooting.',
       'A lever under a flashing red lamp, inside the east wall, opens an underwater gate from the moat.',
       'A German uniform hangs on a line in the west quarter.',
       'The two sentries standing together at the south corner of the walls watch each other. Kill either one and the whole castle hears of it.',
@@ -537,17 +677,37 @@ export default {
   rules: { roofRule: false }, // §4.4 / §14 E1: the wall walks and terraces are open ground, not roofs
   baseTerrain: 'grass',
   terrain: TERRAIN,
+  // render-only: no grass tufts or ground litter under the bridges' decks and landings (tufts poked up between the
+  // planks) or on the paved terraces (dark litter along their parapets: a kept castle), review 2026-11-11
+  bareGround: [...STRUCTURES.filter((q) => q.type === 'bridge').map((b) => {
+    const c = Math.cos(b.rot ?? 0), n = Math.sin(b.rot ?? 0), L = b.w / 2 + 2.2, H = b.d / 2 + 1.2;
+    return [[-L, -H], [L, -H], [L, H], [-L, H]].map(([u, w]) => [+(b.x + c * u - n * w).toFixed(2), +(b.z + n * u + c * w).toFixed(2)]);
+  }), ...STRUCTURES.filter((q) => q.type === 'cliff' && /^t_/.test(q.id) && q.points).map((q) => q.points),
+  // (and the curtains' wall walks: litter specks lay on their paving too)
+  ...STRUCTURES.filter((q) => q.type === 'castle_wall' && q.points).flatMap((q) => q.points.slice(1).map((b, k) => {
+    const a = q.points[k], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L, h = (q.width ?? 5) / 2 + 0.3;
+    return [[a[0] + nx * h, a[1] + nz * h], [b[0] + nx * h, b[1] + nz * h], [b[0] - nx * h, b[1] - nz * h], [a[0] - nx * h, a[1] - nz * h]].map((p) => p.map((v) => +v.toFixed(2)));
+  }))],
+  moatRing: MOAT_RING, // (the castle art's counterscarp follows it: art/m20-castle.js)
   pavements: PAVEMENTS,
   furniture: FURNITURE,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['gh_se', 'h_s5'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s1', 'h_s4'], ['h_s3', 'h_tur'],
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s3', 'h_tur'],
     // art pass: the masonry is one compound — curtains bond into the gatehouses, terraces abut the buildings and walls
     // they retain, props stand on the levels (castle-kit draws each face once; these contacts are the bonds)
     ['cw_sw', 'gh_sw'], ['cw_s', 'gh_sw'], ['cw_s', 'gh_se'], ['cw_e1', 'gh_se'], ['cw_w', 'crag'], ['cw_w', 't_hq'],
     ['cw_w', 't_sw'], ['cw_w', 't_par_hq_s'], ['cw_sw', 't_sw'], ['cw_e2', 't_n'], ['crag', 'n_range'], ['gh_in', 't_wb'],
     ['blk_ne', 't_ne'], ['n_range', 't_n'], ['n_range', 't_ne'], ['n_range', 't_nw'], ['n_range', 't_par_n'], ['hq', 't_hq'],
     ['hq_wing', 't_hq'], ['turret', 't_hq'], ['flak_hq', 't_hq'], ['flak_n', 't_n'], ['sl_hq', 't_par_hq_e'], ['sl_t', 'turret'],
-    ...M20_DRESSING_JOINS]), // (art pass 2: the N Flak's ammunition, rangefinder and barrel cases on T_n, the fire point on T_ne)
+    ...M20_DRESSING_JOINS, // (art pass 2: the N Flak's ammunition, rangefinder and barrel cases on T_n, the fire point on T_ne)
+    // castle pass (tests/unit/m20-castle.test.mjs: every overlap of solids is a declared join): the SW curtain runs into
+    // the bastion's corner under its parapet; the HQ terrace, its forecourt screen and the château's wing stand on the
+    // crag; the N rampart's parapet on its edge; the range's E bullet stop is built against the curtain's inner face, its
+    // N one runs through the target berm (the berm's art stops short of it: m20-art crossingStops)
+    ['cw_sw', 't_par_sw_s'], ['crag', 't_hq'], ['crag', 't_par_hq_b'], ['crag', 'hq_wing'], ['t_n', 't_par_n'],
+    // layout audit: the smithy is built against the SW curtain (its W gable stands on the curtain's inner face); the
+    // inner gate's sentry box stands against its S face, E of the arch
+    ['h_w2', 'cw_sw'], ['gh_in', 'gbox_in']]),
   items: [],
   // §3.4 the Spy's uniform on the clothesline in the W quarter ('use' it: the uniform goes in his kit; he then puts it on)
   interactables: [{ id: 'uniform_line', interactKind: 'clothesline', x: 42.5, z: 87.5 }],
@@ -568,7 +728,8 @@ export default {
   ],
   setpieces: [
     // pistol shots inside the range are routine: guards may look, the siren never sounds for them
-    { type: 'firing_range', id: 'range_sp', kinds: ['pistol'], area: { poly: RANGE } },
+    // (castle pass: while the firing line is at practice — its fire is why a pistol shot passes for one more round)
+    { type: 'firing_range', id: 'range_sp', kinds: ['pistol'], area: { poly: RANGE }, live: 'range' },
     // the lever under the flashing red lamp opens the underwater water gate for good
     { type: 'gate_control', id: 'wg_ctl', once: true, open: false, area: { rect: WATER_GATE },
       control: { at: LEVER, id: 'lever_wg', label: 'Lever', blink: true, roles: null } },

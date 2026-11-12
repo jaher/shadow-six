@@ -110,16 +110,23 @@ class FuelValve extends SetPiece {
 registerSetpiece('fuel_valve', FuelValve);
 
 /**
- * firing_range {area:{poly|x,z,r|rect}, kinds?:['pistol']}
+ * firing_range {area:{poly|x,z,r|rect}, kinds?:['pistol'], live?:'range'}
  * §7.1 M20: shots of the listed noise kinds fired inside the range are routine — guards may come and look
  * (level 1), but the zone's "heard" alarm never fires (level < CONFIG.stealth.zoneHeardLevel).
+ * `live: 'range'` (M20 castle pass): only while the range is at practice — one of its riflemen (spawn `range`, not the
+ * NCO) alive and calm (IDLE / RETURN): their fire is why one more shot goes unnoticed; a silent range hears it.
  */
+export function rangeAtPractice(world) {
+  return (world.enemies || []).some((e) => e.alive !== false && !e.removed && e.spawn?.range && !e.spawn.range.nco
+    && (!e.brain || e.brain.state === 'IDLE' || e.brain.state === 'RETURN') && !world.alarm?.active);
+}
 class FiringRange extends SetPiece {
   build(world) {
     const kinds = new Set(this.spec.kinds || ['pistol']);
+    const live = this.spec.live === 'range' ? () => rangeAtPractice(world) : () => true;
     const orig = world.emitNoise.bind(world);
     world.emitNoise = (x, z, radius, kind, source = null, level) => {
-      if (kinds.has(kind) && inArea(this.spec.area, x, z)) level = Math.min(level ?? CONFIG.stealth.noise[kind]?.level ?? 2, CONFIG.stealth.zoneHeardLevel - 1);
+      if (kinds.has(kind) && inArea(this.spec.area, x, z) && live()) level = Math.min(level ?? CONFIG.stealth.noise[kind]?.level ?? 2, CONFIG.stealth.zoneHeardLevel - 1);
       return orig(x, z, radius, kind, source, level);
     };
   }

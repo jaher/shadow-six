@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { canSee } from '../../ai/perception.js';
 import { buildM20ArtG } from './m20-art.js';
+import { rangeTick } from './m20-range.js';
 import { due, runSync, runSliced } from '../../engine/slice.js';
 import { dressingMaterial, boxUV } from '../../art/dressing.js';
 
@@ -77,7 +78,7 @@ function linkMeshes(root, ladders) {
       // a solid wedge under the flight so it reads as masonry
       const low = Math.min(a.y, b.y);
       if (Math.abs(b.y - a.y) > 0.5) root.add(span({ ...a, y: (a.y + low) / 2 }, { ...b, y: (b.y + low) / 2 }, 1.7, Math.abs(b.y - a.y) / 2, 0x6f6a5a));
-    } else if (l.kind === 'plank') root.add(plankSpan({ ...a, y: a.y - 0.1 }, { ...b, y: b.y - 0.1 }, 1.4, 0.2));
+    } else if (l.kind === 'plank') root.add(plankSpan({ ...a, y: a.y - 0.075 }, { ...b, y: b.y - 0.075 }, 1.4, 0.2)); // (its stringers' tops a hair over the walk's stone: no coplanar faces)
     else {
       for (const s of [-0.25, 0.25]) {
         const off = { x: Math.cos((l.heading ?? 0) + Math.PI / 2) * s, z: Math.sin((l.heading ?? 0) + Math.PI / 2) * s };
@@ -190,6 +191,7 @@ export function m20Script(w) {
   if (e55) e55.elevated = true; // §14 E5: knife and syringe refuse the gunner in his emplacement
   buildCastleVisuals(w);
   w.onBelTick(() => atGunTick(w));
+  w.onBelTick(() => rangeTick(w)); // the firing line at practice (castle pass)
 }
 // the castle's meshes alone (the art pass, its textures): built by Game as the load ends (sliced), found built by the
 // script

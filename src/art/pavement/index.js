@@ -56,7 +56,11 @@ export function buildPavement(net, ctx = {}) {
     const S = SURFACES[r.surface];
     if (!S?.hard) continue;
     stats.roads++;
-    const line = sampleCenterline(r.points, 0.5, r.spline), hw = r.width / 2;
+    // (`art`: render-only — the drawn road's own centre line and width where it must differ from the gameplay road,
+    // e.g. an approach squared onto a bridge's axis; world/roads.js keeps `points`/`width` for surfaces, footsteps,
+    // trails and ground heights, so nothing a unit stands on, hears or leaves moves)
+    const A = r.art || null;
+    const line = sampleCenterline(A?.points ?? r.points, 0.5, A ? A.spline ?? true : r.spline), hw = (A?.width ?? r.width) / 2;
     const gutter = r.kerb?.gutter ? 0.35 : 0;
     const m = mat(r.surface, r);
     for (const g of ribbonGeometries(line, { t0: -hw, t1: hw, hw, y: Y, gutter, marking: MARK[r.markings] || 0, craters: r.craters, road: 1 })) add(g, m);

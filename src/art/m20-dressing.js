@@ -43,7 +43,8 @@ export const M20_DRESSING = [
   piece('flak_n_rf', 'rangefinder_tripod', 'Rangefinder', 92.6, 16.6, deg(-40), 1.2, 1.2, 1.5, { baseY: Y_N }),
   piece('flak_n_barrels', 'barrel_cases', 'Barrel cases', 90.4, 15.4, 0, 1.8, 0.7, 0.45, { baseY: Y_N }),
   // --- the NE terrace: the fire point, its back to the N range's end wall
-  piece('ls_fire', 'ls_fire_point', 'Fire point', 108.0, 37.0, 0, 2.0, 1.2, 1.5, { baseY: Y_NE }),
+  // (castle pass: against the terrace's W parapet, the castle church on its middle)
+  piece('ls_fire', 'ls_fire_point', 'Fire point', 103.75, 35.5, 0, 2.0, 1.2, 1.5, { baseY: Y_NE }),
   // --- the SE road: the wayside cross 1.4 m off the road's N edge, facing it
   piece('cross_se', 'wayside_cross', 'Wayside cross', 130.5, 134.0, deg(-45), 0.9, 0.9, 3.0),
 ];

@@ -1,0 +1,95 @@
+{
+ "note": "M20's intended intersections for tools/art/intersections.mjs (the fix/intersection-audit tool; merge into tools/art/intersection-allow.json with it). Each entry is a true join, with its reason.",
+ "entries": [
+  {
+   "mission": "m20",
+   "a": "m20art:links*",
+   "b": "blk_n",
+   "reason": "The N stair tower houses the N range's stair: S_n climbs inside it and its treads meet the tower's walls"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:links*",
+   "b": "cw_e2",
+   "near": [
+    129.1,
+    41.4
+   ],
+   "r": 2.5,
+   "reason": "S_ne2 lands on the NE wall walk: its top tread is laid into the walk's edge"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:links*",
+   "b": "n_range",
+   "reason": "The stone flights up to the N rampart (T_n) land on its edge: their top treads are laid into the cornice"
+  },
+  {
+   "mission": "m20",
+   "a": "cw_*",
+   "b": "gh_*",
+   "kind": "detail-cut",
+   "reason": "The curtains bond into the gatehouses (joined: castle-kit draws each face once); their copings run into the gate's masonry"
+  },
+  {
+   "mission": "m20",
+   "a": "gh_se",
+   "b": "cw_*",
+   "kind": "detail-cut",
+   "reason": "The SE gatehouse's flank stones bond into the curtains either side of it"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:castle*",
+   "b": "gh_sw",
+   "piece": "castle:iron*",
+   "reason": "The SW drawbridge's chains and pulleys run into their slots in the gatehouse's face, the leaf's hinge irons into its threshold"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:castle*",
+   "b": "gh_se",
+   "piece": "*timber*",
+   "reason": "The hourd's oak brackets are socketed into the gatehouse's face (putlog holes), as built"
+  },
+  {
+   "mission": "m20",
+   "a": "br_se",
+   "b": "gh_se",
+   "reason": "The SE bridge's last posts stand in the gate's threshold: the bridge abuts the gatehouse"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:bailey*",
+   "b": "h_tur",
+   "reason": "The steward's house and its round stair turret are one building: the house's E gable framing runs into the turret"
+  },
+  {
+   "mission": "m20",
+   "a": "atgun",
+   "b": "atgun_bag_*",
+   "reason": "The AT gun's trail spades rest against the half-ring's sandbags"
+  },
+  {
+   "mission": "m20",
+   "a": "pole_*",
+   "b": "furniture*",
+   "reason": "The telegraph wires are tied on the poles' insulators"
+  },
+  {
+   "mission": "m20",
+   "a": "m20art:castle*",
+   "b": "cw_*",
+   "kind": "pass-through",
+   "piece": "castle:ashlar*",
+   "reason": "A D tower's straight flanks are bonded into the curtain it flanks: they rise through the walk's outer edge to the tower's back wall"
+  },
+  {
+   "mission": "m20",
+   "a": "cw_sw",
+   "b": "gh_sw",
+   "kind": "z-fight",
+   "reason": "The SW curtain's walk runs onto the gatehouse's walk at one level where they bond (one floor, the joint under the gate's crown)"
+  }
+ ]
+}
