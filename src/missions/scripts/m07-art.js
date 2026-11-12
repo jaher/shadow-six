@@ -11,6 +11,8 @@ import * as THREE from 'three';
 import { dressingMaterial, rng, seedOf, consolidate } from '../../art/dressing.js';
 import { coverPropsWithSnow, propSnowAmount } from '../../art/terrain.js';
 import { libraryVisual } from '../../art/building-props.js';
+import { buildLighthouseMole, markOverlays } from '../../art/lighthouse.js';
+import { addDepthMerge } from '../../engine/depth-merge.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 
@@ -121,7 +123,7 @@ function hideStructure(world, id) {
  * Install the art pass (missions/m07 `script`): the gantry over the posts, the drying racks and the village compounds
  * (library parts placed on the parent's footprint). Browser only (no scene in node runs).
  * @param {object} world
- * @param {{gantry?: object, parts?: Object<string, object[]>, pierRoot?: object}} art
+ * @param {{gantry?: object, parts?: Object<string, object[]>, pierRoot?: object, mole?: object, lighthouse?: object}} art
  */
 export function installM07Art(world, art) {
   if (!world?.scene || !art || world._m07Art) return null;
@@ -146,8 +148,13 @@ export function installM07Art(world, art) {
     const isLand = (x, z) => { if (!G) return true; const c = G.worldToCell(x, z); return G.inBounds(c.i, c.j) && !wet.has(G.terrain[G.idx(c.i, c.j)]); };
     root.add(moleCoping(art.mole.edge, { isLand, avoid: art.mole.avoid, groundY: gy }));
   }
+  // art pass 3: the light's mole dressing (trodden path, signal mast and storm cone, fog bell, SPERRGEBIET board;
+  // art/lighthouse.js) in the pass's own finishes, so it merges into the coping's draws and takes the same snow
+  if (art.lighthouse) root.add(buildLighthouseMole(art.lighthouse, { groundY: gy, mats: { stone: artMaterial('ashlar'), iron: artMaterial('iron'), timber: artMaterial('creosote') } }));
   consolidate(root); // one mesh per finish for the whole pass (gantry, pier deck, coping): a handful of draws
+  markOverlays(root); // the light's trodden-path decal: out of the AO prepass, drawn before the other transparents
   coverPropsWithSnow(root, propSnowAmount().value || 1); // built after the scene's prop snow pass: the same snow
+  addDepthMerge(root); // the pass's casters draw as ONE mesh in the sun's shadow map and the AO prepass (engine/depth-merge.js)
   world.scene.add(root);
   if (art.sink?.length && typeof world.onBelTick === 'function') world.onBelTick((dt) => sinkTick(world, art.sink, dt));
   const parts = placeParts(world, art.parts || {}, gy);

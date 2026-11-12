@@ -21,7 +21,8 @@ import { PROP_TYPES, PROP_DEFAULTS, LINEAR_PROPS } from './props.js';
 import { buildAccessPlatform, accessPlatformFootprints } from './access-platform.js';
 import { makeFlag } from './flags.js';
 import { libraryVisual, libraryHinted } from './building-props.js';
-import { buildKitHouse, buildKitTower, buildKitShed, buildLighthouseTower, buildV2Rocket, buildFiringTable, buildMineHeadframe, buildConveyor } from './kit-buildings.js';
+import { buildKitHouse, buildKitTower, buildKitShed, buildV2Rocket, buildFiringTable, buildMineHeadframe, buildConveyor } from './kit-buildings.js';
+import { buildLighthouse } from './lighthouse.js';
 import { dressingMaterial } from './dressing.js';
 import { buildGorge, buildRailBridge } from './kit-terrain.js';
 import { kitify } from './kit-materials.js';
@@ -43,7 +44,7 @@ function kitExtraMesh(type, p, ctx) {
     case 'cable_car_station': case 'control_shack': case 'watermill':
       return buildKitHouse({ ...p, roofWalk: p.roofWalk ?? false }, th);
     case 'minaret': return buildKitTower(p, th);
-    case 'lighthouse': return buildLighthouseTower(p);
+    case 'lighthouse': return buildLighthouse(p);           // art/lighthouse.js (M7 art pass 3): body measured, deco clip: false
     case 'v2_rocket': return /lying|meiller/.test(String(p.variant || '')) ? null : buildV2Rocket(p);
     case 'launch_pad': return /table|firing/.test(String(p.variant || '')) ? buildFiringTable(p) : null;
     case 'conveyor': return buildConveyor(p);

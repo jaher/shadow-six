@@ -310,6 +310,12 @@ export const ART = {
   // the lighthouse mole's granite coping along its water edge (land on the left going round from the W root)
   mole: { edge: [[49.5, 146.7], [57, 148], [60, 160], [64, 176], [70, 184.5], [78, 185.5], [84, 180], [84, 160], [82, 150], [89.4, 135.2]],
     avoid: [[49.5, 146.5, 2.6], ...[[59, 150], [62, 162], [66, 176], [72, 182.5], [79.5, 181.5], [83, 168], [83, 155]].map(([x, z]) => [x, z, 1.7])] },
+  // art pass 3 (visual only, art/lighthouse.js): the light's mole dressing: the trodden path from p12's S stop round the
+  // tower's S side (the camera's: the N side hides behind the tower) past the drums to the stair foot, the signal mast
+  // with its storm cone, the fog bell, the SPERRGEBIET board at the stair foot facing SW (the patrol's side and the
+  // camera's); all clear of the rim rocks, the coping, p12's route, faering_ml and gear_ml
+  lighthouse: { mast: [73.4, 177.6], bell: [76.0, 179.5], sign: [80.9, 168.4], signFaces: [76, 173.3],
+    path: [[72.0, 166.4], [72.3, 169.3], [72.4, 171.6], [73.3, 173.9], [75.1, 175.2], [77.4, 175.3], [79.3, 174.2], [80.5, 172.6], [80.45, 171.0]] },
   parts: {
     h_big: [
       { asset: 'house_timber_c_snow', x: 107, z: 56, w: 13, d: 9, rot: 0 },
