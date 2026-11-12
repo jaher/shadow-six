@@ -270,6 +270,17 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
   - canopy multiple scattering (ambient ×1.3).
 
   Cards stay green on the shadow side instead of going black.
+  - The sun (2026-11-11, vegetation.js `vegetationSunSync`): every tree material (unique and instanced: leaf
+    cards, needles, bark) reads the shared `uSunV` (unit vector towards the sun, view space) and `uSunI`, written
+    each frame from the renderer's sun. Until then the lookup searched only the vegetation's parent group, never
+    found the sun, and left `uSunV` at (0, 0, 0): the transmission's sun terms were dead and the needles' 12 cm
+    sun-ward shadow lookup took normalize(0), so needles received no shadows at all.
+  - The transmitted light is the sun as it reaches the card (three's `directLight` after the light loop: the sun's
+    colour × its shadow map), seen only from the side away from the sun: a crown's own shade and other trees'
+    shadows do not glow, and a front-lit crown keeps its look. Leaves `0.06·I + sun·(0.3·back + 0.7·lobe)` with the
+    lobe `(0.6·cos θ + 0.4)⁴` round the sun's direction; needles `0.02·I + sun·(0.14·back + 0.45·lobe)`, lobe
+    `((cos θ + 1)/2)²`. Snow on the needles gets +50 % sky (it lies on the upper faces), so in the crown's shade it
+    stays blue-grey snow.
 - **Snow.** Conifers carry a snow load (B's `snowCoverage`). Broadleaves in the snow theatre are leafless.
 
 ### 2.10 Forests: the unique budget, the instanced 3D forest and workers (must-fix 11)

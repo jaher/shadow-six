@@ -266,6 +266,51 @@ const AUTUMN = { oak: [-0.3, 1.2, 1.05], beech: [-0.28, 1.7, 1.35], birch: [-0.7
 export function autumnTints() {
   return Array.from({ length: 24 }, (_, i) => new THREE.Vector3(...(AUTUMN[LEAF_LAYERS[i]] || [0, 1, 1])));
 }
+
+/**
+ * The sun the trees are lit by: the renderer's DirectionalLight, else the first directional light (a shadow caster
+ * first) anywhere in the scene graph `o` hangs in. The vegetation hangs under a group (the terrain's ground, the
+ * apron's): a search of that group alone never found the scene's sun, and every tree's uSunV stayed (0, 0, 0) — the
+ * leaf / needle translucency and the needles' sun-ward shadow lookup took normalize(0). @returns {THREE.DirectionalLight|null}
+ */
+export function vegetationSun(o, renderer = null) {
+  if (renderer?.sun?.isDirectionalLight) return renderer.sun;
+  let root = o;
+  while (root?.parent) root = root.parent;
+  let sun = null, any = null;
+  root?.traverse((x) => { if (x.isDirectionalLight) { any ||= x; if (!sun && x.castShadow) sun = x; } });
+  return sun || any;
+}
+
+const _sunW = new THREE.Vector3();
+/**
+ * The sun into the shared vegetation uniforms: uSunV the unit vector towards it in `camera`'s view space (the
+ * leaf / needle translucency, the needles' shadow-lookup offset), uSunI its intensity. `dir`: the world direction
+ * towards the sun when known (the renderer's sunDir), else the light's position − its target's. A missing sun or a
+ * degenerate direction leaves the uniforms as they were (never a zero vector). @returns {boolean} written
+ */
+export function setVegetationSun(U, sun, camera, dir = null) {
+  if (!sun) return false;
+  if (dir) _sunW.copy(dir); else _sunW.copy(sun.position).sub(sun.target.position);
+  if (!(_sunW.lengthSq() > 1e-12)) return false;
+  U.uSunV.value.copy(_sunW.normalize());
+  if (camera) U.uSunV.value.transformDirection(camera.matrixWorldInverse);
+  U.uSunI.value = sun.intensity;
+  return true;
+}
+
+/**
+ * The per-frame sun sync of a vegetation set (its update()): the sun found once (vegetationSun from `o`, the set's
+ * group) and looked for again every 120 calls while there is none or it left the scene; written with
+ * setVegetationSun — the renderer's sunDir when it is the renderer's sun. @returns {(camera) => boolean}
+ */
+export function vegetationSunSync(o, U, renderer = null) {
+  let sun = null, scan = 0;
+  return (camera) => {
+    if (!sun?.parent && scan++ % 120 === 0) sun = vegetationSun(o, renderer);
+    return setVegetationSun(U, sun, camera, sun && sun === renderer?.sun ? renderer.sunDir : null);
+  };
+}
 const LEAF_MAP_FRAG = /* glsl */ `
   vec4 tN = texture(tArrN, vVUv);
   float lMass = clamp(textureLod(tArrN, vVUv, 2.0).b * 1.6, 0.0, 1.0);   // local leaf density (spray core vs blade)
@@ -362,14 +407,25 @@ function makeMaterials(tex, U, kind, lod = null) {
       f = f.replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0; vec3 normal = normalize(vNormal); vec3 nonPerturbedNormal = normal;')
         .replace('#include <normal_fragment_maps>', LEAF_NORMAL_FRAG)
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-          // must-fix 6/7: translucent, back-lit cards. Light transmitted through the thin leaf blades (not the dense
-          // spray cores, not twigs) facing away from the sun, forward-scatter lobe, and canopy multiple scattering on
-          // the ambient (shade stays green, the crown core darker by the crown AO).
+          // must-fix 6/7: translucent, back-lit cards. Sunlight transmitted through the thin leaf blades (not the dense
+          // spray cores, not twigs): diffuse through the faces turned from the sun plus a forward-scatter lobe round
+          // the sun's direction, seen only from the side away from the sun (a front-lit crown keeps its look) and only
+          // where the sun reaches the leaf — directLight after the light loop is the scene's one directional light
+          // times its shadow here, so a crown's own shade and other trees' shadows do not glow. Canopy multiple
+          // scattering on the ambient (shade stays green, the crown core darker by the crown AO), with a faint
+          // unshadowed share here. (Tuned per theatre at the game camera: art pass of the uSunV fix.)
           vec3 Ls = normalize(uSunV);
-          float trl = pow(max(dot(-Ls, normalize(vViewPosition)), 0.0), 3.0);
-          float back = max(-dot(normal, Ls), 0.0);
+          vec3 Vd = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(vViewPosition);
+          float nl = dot(normal, Ls), nv = dot(normal, Vd);
+          float trl = pow(clamp(dot(-Ls, Vd) * 0.6 + 0.4, 0.0, 1.0), 4.0) * smoothstep(-0.3, 0.3, 0.15 - nl * sign(nv + 1e-4));
+          float back = max(-nl, 0.0) * smoothstep(-0.2, 0.5, nv);
           float thin = 0.25 + 0.75 * (1.0 - lMass);
-          vec3 trans = diffuseColor.rgb * vec3(1.0, 1.1, 0.55) * uSunI * (0.06 + 0.2 * back + 0.4 * trl) * thin * (1.0 - scCov);
+          #if NUM_DIR_LIGHTS > 0
+          vec3 sunL = directLight.color;
+          #else
+          vec3 sunL = vec3(uSunI);
+          #endif
+          vec3 trans = diffuseColor.rgb * vec3(1.0, 1.1, 0.55) * (0.06 * uSunI + sunL * (0.3 * back + 0.7 * trl)) * thin * (1.0 - scCov);
           reflectedLight.directDiffuse += trans * mix(0.6, 1.0, vExt.x);
           reflectedLight.indirectDiffuse *= 1.45 * mix(1.0, vExt.x, 0.5);`);
     } else {
@@ -506,20 +562,30 @@ function makeNeedleMaterials(tex, U, lod = null) {
           normal = normalize(abs(fDet) * normal - sG);
         }`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-        // back-lit needles: light through the thin needle edges (not the dense twig cores). The forward-scatter lobe
-        // is wide: from the fixed 40° orthographic view a sun behind the trees is only ~70° off the view axis, where
-        // a tight pow() lobe gave nothing (critic: invisible translucency, black shade-side crowns)
+        // back-lit needles: light through the thin needle edges (not the dense twig cores), seen from the side away
+        // from the sun, where the sun reaches them (directLight: the sun × its shadow, as the leaf cards). The
+        // forward-scatter lobe is wide: from the fixed 40° orthographic view a sun behind the trees is only ~70° off
+        // the view axis, where a tight pow() lobe gave nothing (critic: invisible translucency, black shade-side crowns)
         vec3 Ls = normalize(uSunV);
         vec3 Vd = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(vViewPosition);
+        float nl = dot(normal, Ls), nv = dot(normal, Vd);
         float fs = clamp(dot(-Ls, Vd) * 0.5 + 0.5, 0.0, 1.0);
-        float trl = fs * fs;
-        float back = max(-dot(normal, Ls), 0.0);
+        float trl = fs * fs * smoothstep(-0.3, 0.3, 0.15 - nl * sign(nv + 1e-4));
+        float back = max(-nl, 0.0) * smoothstep(-0.2, 0.5, nv);
         float thin = 0.2 + 0.8 * (1.0 - mass);
         vec3 nCol = diffuseColor.rgb * vec3(0.95, 1.1, 0.6);   // light through needles picks up their green twice
-        reflectedLight.directDiffuse += nCol * uSunI * (0.02 + 0.1 * back + 0.32 * trl * (0.1 + 0.9 * thin)) * (1.0 - scCov);
-        // snow bounce + canopy multiple scattering: shaded skirts over bright snow stay dark GREEN, not black/blue
+        #if NUM_DIR_LIGHTS > 0
+        vec3 sunL = directLight.color;
+        #else
+        vec3 sunL = vec3(uSunI);
+        #endif
+        reflectedLight.directDiffuse += nCol * (0.02 * uSunI + sunL * (0.14 * back + 0.45 * trl * (0.1 + 0.9 * thin))) * (1.0 - scCov);
+        // snow bounce + canopy multiple scattering: shaded skirts over bright snow stay dark GREEN, not black/blue.
+        // The snow load lies on the sprays' upper faces and sees the open sky, not the crown-side half of it the card
+        // normal gives: +50 % sky on it, so in the crowns' own shade (the needles receive the sun's shadow) it still
+        // reads as snow, blue-grey, not as grey dirt
         float gB = uSnowAmt > 0.001 ? 1.0 : 0.4;
-        reflectedLight.indirectDiffuse = reflectedLight.indirectDiffuse * 1.45 * mix(1.0, ao, 0.4)
+        reflectedLight.indirectDiffuse = reflectedLight.indirectDiffuse * 1.45 * mix(1.0, ao, 0.4) * (1.0 + 0.5 * scCov)
           + nCol * uSunI * 0.05 * gB * ao * (1.0 - scCov);`);
     sh.fragmentShader = 'uniform vec3 uSunV;\nuniform float uSunI;\nvarying vec3 vTint;\nvarying vec2 vExt;\nvarying float vFlex;\n' + NEEDLE_FRAG_PARS + SNOW_COVER_GLSL + f;
   };
@@ -850,7 +916,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
   await building;
 
   let time = 0;
-  const sunDir = new THREE.Vector3();
+  const syncSun = vegetationSunSync(group, U, opts.renderer);
   // brushing (shader uAgit): low vegetation (bushes, hedges, small trees) in an 8 m hash, rebuilt with the tree set
   const agit = new Map();
   let lowHash = null, hashFor = null;
@@ -881,10 +947,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     update(dt, camera) {
       time += dt;
       U.uTime.value = time;
-      const sun = scene.getObjectByProperty('isDirectionalLight', true);
-      if (sun) { sunDir.copy(sun.position).sub(sun.target.position).normalize(); U.uSunI.value = sun.intensity; }
-      U.uSunV.value.copy(sunDir);
-      if (camera) U.uSunV.value.transformDirection(camera.matrixWorldInverse);
+      syncSun(camera);
     },
     setQuality(q2) { if (TREE_QUALITY[q2] && q2 !== quality) { quality = q2; building = build(); } return building; },
     /**
