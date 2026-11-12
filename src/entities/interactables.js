@@ -289,7 +289,7 @@ export class Interactable extends Entity {
     if (!this.object3d || this.wreckLook() !== 'char') return (this._charRuin = null);
     const S = this.params?.structure || {}, x = S.x ?? this.x, z = S.z ?? this.z;
     const r = (S.r ?? this.radius ?? 1) * 2;
-    this._charRuin = prepareCharRuin(this.object3d, { id: String(S.id ?? this.tag ?? this.id), x, z, w: S.w ?? r, d: S.d ?? r, rot: S.rot ?? 0, gy: this._groundAt(x, z), type: S.type }) || null;
+    this._charRuin = prepareCharRuin(this.object3d, { id: String(S.id ?? this.tag ?? this.id), x, z, w: S.w ?? r, d: S.d ?? r, rot: S.rot ?? 0, gy: this._groundAt(x, z), type: S.type, theater: this.world?.mission?.theater }) || null;
     const subs = this.world?._subs, ruin = this._charRuin;
     if (ruin && Array.isArray(subs)) subs.push(() => ruin.dispose());
     return ruin;

@@ -21,6 +21,7 @@ import { fuelTankAsset, isFuelStructure, FUEL_VARIANTS } from './fuel-tanks.js';
 import { pipeRunPairs, buildPipeRun } from './fuel-pipes.js';
 import { attachFuelHooks, tickFuelHooks, resetFuelHooks } from './fuel-hooks.js';
 import { setLibPreset } from './lib-tiers.js';
+import { ruinRecipe, dressRuin } from './ruin-dress.js';
 
 /** Catalogue type → library type (same name unless listed). `null` = no library visual (placeholder). */
 export const LIB_TYPE = { generator: null, telegraph_pole: null, radio_mast: null, sign: null, searchlight: null, lamp_post: null };
@@ -397,6 +398,16 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   if (p.artMirror === 'x') fit.scale.x = -sx; else if (p.artMirror === 'z') fit.scale.z = -sz;
   b.object3d.position.set(-ext.cx, 0, -ext.cz);
   outer.add(fit); fit.add(turnG); turnG.add(b.object3d);
+  // a ruined model (art/ruin-dress.js): the ruin kit's visual-only dressing in the model's frame — broken heads,
+  // rubble, charred timbers, soot (userData.clip = false: never measured); on the first LOD to arrive if none is in yet
+  if (ctx.dressing !== false && ruinRecipe(b.asset)) {
+    const dressNow = () => { const d = dressRuin(b, { id: p.id ?? `${type}@${p.x ?? 0},${p.z ?? 0}`, theater }); if (d) b.object3d.add(d); return !!d; };
+    if (!dressNow()) {
+      const prev = b.object3d.userData.onLodAttached;
+      let done = false;
+      b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); if (!done) done = dressNow(); };
+    }
+  }
   if (w && d && (rawX < 0.8 || rawX > 1.25 || rawZ < 0.8 || rawZ > 1.25)) {
     S.log.push(`fit ${p.id ?? type}: ${b.asset} ${ew.toFixed(1)}×${ed.toFixed(1)} m → ${w}×${d} m (scale ${rawX.toFixed(2)}×${rawZ.toFixed(2)}${rawX !== sx || rawZ !== sz ? ', clamped' : ''})`);
   }

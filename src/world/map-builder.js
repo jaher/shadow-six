@@ -1562,6 +1562,13 @@ export function batchLibraryRepeats(libBuilt, parent, log = []) {
   for (const [asset, list] of groups) {
     if (list.length < INSTANCE_MIN) continue;
     const placements = list.map((b) => ({ matrix: b.library.matrix }));
+    // (a ruined model's dressing — art/ruin-dress.js, visual only — is the copy's own: it stays, moved under `parent`
+    // where it stood)
+    for (const b of list) {
+      const keep = [];
+      b.library.object3d.traverse((o) => { if (o.userData?.ruinDress) keep.push(o); });
+      for (const o of keep) parent.attach(o);
+    }
     for (const b of list) { b.library.dispose(); b.batched = true; } // the batch draws them (their nav stamps stay)
     out.push(createBuildingBatch(asset, placements).then((h) => { parent.add(h.object3d); return h; }).catch((e) => { console.warn('[map-builder] batch', asset, e); return null; }));
     log.push(`instanced ${asset} ×${list.length}`);

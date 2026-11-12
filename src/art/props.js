@@ -168,7 +168,7 @@ function buildLinear(type, p, def, ctx = {}) {
     // `visual: false`: gameplay only — a deck wall drawn by its building's own build (M6's W ruin parapets)
     : p.visual === false ? new THREE.Group()
     : dressed && type === 'wall' && /clothesline/.test(String(p.variant ?? '')) ? clotheslineRun(points)
-      : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways, flushAt: p.flushAt, gatePiers: p.gatePiers }) : new THREE.Group();
+      : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways, flushAt: p.flushAt, gatePiers: p.gatePiers, theater: ctx.theater }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
   const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
   let dressedFence = false;
@@ -232,7 +232,7 @@ const BUILDERS = {
     if (p.variant === 'tower_ruin') return buildRuinTower(p); // M3's start: a ruined fieldstone watchtower (art/ruin-tower.js)
     if (p.variant === 'wall_dry_ruin') return buildRuinWall(p); // …and the broken dry-stone wall running from it
     if (p.variant === 'brick_heap') return buildBrickHeap(p); // M15 art pass 2: a heap of bomb-broken brickwork (art/brick-rubble.js)
-    return buildRuins(p);
+    return buildRuins({ ...p, theater: ctx.theater });
   },
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   crates: (p, def, ctx) => (!dressingOn(ctx) ? box(p.w, p.h ?? 1, p.d, def.mat) : p.variant === 'fuel_drums' ? buildFuelDrumStack(p)

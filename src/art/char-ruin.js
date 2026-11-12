@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { tessellate } from './bunker-ruin.js';
 import { charMaterial } from './wreck-char.js';
+import { charRubble } from './ruin-walls.js';
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 function hash01(str) {
@@ -275,6 +276,12 @@ export function prepareCharRuin(root, o) {
     sk.renderOrder = 2; sk.castShadow = sk.receiveShadow = false;
     sk.userData.noChar = true; // (a multiply decal: never charred)
     extras.add(sk);
+  }
+  // a building's rubble heaped round its foot, charred timbers on it (art/ruin-walls.js charRubble; visual only)
+  if (!tall) {
+    const rub = charRubble({ x: cx, z: cz, w, d, rot, gy, id: o.id, theater: o.theater });
+    rub.traverse((n) => { if (n.geometry) owned.push(n.geometry); n.userData.noChar = true; });
+    extras.add(rub);
   }
   const wires = [];
   root.traverse((n) => { if ((n.isLine || n.isLineSegments) && n.visible) wires.push(n); });

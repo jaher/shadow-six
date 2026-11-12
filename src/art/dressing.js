@@ -26,10 +26,13 @@ import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { registerHdTexture } from '../engine/hd-textures.js';
 import { addCableNode } from './cable-attach.js';
 import { brokenGardenWall } from './brick-rubble.js';
+import { ruinLook, mudRuin, stoneRuin, burntHouse } from './ruin-walls.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
 const TEX = new Map(), MATS = new Map();
+/** A shared library texture (textures/lib/<tier>/<file>), mission-scoped: the dressing sets' maps, the ruin kit's decal atlas. */
+export function libTexture(file, srgb) { return tex(file, srgb); }
 function tex(file, srgb) {
   const { url, hd } = libTextureURL(file); // (hd: the full copy, after the loading screen — engine/hd-textures.js)
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
@@ -190,7 +193,9 @@ const WIND_ATTRS = { aFlap: 1, aSway: 1, aFlapDir: 3, aFlapP: 4, aFlapG: 3 };
 export function consolidate(g) {
   g.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), groups = new Map(), drop = [];
-  g.traverse((o) => {
+  // (a visual-only subtree — the ruin kit's group, art/ruin-kit.js — keeps its own meshes and their colour layer)
+  const walk = (o, f) => { if (o !== g && o.userData?.clip === false) return; f(o); for (const c of o.children) walk(c, f); };
+  walk(g, (o) => {
     if (!o.isMesh || o.isInstancedMesh || o === g) return;
     const k = `${o.material.uuid}|${o.castShadow}`;
     if (!groups.has(k)) groups.set(k, { mat: o.material, cast: o.castShadow, geos: [] });
@@ -562,21 +567,21 @@ export function buildWall(points, o) {
   if (/^masonry_railing$/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'plaster');
   if (/^timber_fence$/.test(String(o.variant))) return boardFence(points, { ...o, h, width }, R);
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
-  if (/^ruin_burnt_walls$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
+  if (/^ruin_burnt_walls$/.test(String(o.variant))) return ruinLook(buildBurntWall(points, o, h, width, R), burntHouse(points, { h, width, id: o.id, theater: o.theater }));
   // M15 art pass 2: the S street's shattered brick garden wall (art/brick-rubble.js), not a burned room's party wall
   if (/^ruin_wall_stub$/.test(String(o.variant))) return brokenGardenWall(points, o, h, width, R);
-  if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
+  if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinLook(ruinedMudWall(points, { ...o, h, width }, R), mudRuin(points, { h, width, id: o.id, theater: o.theater }));
   // M19 art pass (art/mine-walls.js): the field ruins' broken stone walls and the base's whitewashed concrete block
-  if (o.variant === 'ruin_wall') return ruinedStoneWall(points, { ...o, h, width }, R);
+  if (o.variant === 'ruin_wall') return ruinLook(ruinedStoneWall(points, { ...o, h, width }, R), stoneRuin(points, { h, width, id: o.id, theater: o.theater, kind: 'stone', min: 0.74, capTop: h * 1.08 }));
   if (o.variant === 'whitewashed_concrete') return whitewashedBlock(points, { ...o, h, width }, R);
   // M1 art pass (art/norway-walls.js): the south bank's dry-stone wall under its plank lean-to roof
   if (o.variant === 'stone_plank_roof') return drystonePlankWall(points, { ...o, h, width }, R);
   // M0 art pass (art/depot-walls.js): the sandbox depot's Flemish brick yard wall (pilasters, tarred plinth, blue-stone coping)
   if (/^brick_depot(_wire)?$/.test(String(o.variant))) return brickDepotWall(points, { ...o, h, width }, R);
-  if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
+  if (/^mudbrick_broken$/.test(String(o.variant))) return ruinLook(ruinedMudWall(points, { ...o, h, width }, R), mudRuin(points, { h, width, id: o.id, theater: o.theater, capTop: h + 0.35 })); // M9 art pass: the broken stub
   // M9 art pass: the octagon; M10 art pass: the El Agheila compound walls (`wall_mudbrick`, `wall_mudbrick_wire`)
   if (/^(wall_)?mudbrick(_wire)?$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);
-  if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
+  if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinLook(ruinedFieldWall(points, { ...o, h, width }, R), stoneRuin(points, { h, width, id: o.id, theater: o.theater, kind: 'stoneGrey', min: 0.8, base: 0.98, capTop: h * 1.3 }));
   if (kind === 'stone' && /stone_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R);
   if (kind === 'brick' && /brick_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'brick');
   const mat = dressingMaterial(kind);
@@ -604,6 +609,12 @@ export function buildWall(points, o) {
       cap.position.set(seg.position.x, h + 0.05, seg.position.z); cap.rotation.y = seg.rotation.y;
       root.add(cap);
     }
+  }
+  // M11's ruined stone walls (`wall_ruined_stone`): the plain boxes stay the stamping source, drawn as broken masonry
+  if (/ruined_stone/.test(String(o.variant)) && kind === 'stone') {
+    // (broken down to ~2 m in places — still over a man's eyes: the gameplay wall hides what it hides — big fallen blocks)
+    return ruinLook(consolidate(root), stoneRuin(points, { h, width, id: o.id, theater: o.theater, kind: o.theater === 'desert' ? 'limestone' : 'stone', min: Math.min(0.7, 2.0 / h),
+      skin: o.theater === 'desert' ? 0.25 : 0, soot: 0.2, biteEvery: 2.8, unitScale: 1.45, tall: true, streaks: 0.45 }));
   }
   return consolidate(root);
 }
@@ -1027,9 +1038,10 @@ export function buildRuins(p) {
   const w = p.w ?? 4, d = p.d ?? 3, h = p.h ?? 1.2, R = rng(seedOf(p.id ?? `${p.x},${p.z}`));
   const g = new THREE.Group(); g.name = 'dressing:ruins';
   if (/ruins_mudbrick/.test(String(p.variant ?? ''))) { // M8 art pass: a low ruined mud-brick stub along local X
-    const r = ruinedMudWall([[-w / 2 + Math.min(d, 0.8) / 2, 0], [w / 2 - Math.min(d, 0.8) / 2, 0]], { h, width: Math.min(d, 0.8) }, R);
+    const pts = [[-w / 2 + Math.min(d, 0.8) / 2, 0], [w / 2 - Math.min(d, 0.8) / 2, 0]];
+    const r = ruinedMudWall(pts, { h, width: Math.min(d, 0.8) }, R);
     g.add(r);
-    return consolidate(g);
+    return ruinLook(consolidate(g), mudRuin(pts, { h, width: Math.min(d, 0.8), id: p.id ?? `${p.x},${p.z}`, theater: p.theater }));
   }
   if (/wall/.test(String(p.variant ?? ''))) {
     const segs = Math.max(4, Math.round(w / 0.7));

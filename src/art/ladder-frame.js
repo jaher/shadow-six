@@ -68,10 +68,13 @@ function collectParts(scene, box, skipRoots) {
     if (skipRoots.has(o) || SKIP.test(o.name || '')) return;
     if (/^lod[12]$/.test(o.name)) return; // (the finest level of detail only, whichever the camera shows now)
     if (o.visible === false && o.name !== 'lod0') return;
+    // (a ruin's look drawn by the ruin kit — art/ruin-kit.js — is decoration: the fits stand on the structure's own
+    // shape, its nav proxy, as they did before the kit drew it)
+    if (o.userData?.ruinKit || o.userData?.ruinDress) return;
     // (never drawn: off the camera's layer — the wire belts' standing guard, layer 30 — or writing no colour)
     if ((o.isMesh || o.isInstancedMesh) && !o.isSkinnedMesh && !o.isBatchedMesh && o.geometry?.attributes?.position && (o.layers.mask & 1)) {
       const mats = [].concat(o.material || []);
-      if (mats.some((x) => x && x.visible !== false && x.colorWrite !== false && !(x.transparent && x.opacity < 0.2))) {
+      if (mats.some((x) => x && (x.visible !== false || x.userData?.navProxy) && x.colorWrite !== false && !(x.transparent && x.opacity < 0.2))) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         if (o.isInstancedMesh) for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m); take(o, M.multiplyMatrices(o.matrixWorld, m)); }
         else take(o, o.matrixWorld);

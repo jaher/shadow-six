@@ -12,6 +12,7 @@
  * @module art/kit-buildings
  */
 import * as THREE from 'three';
+import { ruinLook, ruinedHouse } from './ruin-walls.js';
 import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } from './dressing.js';
 import { paintedMaterial } from './kit-props.js';
 import { MEDINA_RX, glazedTile, medinaDoor, medinaWindow, medinaFacade, medinaAwning, medinaShop, palaceFront } from './medina-kit.js';
@@ -189,7 +190,8 @@ export function buildKitHouse(p, theater = 'temperate') {
       const b = mesh(boulderGeometry(s, s * 0.5, s * 0.8, Math.floor(R() * 1e9), 2), dressingMaterial(R() < 0.5 ? 'rubble' : S.wall));
       b.position.set((R() - 0.5) * (w + 1.5), R() < 0.5 ? top - 0.05 : 0, (R() - 0.5) * (d + 1.5)); b.rotation.y = R() * 6.3; g.add(b);
     }
-    return consolidate(g);
+    // the ruin kit draws it (art/ruin-walls.js ruinedHouse); this shell stays the gameplay stamping source
+    return ruinLook(consolidate(g), ruinedHouse({ ...p, w, d, h }, theater));
   }
   // body, plinth, cornice
   g.add(tbox(w, h, d, wallMat, 0, h / 2, 0, 2.2));

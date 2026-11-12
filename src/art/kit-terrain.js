@@ -11,6 +11,7 @@
  * @module art/kit-terrain
  */
 import * as THREE from 'three';
+import { trenchRuin } from './ruin-walls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } from './dressing.js';
 import { paintedMaterial, iceFloe, snowCrustMaterial } from './kit-props.js';
@@ -134,6 +135,8 @@ export function buildTrench(points, { width = 1.6, theater = 'temperate', id = '
     inst.castShadow = inst.receiveShadow = true; inst.computeBoundingSphere();
     g.add(inst);
   }
+  // a trench dug through ruins: the broken footings in its spoil banks (art/ruin-walls.js, visual only)
+  if (ruined) g.add(trenchRuin(pts, { width, id, theater }));
   return g;
 }
 
