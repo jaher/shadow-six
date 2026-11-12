@@ -57,6 +57,19 @@ export const ANIMAL_GAITS = {
 /** Quad margin round an animal print (its berm), × the print size. */
 const PAW_PAD = 1.5;
 const MAX_BATCH = 4096;
+/** 0 → 1 smoothstep of a clamped ramp (pre-trampled lines fading in / out over their ends). */
+const smoothRamp = (t) => { const u = t <= 0 ? 0 : t >= 1 ? 1 : t; return u * u * (3 - 2 * u); };
+/** Mulberry32 (pre-trampled walkers: the same prints every load, and after a lost context). */
+function seededRandom(seed) {
+  let a = (Math.floor(seed) >>> 0) || 1;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+/**
+ * Visual life multiplier per splat layer for the fade pass: layer 5 is every palette's road (the snow palette's
+ * compacted road slush): wheel ruts there last 4× longer than in the open (a road keeps its ruts; the pre-trampled lanes
+ * stay readable through the mission). The gameplay records keep the material's own life (materialAt).
+ */
+const ROAD_KEEP = [1, 1, 1, 1, 1, 4, 1, 1];
 /** Vehicle layouts: track (m, wheel centre to centre), wheelbase, tyre width, rear dual tyres, tracked rear. */
 export const VEHICLE_TYPES = {
   car: { track: 1.45, wb: 2.6, tire: 0.2, load: 0.7 },
@@ -99,7 +112,7 @@ export class TrailSystem {
     this.aPos = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BATCH * 4), 4).setUsage(THREE.DynamicDrawUsage);
     this.aSize = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BATCH * 4), 4).setUsage(THREE.DynamicDrawUsage);
     this.aParam = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BATCH * 4), 4).setUsage(THREE.DynamicDrawUsage);
-    this.aExtra = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BATCH * 2), 2).setUsage(THREE.DynamicDrawUsage);
+    this.aExtra = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BATCH * 3), 3).setUsage(THREE.DynamicDrawUsage);
     g.setAttribute('iPosDir', this.aPos); g.setAttribute('iSize', this.aSize); g.setAttribute('iParam', this.aParam); g.setAttribute('iExtra', this.aExtra);
     g.instanceCount = 0;
     this.stampMat = new THREE.ShaderMaterial({
@@ -117,7 +130,7 @@ export class TrailSystem {
     this.nBatch = 0;
 
     // fade pass: in-place multiply (dst *= src)
-    const tau = o.tau || new Array(8).fill(600);
+    const tau = (o.tau || new Array(8).fill(600)).map((t, k) => t * (o.keep?.[k] ?? ROAD_KEEP[k]));
     this.fadeMat = new THREE.ShaderMaterial({
       vertexShader: FADE_VERT, fragmentShader: FADE_FRAG, depthTest: false, depthWrite: false,
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor,
@@ -169,6 +182,7 @@ export class TrailSystem {
   _preTrample(pts, o) { runSync(this._preTrampleG(pts, o)); }
 
   *_preTrampleG(pts, o) {
+    if (o.lines || o.walkers?.length || o.flatten) { yield* this._preLinesG(o); return; }
     const passes = o.passes ?? 6, spread = o.spread ?? 0.7;
     let sd = o.seed ?? 1;
     const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
@@ -186,6 +200,62 @@ export class TrailSystem {
           else this.stamp('vehicle', x, z, h, { id, type, record: false, load: (o.load ?? 1.25) * (0.85 + 0.3 * rnd()) });
           if (due()) yield;
         }
+      }
+      this.endSource(id);
+    }
+    this.update(0);
+  }
+
+  /**
+   * The road model's pre-trample job (world/roads.js pretrampleRoads): explicit wheel lines (each a polyline stamped as
+   * one continuous 'tire' / 'track' / 'drag' strip whose depth ramps in and out over `fade` [start, end] m — the ruts
+   * stop short of open ends instead of ending in a cap), a packed centre ('flatten' quads), walkers along the verge
+   * (seeded prints: the same marks every load). No gameplay record is written.
+   */
+  *_preLinesG(o) {
+    const job = (this._lineJob = (this._lineJob || 0) + 1);
+    let n = 0;
+    for (const [li, ln] of (o.lines || []).entries()) {
+      const P = ln.pts;
+      if (!P || P.length < 2) continue;
+      const id = `pl${job}_${li}`, kind = ln.kind || 'tire', d = KIND_DEF[kind] || KIND_DEF.tire;
+      let L = 0;
+      const cum = [0];
+      for (let k = 1; k < P.length; k++) cum.push((L += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1])));
+      const f0 = Math.max(0.05, ln.fade?.[0] ?? 0.5), f1 = Math.max(0.05, ln.fade?.[1] ?? 0.5);
+      for (let k = 0; k < P.length; k++) {
+        const s = cum[k], ramp = smoothRamp(s / f0) * smoothRamp((L - s) / f1), lk = ln.loads?.[k] ?? 1;
+        // (a stretch with no load — the line runs over a hard surface — breaks the strip: no quad bridges the gap)
+        if (lk <= 0.002) { this.endSource(id); continue; }
+        const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)];
+        const h = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        // (`berm` scales the pushed-up lip: a packed road's ruts are troughs without ridges, a lone rut across grass or
+        //  sand keeps its berm; it fades with the load where a line runs out onto a hard surface)
+        this.stamp(kind, P[k][0], P[k][1], h, { id, record: false, width: ln.width ?? d.fw, load: (ln.load ?? 1) * lk * ramp, berm: d.berm * (ln.berm ?? 1) * Math.min(1, ramp * 1.2) * Math.min(1, lk), worn: ln.worn ?? 0 });
+        if ((++n & 31) === 0 && due()) yield;
+      }
+      this.endSource(id);
+    }
+    if (o.flatten?.pts?.length) {
+      const P = o.flatten.pts, wd = o.flatten.width ?? 1.2;
+      for (let k = 0; k < P.length; k++) {
+        const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)];
+        this.stamp('flatten', P[k][0], P[k][1], Math.atan2(b[1] - a[1], b[0] - a[0]), { record: false, width: wd, length: 1.6 });
+        if ((++n & 31) === 0 && due()) yield;
+      }
+    }
+    for (const [wi, wk] of (o.walkers || []).entries()) {
+      const P = wk.pts;
+      if (!P || P.length < 2) continue;
+      const id = `pw${job}_${wi}`, rnd = seededRandom(wk.seed ?? wi + 1), kind = wk.kind === 'drag' ? 'drag' : 'walker';
+      // each walker its own stride, depth and phase (a file of walkers started in step leaves its prints in ranks)
+      const stride = wk.stride ?? 0.72;
+      if (kind === 'walker') this.sources.set(id, { x: P[0][0], z: P[0][1], acc: (wk.phase ?? 1) * stride, side: rnd() < 0.5 ? 1 : -1 });
+      const prm = { id, record: false, rnd, stride, depth: wk.depth };
+      for (let k = 0; k < P.length; k++) {
+        const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)];
+        this.stamp(kind, P[k][0], P[k][1], Math.atan2(b[1] - a[1], b[0] - a[0]), prm);
+        if ((++n & 31) === 0 && due()) yield;
       }
       this.endSource(id);
     }
@@ -249,10 +319,10 @@ export class TrailSystem {
   /** Grass flatten texture (R). */
   get flatTexture() { return this.rtFlat.texture; }
 
-  _push(kind, x, z, cos, sin, len, qw, fw, odo, depth, berm, side, coh = 0.7, seed = 0) {
+  _push(kind, x, z, cos, sin, len, qw, fw, odo, depth, berm, side, coh = 0.7, seed = 0, worn = 0) {
     if (this.nBatch >= MAX_BATCH) return;
-    const e = this.nBatch * 2;
-    this.aExtra.array[e] = coh; this.aExtra.array[e + 1] = seed;
+    const e = this.nBatch * 3;
+    this.aExtra.array[e] = coh; this.aExtra.array[e + 1] = seed; this.aExtra.array[e + 2] = worn;
     const i = this.nBatch++ * 4;
     const P = this.aPos.array, S = this.aSize.array, Q = this.aParam.array;
     P[i] = x; P[i + 1] = z; P[i + 2] = cos; P[i + 3] = sin;
@@ -302,7 +372,7 @@ export class TrailSystem {
         const dx = x - src.x, dz = z - src.z, dist = Math.hypot(dx, dz);
         if (dist < 0.015) return mat;
         c = dx / dist; s = dz / dist;
-        this._push(k, (x + src.x) / 2, (z + src.z) / 2, c, s, dist + fw * 0.3, fw * d.qw, fw, src.odo + dist / 2, depth, berm, seed, coh, seed);
+        this._push(k, (x + src.x) / 2, (z + src.z) / 2, c, s, dist + fw * 0.3, fw * d.qw, fw, src.odo + dist / 2, depth, berm, seed, coh, seed, params.worn ?? 0);
         src.odo += dist; src.x = x; src.z = z;
         if (Math.hypot(x - src.rx, z - src.rz) >= d.rec) { src.rx = x; src.rz = z; this._record(params.recordKind || kind, x, z, Math.atan2(s, c), params.owner ?? params.id, mat); }
         this.stats.stamps++;
@@ -311,7 +381,7 @@ export class TrailSystem {
       this.sources.set(params.id, { x, z, odo: 0, rx: x, rz: z });
     }
     const len = params.length ?? d.len ?? fw;
-    this._push(k, x, z, c, s, len, fw * d.qw, fw, 0, depth, berm, params.side ?? 1, coh, seed);
+    this._push(k, x, z, c, s, len, fw * d.qw, fw, 0, depth, berm, params.side ?? 1, coh, seed, params.worn ?? 0);
     this._record(params.recordKind || kind, x, z, heading, params.owner ?? params.id ?? null, mat, params.side ? { side: params.side } : undefined);
     this.stats.stamps++;
     return mat;
@@ -344,7 +414,7 @@ export class TrailSystem {
   }
 
   _steps(kind, x, z, heading, params, mat) {
-    const id = params.id ?? 'anon';
+    const id = params.id ?? 'anon', rand = params.rnd || Math.random;
     const stride = params.stride ?? (kind === 'run' ? 1.05 : kind === 'crouch' ? 0.5 : 0.72);
     let src = this.sources.get(id);
     if (!src || Math.hypot(x - src.x, z - src.z) > 4) {
@@ -357,15 +427,15 @@ export class TrailSystem {
       src.acc = 0;
       src.side = -src.side;
       const c = Math.cos(heading), s = Math.sin(heading);
-      const j = Math.random();
+      const j = rand();
       const off = (0.1 + 0.02 * j) * src.side; // right vector = (-sin, cos)
       const px = x - s * off, pz = z + c * off;
-      const yaw = heading + src.side * (0.06 + 0.06 * j) + (Math.random() - 0.5) * 0.08; // toes out + gait noise
-      const depth = (params.depth ?? 0.75) * (kind === 'run' ? 1.1 : 1) * (0.9 + 0.2 * Math.random());
+      const yaw = heading + src.side * (0.06 + 0.06 * j) + (rand() - 0.5) * 0.08; // toes out + gait noise
+      const depth = (params.depth ?? 0.75) * (kind === 'run' ? 1.1 : 1) * (0.9 + 0.2 * rand());
       // art review: in deep soft snow a boot sinks and the walls collapse outward — the hole is ~1.5x the sole,
       // which also keeps prints resolvable on the ~20–30 texel/m trail RT (a 10 cm sole is 2–3 texels wide)
       const sc = 1 + 0.5 * Math.min(1, (mat.snow ?? 0) * Math.min(1, (mat.soft ?? 0) / 0.12));
-      this._push(2, px, pz, Math.cos(yaw), Math.sin(yaw), (params.length ?? 0.34) * sc, 0.2 * sc, 0.2 * sc, 0, depth, 0.5, src.side, mat.coh ?? 0.7, Math.random() * 97);
+      this._push(2, px, pz, Math.cos(yaw), Math.sin(yaw), (params.length ?? 0.34) * sc, 0.2 * sc, 0.2 * sc, 0, depth, 0.5, src.side, mat.coh ?? 0.7, rand() * 97);
       this._record('foot', px, pz, heading, id, mat, { side: src.side });
       this.stats.stamps++;
       this.onStep?.({ id, x: px, z: pz, yaw, side: src.side, length: (params.length ?? 0.34) * sc, width: 0.2 * sc, material: mat.name, snow: mat.snow ?? 0 });

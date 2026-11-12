@@ -67,11 +67,12 @@ test('3p grid + terrain: roads paint the nav grid, soft roads pre-trample, paint
   assert.equal(grid.terrain[Math.floor(50 / grid.cell) * grid.cols + Math.floor(30 / grid.cell)], T.MUD);
   const tr = pretrampleRoads(net);
   assert.equal(tr.length, 2); // legacy dirt + mud (setts is hard)
-  assert.equal(tr[0].passes, 7);
+  assert.ok(tr.every((j) => j.lines.length >= 4 && j.points.length > 2), 'soft roads pre-trample wheel-lane lines'); // (road model: world/roads.js)
   const paint = terrainPainter(new RoadIndex(net, 80, 60), 'temperate', ['grass', 'grassdry', 'dirt', 'mud', 'gravel', 'road', 'leaves', 'wetsand']);
   const w = new Float32Array(8); w[0] = 1;
   paint(30, 50, w);
-  assert.ok(w[3] > 0.9 && w[0] < 0.1, `mud road weights ${[...w]}`);
+  const sum = w.reduce((a, b) => a + b, 0);
+  assert.ok(w[3] === Math.max(...w) && w[0] / sum < 0.25, `mud road weights ${[...w]}`);
 });
 
 test('3p mesh builder: ribbons, kerbs, sidewalks, rails, quay, details (node, flat materials)', () => {

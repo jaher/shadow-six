@@ -11,9 +11,9 @@ export const STAMP_VERT = /* glsl */ `
 attribute vec4 iPosDir;   // x, z, cos h, sin h
 attribute vec4 iSize;     // length (along), quad width (across), feature width, odometer at centre
 attribute vec4 iParam;    // kind, depth, berm, side/seed
-attribute vec2 iExtra;    // cohesion 0..1, seed
+attribute vec3 iExtra;    // cohesion 0..1, seed, worn 0..1 (a road's rut worn into a rounded trough by traffic)
 uniform vec2 uMapSize;
-varying vec2 vExtra;
+varying vec3 vExtra;
 varying vec2 vLocal;      // metres: x = across (right +), y = along (forward +)
 varying vec4 vSize;
 varying vec4 vParam;
@@ -31,7 +31,7 @@ precision highp float;
 varying vec2 vLocal;
 varying vec4 vSize;
 varying vec4 vParam;
-varying vec2 vExtra;
+varying vec3 vExtra;
 uniform float uFlat;      // 1 = writing the flatten RT
 uniform float uTexelM;    // RT texel (m): animal prints only show their pads where a texel resolves them
 float h1(float n) { return fract(sin(n * 91.345) * 47453.5453); }
@@ -46,7 +46,7 @@ void main() {
   int kind = int(vParam.x + 0.5);
   float D = vParam.y, Bm = vParam.z, side = vParam.w;
   float u = vLocal.x, v = vLocal.y, L = vSize.x, fw = vSize.z;
-  float coh = vExtra.x, sd = vExtra.y;
+  float coh = vExtra.x, sd = vExtra.y, wn = vExtra.z;
   float odo = vSize.w + v;
   float ends = kind == 7 ? 1.0 : smoothstep(0.5 * L, 0.5 * L - 0.04, abs(v));
   float R = 0.0, G = 0.0, A = 0.0;
@@ -56,27 +56,40 @@ void main() {
   if (kind == 0 || kind == 1) {            // tire (0) / tank track (1)
     u += wob;
     fw *= 0.93 + 0.14 * n1(odo * 0.7 + sd * 5.0);
-    float a = abs(u) / (0.5 * fw) + (n2(vec2(u * 18.0, odo * 7.0) + sd) - 0.5) * 0.35 * (1.0 - coh); // crumbling rut wall
+    // crumbling rut wall: loose ground (low cohesion) slumps most, but every wall breaks a little (no ruled edge). A
+    // road's rut worn by traffic (wn -> 1) is a rounded trough instead: its walls slope across the whole tyre width (no
+    // sub-texel step for the low sun to catch as a bright ruled line), the tread smeared, the lip low and broad
+    float a = abs(u) / (0.5 * fw) + ((n2(vec2(u * 18.0, odo * 7.0) + sd) - 0.5) * (0.35 * (1.0 - coh) + 0.14)
+            + (n2(vec2(u * 41.0, odo * 15.0) + sd * 1.7) - 0.5) * 0.08) * (1.0 - 0.6 * wn);
     float odoJ = odo + 0.025 * (n1(odo * 2.2 + sd) - 0.5);   // tread spacing jitter (slip)
-    float core = smoothstep(1.0, 0.82, a);
+    float core = smoothstep(1.0 + 0.1 * wn, 0.8 - 0.72 * wn, a);
     float pattern;
     if (kind == 0) {                        // chevron tread + sipes
-      float ch = fract((odoJ + abs(u) * 0.55) / 0.12);
-      pattern = smoothstep(0.35, 0.45, ch) * smoothstep(0.85, 0.75, ch);
+      // the tread never tiles: every 6-8 m of travel the chevron angle, pitch and phase change (another tyre, another
+      // pass), cross-faded over half a metre; the print is shallow against the rut's own depth (reduced contrast)
+      float segL = 7.0 + 1.0 * (h1(sd * 3.7) - 0.5);
+      float sg = floor(odoJ / segL), sf = fract(odoJ / segL);
+      float ang0 = 0.42 + 0.3 * h1(sg + sd), ang1 = 0.42 + 0.3 * h1(sg + 1.0 + sd);
+      float pit0 = 0.11 + 0.035 * h1(sg * 1.7 + sd), pit1 = 0.11 + 0.035 * h1((sg + 1.0) * 1.7 + sd);
+      float ch0 = fract((odoJ + abs(u) * ang0) / pit0 + h1(sg * 3.1 + sd)), ch1 = fract((odoJ + abs(u) * ang1) / pit1 + h1((sg + 1.0) * 3.1 + sd));
+      float p0 = smoothstep(0.35, 0.45, ch0) * smoothstep(0.85, 0.75, ch0), p1 = smoothstep(0.35, 0.45, ch1) * smoothstep(0.85, 0.75, ch1);
+      pattern = mix(p0, p1, smoothstep(1.0 - 0.5 / segL, 1.0, sf));
       pattern *= step(0.08, abs(u) / fw);   // centre rib
       pattern = mix(0.5, pattern, 0.2 + 0.8 * coh * coh);    // dry sand: tread lugs slump
-      R = core * (0.55 + 0.45 * pattern) * (0.85 + 0.15 * a * a);
+      pattern = mix(0.5, pattern, 0.45 + 0.4 * n1(odo * 0.37 + sd * 9.0)); // worn / smeared by later passes
+      pattern = mix(0.5, pattern, 1.0 - 0.7 * wn);
+      R = core * (0.7 + 0.3 * pattern) * mix(0.85 + 0.15 * a * a, 1.0, wn);
     } else {                                // grouser bars + guide horn gap
       float g = fract(odoJ / 0.155);
       pattern = smoothstep(0.1, 0.18, g) * smoothstep(0.62, 0.54, g);
       pattern *= 0.75 + 0.25 * step(0.12, abs(abs(u) / fw - 0.5));  // worn/missing grouser ends
-      pattern = mix(0.5, pattern, 0.2 + 0.8 * coh * coh);
+      pattern = mix(0.5, pattern, (0.2 + 0.8 * coh * coh) * (1.0 - 0.6 * wn));
       R = core * (0.62 + 0.38 * pattern);
     }
     // sand spill: loose grains slide back into the rut in irregular tongues (less in cohesive mud/snow)
     float spill = smoothstep(0.55, 0.85, n2(vec2(u * 9.0, odo * 3.5) + sd * 3.1)) * (1.0 - coh) * 0.7;
     R *= (1.0 - spill) * dnz;
-    float bermX = smoothstep(0.9, 1.15, a) * smoothstep(1.75, 1.2, a);
+    float bermX = smoothstep(0.9 - 0.05 * wn, 1.15 + 0.2 * wn, a) * smoothstep(1.75, 1.2 + 0.25 * wn, a);
     G = bermX * (0.55 + 0.45 * n2(vec2(u * 12.0, odo * 5.0) + side * 17.0)) + spill * 0.4 * core;
     A = smoothstep(1.35, 1.0, a);
   } else if (kind == 2) {                   // boot print (side = ±1 mirrors)
@@ -156,8 +169,9 @@ void main() {
     G = blob(q * 0.78, vec2(0.0), vec2(0.5), 0.9) * (1.0 - smoothstep(0.0, 0.25, env)) * (0.5 + 0.5 * (1.0 - coh));
     A = env * (st > 2.5 && st < 3.5 ? 0.1 : 0.6);       // a bird hardly bends the grass
   } else {                                  // 6: flatten only (grass push-down)
-    float rr = length(vec2(u / (0.5 * fw), v / (0.5 * L)));
-    A = smoothstep(1.0, 0.6, rr);
+    // a soft-edged trample (~0.4 m of feather on a road-width stamp, broken by noise): no sharp-edged blotch
+    float rr = length(vec2(u / (0.5 * fw), v / (0.5 * L))) + (n2(vec2(u, v) * 3.1 + sd) - 0.5) * 0.25;
+    A = smoothstep(1.0, 0.35, rr) * 0.85;
   }
   R *= ends; G *= ends; A *= ends;
   gl_FragColor = uFlat > 0.5 ? vec4(A, 0.0, 0.0, 1.0) : vec4(R * D, G * Bm, 0.0, 1.0);

@@ -9,10 +9,73 @@
  *
  * spec: {area: {x0, x1, z0, z1}, y, px?, seed?, lanes: [{pts, w, a}], tracks: [{pts, kind: 'track'|'tyre'|'drag', gauge,
  *        w, a}], stains: [[x, z, r, a]]}
+ *
+ * Roads-and-tracks r1 (world/line-extras.js `campRuts`, matched by the spec's seed): the compacted lanes are masked out
+ * where a road already runs (the splat's own road paint carries the lane tone there: no second, offset band with its own
+ * straight edges), and the hardpan between the lanes gets a low-alpha scuff — trampled blotches, tyre-scrub arcs, boot
+ * scuffs — in patches over the yard, so it is never uniformly clean between the ruts.
  * @module art/camp-ruts
  */
 import * as THREE from 'three';
 import { sampleTrack } from './airstrip.js';
+import { LINE_EXTRAS } from '../world/line-extras.js';
+
+/** The line extras' camp-ruts options for a decal spec (keyed by its seed), or null. */
+export function campRutsExtras(spec) {
+  if (!spec || spec.seed == null) return null;
+  for (const id in LINE_EXTRAS) { const c = LINE_EXTRAS[id]?.campRuts; if (c && c.seed === spec.seed) return c; }
+  return null;
+}
+
+const inPoly = (x, z, P) => {
+  let ins = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, zi] = P[i], [xj, zj] = P[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins;
+  }
+  return ins;
+};
+
+/**
+ * The scuff patches over the hardpan (deterministic): [{x, z, r, marks: [...]}]. Each patch: a trampled blotch, a few
+ * tyre-scrub arcs and boot scuffs. Patches avoid the masked road corridors.
+ */
+export function scuffPatches(spec, ex = campRutsExtras(spec)) {
+  const sc = ex?.scuff;
+  if (!sc?.poly?.length) return [];
+  const R = rng((spec.seed ?? 1942) ^ 0x5c0ff), out = [];
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const [x, z] of sc.poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const n = sc.patches ?? 40, onRoad = (x, z) => (ex.mask || []).some((m) => polyDist(x, z, m.pts) < m.w / 2 + 2);
+  for (let k = 0, tries = 0; k < n && tries < n * 30; tries++) {
+    const x = x0 + R() * (x1 - x0), z = z0 + R() * (z1 - z0);
+    if (!inPoly(x, z, sc.poly) || onRoad(x, z)) continue;
+    const r = 1.2 + R() * 1.4, marks = [];
+    const arcs = 1 + Math.floor(R() * 3);
+    for (let a = 0; a < arcs; a++) {
+      const h0 = R() * 6.283, bend = (R() - 0.5) * 1.2, len = 1.2 + R() * 1.8, cx = x + (R() - 0.5) * r * 0.8, cz = z + (R() - 0.5) * r * 0.8;
+      const pts = [];
+      for (let t = 0; t <= 6; t++) { const u = t / 6 - 0.5, h = h0 + bend * u; pts.push([cx + Math.cos(h) * len * u, cz + Math.sin(h) * len * u]); }
+      marks.push({ kind: 'arc', pts, w: 0.18 + R() * 0.14, a: 0.05 + R() * 0.05 });
+    }
+    const boots = 3 + Math.floor(R() * 6);
+    for (let b = 0; b < boots; b++) marks.push({ kind: 'boot', x: x + (R() - 0.5) * r * 1.2, z: z + (R() - 0.5) * r * 1.2, rot: R() * 6.283, a: 0.05 + R() * 0.05 });
+    out.push({ x, z, r, a: (sc.a ?? 0.1) * (0.6 + 0.6 * R()), dark: R() < 0.7, marks });
+    k++;
+  }
+  return out;
+}
+
+/** Distance from (x, z) to a polyline. */
+function polyDist(x, z, P) {
+  let d = Infinity;
+  for (let i = 0; i + 1 < P.length; i++) {
+    const [ax, az] = P[i], [bx, bz] = P[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1e-9;
+    const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+    d = Math.min(d, Math.hypot(x - ax - dx * u, z - az - dz * u));
+  }
+  return d;
+}
 
 const HAS_DOM = typeof document !== 'undefined';
 const MAX_W = 2048;
@@ -53,6 +116,26 @@ export function paintCampRuts(g, spec, sx, sz) {
       const p = S[k], o = (R() - 0.5) * l.w * 0.8;
       blob(p.x - p.tz * o, p.z + p.tx * o, 0.8 + R() * 1.8, R() < 0.6 ? `rgba(78, 64, 46, ${(0.05 + R() * 0.06).toFixed(3)})` : `rgba(206, 188, 150, ${(0.05 + R() * 0.05).toFixed(3)})`);
     }
+  }
+  // 1b. scuff over the hardpan between the lanes (line extras): trampled blotches, tyre-scrub arcs, boot scuffs
+  const ex = campRutsExtras(spec);
+  for (const p of scuffPatches(spec, ex)) {
+    blob(p.x, p.z, p.r, p.dark ? `rgba(92, 78, 58, ${p.a.toFixed(3)})` : `rgba(214, 198, 164, ${(p.a * 0.8).toFixed(3)})`);
+    for (const m of p.marks) {
+      if (m.kind === 'arc') stroke(m.pts, m.w, `rgba(84, 70, 52, ${m.a.toFixed(3)})`);
+      else { g.save(); g.translate(X(m.x), Z(m.z)); g.rotate(m.rot); g.fillStyle = `rgba(80, 66, 48, ${m.a.toFixed(3)})`; g.beginPath(); g.ellipse(0, 0, 0.15 * sx, 0.06 * sz, 0, 0, 6.2832); g.fill(); g.restore(); }
+    }
+  }
+  // 1c. where a road already runs, the lanes (and scuffs) are taken out again: the splat's road paint is the lane there
+  //     (feathered: three nested strokes, each removing part of what is left)
+  if (ex?.mask?.length) {
+    g.save();
+    g.globalCompositeOperation = 'destination-out';
+    for (const m of ex.mask) {
+      const line = sampleTrack(m.pts, 1).map((p) => [p.x, p.z]);
+      for (const [dw, k] of [[2.2, 0.3], [1.1, 0.5], [0, 1]]) stroke(line, m.w + dw, `rgba(0, 0, 0, ${k})`);
+    }
+    g.restore();
   }
   // 2. tracks: tank ruts (cleated bands), lorry tyres (a wobbling line per wheel), drag marks (a soft scuffed band)
   for (const t of tracks) {
@@ -95,6 +178,10 @@ export function coverCells(spec, step = 1) {
   for (const l of spec.lanes || []) for (const p of sampleTrack(l.pts, step / 2)) stamp(p.x, p.z, (l.w + 1.6) / 2 + 1 + step / 2);
   for (const t of spec.tracks || []) for (const p of sampleTrack(t.pts, step / 2)) stamp(p.x, p.z, (t.gauge ?? 0) / 2 + (t.w ?? 0.4) / 2 + 0.4 + step / 2);
   for (const [x, z, r] of spec.stains || []) stamp(x, z, r * 1.5 + step / 2);
+  for (const p of scuffPatches(spec)) {
+    stamp(p.x, p.z, p.r * 1.15 + step / 2);
+    for (const m of p.marks) if (m.kind === 'arc') { for (const [x, z] of m.pts) stamp(x, z, m.w / 2 + 0.3 + step / 2); } else stamp(m.x, m.z, 0.3 + step / 2);
+  }
   return { cell, nx, nz, step };
 }
 

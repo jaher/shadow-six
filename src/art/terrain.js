@@ -14,7 +14,7 @@ import { T } from '../world/grid.js';
 import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
 import { footOf } from '../ai/footprints.js';
 import { buildFlatMaskG, PALETTES } from './terrain/terrain-layers.js';
-import { pretrampleRoads, terrainPainter, RoadIndex } from '../world/roads.js';
+import { pretrampleRoads, terrainPainter, RoadIndex, roadLookPainter, overlayRoadLookG, roadLookKey, roadEdgeLines, overlayApronLookG, roadObstacles } from '../world/roads.js';
 import { createVegetation, vegetationStripUrls } from './terrain/vegetation.js';
 import { earlyFetch } from '../engine/early-fetch.js';
 import { vegetationProfile } from './terrain/veg-profile.js';
@@ -515,16 +515,27 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   let quality = presetOf(R);
   const mission = ctx.mission || null;
   // step 3p: ctx.roads (world/roads.js RoadIndex) → soft roads pre-trampled + splat painter; else the legacy paths
-  let ruts = ctx.roads ? pretrampleRoads(ctx.roads.net) : roadPolylines(mission);
+  // (the drawn roads: render-only `art` courses where a mission has them; the look and its ruts follow what is drawn)
+  const drawn = ctx.roads ? drawnRoads(ctx, grid) : null, missionId = ctx.roads?.net.missionId;
+  // (what stands on the carriageways — wells, hedgehogs, bollards, houses flush with a lane — the ruts swerve round)
+  const obstacles = ctx.roads ? roadObstacles(mission, ctx.roads.net) : null;
+  let ruts = ctx.roads ? pretrampleRoads(drawn.net, { missionId, W: grid.width, D: grid.depth, obstacles }) : roadPolylines(mission);
   // a road that leaves the map is driven on past the edge (as world/apron-field.js lays it over the apron), so its
   // ruts run to the boundary and the apron repeats them from there (art/apron.js) instead of stopping on a line
   const apronOn = !!mission && ctx.apron !== false && mission.apron?.extend !== false;
   if (apronOn) ruts = ruts.map((r) => ({ ...r, points: extendPath(r.points, null, grid.width, grid.depth, r.near ?? 1.5, 16).points }));
-  const crossings = apronOn ? edgeCrossings(ruts, grid.width, grid.depth) : [];
+  // (the apron's crossing bands keep the network's own lines: its splat floats and its tufts stay the gameplay paint's)
+  const edgeLines = ctx.roads && apronOn ? roadEdgeLines(ctx.roads.net).map((r) => ({ ...r, points: extendPath(r.points, null, grid.width, grid.depth, r.near, 16).points })) : ruts;
+  const crossings = apronOn ? edgeCrossings(edgeLines, grid.width, grid.depth) : [];
   const dry = missionCarves(mission); // dry wadis cut into the ground (art/terrain/carve.js): rock banks, gravel bed
   const paint = composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
     carvePainter(dry, (PALETTES[theater] || PALETTES.temperate).layers),
-    ctx.roads ? terrainPainter(drawnRoads(ctx, grid), theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
+    ctx.roads ? terrainPainter(drawn, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
+  // the road look (world/roads.js roadLookPainter: crowned carriageways, wheel lanes, verges, desire lines, ruts' beds)
+  // is laid over the map splat's GPU bytes once it is built, and over the scenery apron's (overlayApronLookG): the
+  // floats — the ground the game reads, the tufts and clutter planted from them — keep `paint`
+  const look = drawn ? roadLookPainter(drawn, theater, (PALETTES[theater] || PALETTES.temperate).layers, { missionId, obstacles }) : null;
+  const lookKey = look ? roadLookKey(ctx.roads.net) : '';
   // continuous shorelines (world/shore-field.js): one field over the map + apron drives both carves, the splat's
   // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)
   let apronField = null, shore = null;
@@ -581,11 +592,24 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   const pitchDeg = CONFIG.camera?.pitchDeg ?? 40;
   const ready = inner.ready.then(async (t) => {
     if (disposed) return null;
+    // the road look over the splat's GPU bytes (once per cached splat: a restart finds them painted)
+    if (look && t?.splat && t.splat.roadLook !== lookKey) {
+      try {
+        await runSliced(overlayRoadLookG(t.splat, look, { due }));
+        t.splat.roadLook = lookKey;
+        for (const u of [t.uniforms?.tSplatA, t.uniforms?.tSplatB]) if (u?.value) u.value.needsUpdate = true;
+      } catch (e) { console.error('[roads] look overlay failed', e); }
+    }
     // scenery past the map edges (art/apron.js): ground + water continuation + forest; before the water's bed capture
     if (mission && ctx.apron !== false) {
       try { apron = await runSliced(createApronG(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, crossings, paint, flatLines: ctx.edgeLines,
         season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore })); }
       catch (e) { console.error('[apron] build failed', e); apron = null; }
+      // the road look carried on along the crossings over the apron's drawn bytes (its floats, its tufts untouched)
+      if (look && apron) {
+        try { await runSliced(overlayApronLookG(apron, look, { W: grid.width, D: grid.depth, period: CONFIG.apron.rutPeriod, due })); }
+        catch (e) { console.error('[roads] apron look failed', e); }
+      }
       apronReady = Promise.resolve(apron?.forest).then(() => apron);
     }
     if (placements.length) {
