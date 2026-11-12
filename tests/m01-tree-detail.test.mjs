@@ -27,7 +27,7 @@ export default async function m01TreeDetail(page, t) {
     const v = G.world.terrain.vegetation;
     await v.setQuality('high');
     const conifer = (s) => TG.SPECIES[s]?.kind === 'conifer';
-    const unique = v.trees.filter((p) => !p.impostor && conifer(p.species));
+    const unique = v.trees.filter((p) => !p.lod && conifer(p.species));
     out.conifers = unique.length;
     out.withClear = unique.filter((p) => p.clear).length;
 

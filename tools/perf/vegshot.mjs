@@ -28,7 +28,7 @@ const info = await page.evaluate(async ({ m, at, list, grove, forest, type, date
     const base = (await import('/src/missions/m00_sandbox.js')).default;
     const sp = (list || 'oak,beech,plane,ash,birch').split(',');
     const trees = sp.flatMap((s, i) => [0, 1].map((k) => ({ type, species: s, x: 5 + i * 11 + k * 4, z: 40 + k * 12, seed: 900 + i * 17 + k })));
-    if (forest) for (let k = 0; k < forest; k++) { // dense stand on the west bank: past the unique budget → impostors
+    if (forest) for (let k = 0; k < forest; k++) { // dense stand on the west bank: past the unique budget → instanced
       const h = Math.sin(k * 12.9898) * 43758.5453, u = h - Math.floor(h), v = (k * 0.618034) % 1;
       trees.push({ type, species: sp[k % sp.length], x: 2 + u * 34, z: 2 + v * 24, seed: 3000 + k });
     }

@@ -1923,7 +1923,7 @@ export class GpuCompressor {
 
   /**
    * Encode a render target's colour texture (level 0) into a new compressed texture (same colour space, filters and
-   * wraps) — atlases baked once at load (tree impostors): the caller swaps it in and disposes the target, colour and
+   * wraps) — atlases baked once at load (the tree impostors used it until 2026-11-10): the caller swaps it in and disposes the target, colour and
    * depth. Its level leaves page memory after the upload (nothing can bake it again from here: like the target itself,
    * it is lost with a lost context).
    * @returns {Promise<THREE.Texture|null>} null: not possible here (no codec, odd size, not allocated, lost context)

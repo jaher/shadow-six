@@ -4,7 +4,7 @@
   python3 tools/perf/gpumem-table.py <dir> [--before=before] [--after=after] [--md=out.md]
 
 Per config and mission: GPU total and its parts — material textures (every scene texture uploaded), render targets
-(RT textures + renderbuffers: post chain, shadow map, trails, impostors…), buffers (geometry) — then the renderer
+(RT textures + renderbuffers: post chain, shadow map, trails…), buffers (geometry) — then the renderer
 process PSS (page memory), download, load time and frame time (zoom 1, median wall ms), before → after; sums at the end.
 """
 import json, os, sys

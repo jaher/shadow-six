@@ -1,7 +1,7 @@
 /**
  * Conifer needle sprays on the GPU (src/art/terrain/conifers.js, vegetation.js makeNeedleMaterials):
- *  - a spruce / Scots pine stand rendered as unique meshes and as impostors baked from the new trees matches in
- *    coverage, brightness and hue (no popping when forests swap to impostors),
+ *  - a spruce / Scots pine stand rendered as unique meshes and as the instanced forest (tree-lod.js: copies of real 3D
+ *    prototypes, no billboards) matches in coverage, brightness and hue (the same stand either way),
  *  - needles get their own draw call per chunk (no more than one extra per chunk), with the alpha-aware GTAO
  *    material and an alpha-tested shadow depth material,
  *  - the snow load whitens the crowns and the wind moves the needles.
@@ -63,7 +63,14 @@ export default async function pines(page, t) {
     M.veg.dispose();
     const I = await build(0, 1);
     out.imp = draw(I);
-    out.impostors = I.veg.stats.impostors;
+    out.lod = I.veg.stats.lod;
+    // every instanced draw is a 3D tree's worth of triangles a copy (no quad), and a whole stand is a few draws
+    const lods = I.veg.group.children.filter((m) => /^vegLod/.test(m.name));
+    out.lodDraws = lods.length;
+    // a copy's triangles (the largest class of each material) at each level: LOD1 in view, LOD2 shadows from off screen
+    const per = (lv) => ['bark', 'needle'].reduce((n, m) => n + Math.max(0, ...lods.filter((x) => x.userData.treeLod.level === lv && x.userData.treeLod.mat === m).map((x) => x.userData.treeLod.corners / 3)), 0);
+    out.lod1Tris = per(0); out.lod2Tris = per(1);
+    out.lodShadow = lods.every((m) => m.castShadow && m.customDepthMaterial);
     I.veg.dispose();
     rt.dispose();
     return out;
@@ -72,13 +79,16 @@ export default async function pines(page, t) {
   t.ok(r.needleMeshes > 0 && r.needleMeshes <= r.chunks, `needle meshes: one per chunk at most (${r.needleMeshes} / ${r.chunks} chunks)`);
   t.ok(r.chunkMeshes <= r.chunks * 2, `conifer chunks keep 2 draw calls (bark + needles): ${r.chunkMeshes} meshes for ${r.chunks} chunks`);
   t.ok(r.needleAo, 'needle meshes skip the GTAO prepass (crown AO baked per vertex) and carry a shadow depth material');
-  t.ok(r.impostors === 64, 'maxUnique 0 → every tree an impostor');
+  t.ok(r.lod === 64, `maxUnique 0 → every tree an instanced copy (${r.lod})`);
+  t.ok(r.lodDraws > 0 && r.lodDraws <= 10, `the instanced stand is a few draws (${r.lodDraws} lists: material × size class × level)`);
+  t.ok(r.lod1Tris > 1000 && r.lod2Tris > 200, `each copy is a whole 3D tree (LOD1 ${r.lod1Tris}, LOD2 ${r.lod2Tris} triangles)`);
+  t.ok(r.lodShadow, 'the copies cast alpha-tested 3D shadows');
   t.ok(r.mesh.cover > 0.12, `stand covers the frame (${r.mesh.cover.toFixed(3)})`);
   const cov = r.imp.cover / r.mesh.cover, lum = r.imp.lum / r.mesh.lum;
-  t.ok(cov > 0.75 && cov < 1.33, `impostor coverage matches the meshes (×${cov.toFixed(2)})`);
-  t.ok(lum > 0.8 && lum < 1.25, `impostor brightness matches the meshes (×${lum.toFixed(2)})`);
+  t.ok(cov > 0.85 && cov < 1.18, `instanced coverage matches the meshes (×${cov.toFixed(2)})`);
+  t.ok(lum > 0.88 && lum < 1.14, `instanced brightness matches the meshes (×${lum.toFixed(2)})`);
   const hue = (s) => s.g / Math.max(1, s.r);
-  t.ok(Math.abs(hue(r.imp) - hue(r.mesh)) < 0.15, `impostor hue matches (g/r ${hue(r.imp).toFixed(2)} vs ${hue(r.mesh).toFixed(2)})`);
+  t.ok(Math.abs(hue(r.imp) - hue(r.mesh)) < 0.08, `instanced hue matches (g/r ${hue(r.imp).toFixed(2)} vs ${hue(r.mesh).toFixed(2)})`);
   t.ok(r.mesh.lum > r.noSnow.lum * 1.05, `snow load whitens the crowns (${r.noSnow.lum.toFixed(1)} → ${r.mesh.lum.toFixed(1)})`);
   t.ok(r.windDelta > 0.01, `wind moves the needles (Δ ${r.windDelta.toFixed(3)})`);
 }

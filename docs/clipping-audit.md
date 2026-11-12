@@ -66,7 +66,7 @@ phase 3 street furniture is covered automatically.
 
 - **Never audited**:
   - `ground`-layer types: roads, rivers, rails, trenches, craters, pavement, kerbs and decals
-  - terrain, water, snow (shader-based), impostors, shadow/proxy/decal/selection meshes
+  - terrain, water, snow (shader-based), the instanced forest's copies (`vegLod*`), shadow/proxy/decal/selection meshes
   - intra-item contacts
 - **Natural pairs**: rocks/cliff/ruins among themselves, foliage/foliage, bridge↔rocks/cliff/pier (abutments), sandbags↔emplacement, prop↔prop (stacks), character/vehicle↔foliage.
 - **Joints**: a wall or fence run touching a gate, tower, pole, building or wall within 1.25 m of one of the run's *ends*, with a contact box no longer than 3 m. A run that passes through something is still reported.
@@ -638,7 +638,8 @@ The raw per-pair data (times, positions, unit states, counts, crops) is in `docs
 - **Coverage gaps**:
   - terrain and ground layers are excluded by design.
   - clutter stones only with `--clutter`.
-  - forest-scatter trees drawn as impostors are not audited; only the unique, fully generated trees are.
+  - forest-scatter trees drawn as the instanced 3D forest (art/terrain/tree-lod.js; billboard impostors until
+    2026-11-10) are not audited; only the unique, fully generated trees are.
 - **Baseline keys** use structure ids. Unnamed structures (`wall#2`) are keyed by their index in the mission, so reordering
   `structures[]` re-keys them. Regenerate with `--write-baseline`.
 - **Placement rules** (this fix):
@@ -661,7 +662,7 @@ The raw per-pair data (times, positions, unit states, counts, crops) is in `docs
   - the likely fall side of a body is guessed from the unit's last animation (run → forward, else backward); a death
     clip that falls sideways is covered only by the both-ways checks.
   - tree boughs close gun angles but do not stop hulls (a tank brushes through branches); the bough layer comes from
-    the generated bark, so impostor trees have none.
+    the unique trees' generated bark, so the instanced forest's copies have none.
   - the turret probe parks two placeholder models (`panzer2`, `sdkfz`); catalogue models with longer barrels are covered
     by the same arcs (their `gun` reach / height) but not probed.
 - **Browser tests**: all 41 pass (second pass: re-run, all 41 green). `ui-layout` ("the map sheet keeps the 16 px gutter") is intermittent on this machine,

@@ -18,7 +18,7 @@ self.onmessage = async (e) => {
   const out = [], transfer = [];
   for (const c of m.chunks) {
     const bark = new TG.GeoAcc(), leaf = new TG.GeoAcc(), needle = new TG.GeoAcc(), info = [];
-    for (const t of c.trees) info.push(TG.generateTree(t.species, t.seed, m.q, bark, leaf, t, needle));
+    for (const t of c.trees) info.push(TG.generateTree(t.species, t.seed, t.q || m.q, bark, leaf, t, needle)); // (t.q: a prototype's own)
     const b = bark.count ? bark.toArrays() : null, l = leaf.count ? leaf.toArrays() : null, n = needle.count ? needle.toArrays() : null;
     for (const a of [b, l, n]) if (a) transfer.push(...Object.values(a).map((x) => x.buffer));
     out.push({ key: c.key, bark: b, leaf: l, needle: n, info });

@@ -3,13 +3,13 @@
  * tree standing on the water, remove it"). Every mission is loaded (M0–M10 here, M11–M20 and B00 in veg-water-2) and
  * every live plant instance is checked against the drawn shore field (terrain.shore: the field the ground is carved
  * with and the water drawn over; tests/veg-water-lib.mjs):
- *  - the map's trees and bushes (unique and impostor; the mission's own, forest fill, understorey, hedgerows,
+ *  - the map's trees and bushes (unique and instanced; the mission's own, forest fill, understorey, hedgerows,
  *    orchards): trunk base >= SHORE_MARGIN m ashore;
  *  - the apron's scenery forest and bocage hedges: >= APRON_SHORE_MARGIN m (trees) / SHORE_MARGIN m (hedge plants);
  *  - desert scrub instances: >= SHORE_MARGIN m; wildflowers, weed rosettes, grass and crop tufts: >= GROUND_SHORE_MARGIN
  *    m (the lake and river beds' mud / dry-grass splat planted them under the water in the temperate maps; the reeds
  *    stand in the shallows on purpose);
- *  - M1: the 18 m impostor spruce on the fjord's E waterline (70.98, 36.9) is gone, and the apron trees are the map
+ *  - M1: the 18 m apron spruce on the fjord's E waterline (70.98, 36.9) is gone, and the apron trees are the map
  *    trees' size (median height within 20 %); review frames of the spot (zoom 1 and 0.5) go to tests/out/veg-water-m01-*.png.
  */
 import { checkMissions, assertClean } from './veg-water-lib.mjs';

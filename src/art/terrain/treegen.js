@@ -224,7 +224,7 @@ export class GeoAcc {
     g.computeBoundingSphere();
     return g;
   }
-  /** Plain Float32 geometry with per-vertex roots (prototypes for the impostor bake, test cards): no root table needed. */
+  /** Plain Float32 geometry with per-vertex roots (test cards): no root table needed. */
   toGeometry() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
@@ -334,26 +334,65 @@ export const TREE_QUALITY = {
 };
 
 /**
+ * The instanced forest's prototypes (tree-lod.js; the unique trees are LOD0): the same trees, reduced. LOD1, the trees
+ * in view: fewer, larger leaf / needle sprays on the same crown envelope (the same silhouette and colours), the wood
+ * the crown hides left out — only the trunk and main limbs as tubes (a bare or dead crown one order more; the
+ * spruces' limbs under their sprays none; pines keep their limbs, not their twigs), no root flare. LOD2, the trees out of view whose
+ * shadow reaches into it: the silhouette — a few large sprays, trunk only. `sparse`: a bare (winter), dead or burnt
+ * crown, whose limbs and twigs are all it shows, keeps more of them.
+ */
+export const TREE_LOD = [
+  { seg: 0.5, radial: 0.5, cards: 0.42, leafScale: 1.32, twigs: 0.5, barkLevels: 1, roots: false, sprayLen: 1.5, spruceLimbs: false, pineTwigs: false,
+    sparse: { barkLevels: 2, cards: 0.9, twigs: 0.75, spruceLimbs: true, pineTwigs: true } },
+  { seg: 0.35, radial: 0.4, cards: 0.2, leafScale: 1.8, twigs: 0.25, barkLevels: 0, roots: false, sprayLen: 3.2, limbs: false, tierGap: 2.2,
+    sparse: { barkLevels: 1, cards: 0.5, twigs: 0.5, limbs: true } },
+];
+/** The generator quality of a TREE_LOD level for a look (sparse: bare, dead or burnt). */
+export const lodQuality = (level, sparse = false) => {
+  const { sparse: sp, ...q } = TREE_LOD[level];
+  return sparse ? { ...q, ...sp } : q;
+};
+
+/**
+ * A tree's own size, sway phase and colour (the first draws of its seed's stream `r`, in generateTree's order):
+ * height H, phase, bark tint (burnt: charcoal) and leaf tint — per-tree brightness / hue variation, autumn-ish outliers
+ * for broadleaves — before the species' own tints (sp.lt / sp.bt). The instanced forest (tree-lod.js) gives each of
+ * its copies the colour this seed would have grown as a unique tree.
+ * @returns {{H:number, phase:number, tint:number[], leafTint:number[]}}
+ */
+function lookOf(sp, r, at) {
+  const H = lerp(sp.H[0], sp.H[1], r()) * (at.scale || 1);
+  const phase = r() * 6.28;
+  const tb = 0.85 + 0.3 * r();
+  const tint = at.burnt ? [0.35, 0.33, 0.32] : [tb * (0.95 + 0.1 * r()), tb, tb * (0.95 + 0.1 * r())];
+  const lb = 0.8 + 0.35 * r(), hue = (r() - 0.5) * 0.25 + (at.hue || 0);
+  const leafTint = [lb * (1 + hue), lb * (1 + hue * 0.3), lb * (1 - hue * 0.6)];
+  return { H, phase, tint, leafTint };
+}
+
+/** treeLook for a placement: the colours (and height, phase) `generateTree(species, seed, …, at)` would give it. */
+export function treeLook(species, seed, at = {}) {
+  return lookOf(SPECIES[species] || SPECIES.oak, rng(seed * 7919 + 13), at);
+}
+
+/**
  * Generate one unique tree into shared accumulators.
  * @param {string} species key of SPECIES
  * @param {number} seed any integer; same seed → same tree
  * @param {object} q TREE_QUALITY entry
  * @param {GeoAcc} bark @param {GeoAcc} leaves
  * @param {GeoAcc} [needles] conifer needle sprays (needles.webp atlas, own material); defaults to `leaves`
- * @param {{x:number,y:number,z:number, scale?:number, burnt?:boolean, hue?:number}} at placement
+ * @param {{x:number,y:number,z:number, scale?:number, burnt?:boolean, hue?:number, tint0?:boolean}} at placement;
+ *   `tint0`: neutral colour (a prototype of the instanced forest, tree-lod.js: each copy brings its own treeLook tints)
  * @returns {{height:number, crownRadius:number, trunkRadius:number}}
  */
 export function generateTree(species, seed, q, bark, leaves, at, needles = leaves) {
   const sp = SPECIES[species] || SPECIES.oak;
   const r = rng(seed * 7919 + 13);
-  const H = lerp(sp.H[0], sp.H[1], r()) * (at.scale || 1);
   const b0 = bark.count, l0 = leaves.count, n0 = needles.count;
-  const phase = r() * 6.28;
   // per-instance colour variation (bark and foliage hue/brightness), autumn-ish outliers for broadleaves
-  const tb = 0.85 + 0.3 * r();
-  const tint = at.burnt ? [0.35, 0.33, 0.32] : [tb * (0.95 + 0.1 * r()), tb, tb * (0.95 + 0.1 * r())];
-  const lb = 0.8 + 0.35 * r(), hue = (r() - 0.5) * 0.25 + (at.hue || 0);
-  const leafTint = [lb * (1 + hue), lb * (1 + hue * 0.3), lb * (1 - hue * 0.6)];
+  const { H, phase, tint, leafTint } = lookOf(sp, r, at);
+  if (at.tint0) { if (!at.burnt) tint.fill(1); leafTint.fill(1); }
   if (sp.lt) for (let k = 0; k < 3; k++) leafTint[k] *= sp.lt[k];
   if (sp.bt && !at.burnt) for (let k = 0; k < 3; k++) tint[k] *= sp.bt[k];
   const gen = { broad: genBroad, conifer: genConifer, palm: genPalm, bush: genBush }[sp.kind];

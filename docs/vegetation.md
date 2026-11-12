@@ -6,7 +6,7 @@ different"*, *"Trees and foliage should also be affected by the wind"* and *"mak
 realistic"*.
 
 This document lists the vegetation we have today, the look we want in each theatre, and the technique, budget and
-order of work for each plant type. It builds on `docs/terrain-pipeline.md` (ground, grass, trees and impostors),
+order of work for each plant type. It builds on `docs/terrain-pipeline.md` (ground, grass, trees and the instanced forest),
 `docs/wind-pipeline.md` (the shared wind field) and `docs/realism-pipeline.md` (asset sources and renderer
 limits).
 
@@ -27,7 +27,7 @@ coverage-preserving alpha, crown AO attribute and translucency. It also keeps `g
 | Ground clutter | `art/terrain/clutter.js` | Stones (all theatres), five wildflowers (temperate), weed rosettes (temperate and desert) | Instanced meshes. A flower is a 3-sided stem plus a **flat scalloped disc**. A weed is **5–8 flat leaf quads radiating from a point** (`weedGeo`). | none | `q.clutter` 0.4/0.7/1/1.3. Placement is random per m². |
 | Desert "camel-thorn" | `clutter.js` `weedGeo` × 2.2 | The low desert plants on open sand | **The same flat star rosette, scaled 2.2× and tinted brown.** This is the orchestrator's "flat star-shaped paper cut-outs lying on the ground". | none | Same as clutter |
 | Trees, bushes, hedges | `art/terrain/treegen.js`, `vegetation.js`, `treegen.worker.js` | Every mission `tree`/`pine`/`palm`/`bush` structure that has an x/z | A seeded procedural generator (every tree unique). Bark tubes plus leaf **cluster cards** from `assets/terrain/foliage.webp` (ambientCG leaf scans). Geometry is merged per 20 m chunk, giving two draw calls (bark and leaves). Workers are used for 40 or more trees. | Hierarchical: trunk bend, branch sway, leaf flutter, palm whip. Stiffness per kind. | `MAX_UNIQUE` 150/300/400/500. The rest becomes impostors. Card count is ×0.45/0.7/1/1.15 by preset. |
-| Impostors | `art/terrain/impostors.js` | Interiors of dense stands above the unique budget | Two prototypes per species, six azimuths baked at the game pitch (albedo plus view-space normal), lit at runtime, one instanced draw. | Trunk lean and sway on the billboard | 128–224 px tiles. 50–69 MB of atlases on forest maps. |
+| Instanced 3D forest | `art/terrain/tree-lod.js` | Trees past the unique budget: forest interiors on the lower presets, the scenery apron's whole forest | Reduced real prototypes (one to four a look, `treegen TREE_LOD`: LOD1 in view, LOD2 for off-screen shadow casters) pulled per vertex from float textures, a few draws a forest, culled per view and per sun shadow; every copy its own yaw, size, crown width, lean, phase and colour. Replaced the billboard impostors on 2026-11-10 (user: "No trees are a single billboard. All trees are detailed"). | The unique trees' own wind shader (trunk, branches, leaves) | A few MB of prototype textures (the impostor atlases were 19–129 MB). |
 | Snow on plants | `art/terrain/snowfx.js` `SNOW_COVER_GLSL` | Snow load on conifers and stones; broadleaves leafless in snow | Shader coverage with a noise clump mask | `wind-fx.js` shakes snow puffs off conifers in gusts | none |
 | Placement pruning | `world/placement.js` `pruneTree` | Raises crown base and narrows crowns near buildings | Placement hints `crownBase` and `crownR` | none | none |
 
@@ -266,7 +266,7 @@ Keep the instanced 3D blades, which work and are budgeted. Fix the repetition:
   - Suckers at the base. Optional date bunches (orange) in October, under the crown.
 - **Canary palm** for M12 (Tunis): a thick straight trunk and a dense, rounder crown.
 - **Wind.** Frond whip exists. Add leaflet flutter at the frond tips.
-- **Budget.** About 6–10k triangles per hero palm, with impostors past the budget (oasis groves).
+- **Budget.** About 6–10k triangles per hero palm, with instanced 3D copies past the budget (oasis groves, the apron).
 
 ### 3.4 Shrubs and bushes (temperate, coast, Norway)
 - **Technique.** Procedural branching like treegen (2–3 levels, short internodes), with **species leaf cards** at
@@ -362,7 +362,7 @@ Keep treegen. It is already procedural, seeded and unique. Improve the following
 
   Unknown variants keep today's defaults.
 - **Forest area polygons** (`type: 'pine' | 'tree'` with `points`, M04 and M20) are filled with seeded
-  Poisson-disc trees (spacing 3.5–6 m, edge trees larger and fuller). Interior trees become impostors. The gameplay
+  Poisson-disc trees (spacing 3.5–6 m, edge trees larger and fuller). Interior trees may be instanced. The gameplay
   footprint is unchanged. This fixes the missing forests.
 - Optional `mission.vegetation`: `{ season, thaw, grassMix, hedgerows:[...], fields:[...], reeds:bool, dunes:bool }`.
   Every key has a theatre and date default, so no mission *needs* editing.
@@ -388,7 +388,7 @@ Keep treegen. It is already procedural, seeded and unique. Improve the following
 
 ---
 
-## 5. LOD, impostors and budgets
+## 5. LOD and budgets
 
 Frame budget for all vegetation at **high, 1280×720, medium hardware**: **≤ 4.0 ms** (today about 2.6 ms for a
 1,600-tree forest plus about 3 ms of grass on a meadow).
@@ -397,11 +397,11 @@ Frame budget for all vegetation at **high, 1280×720, medium hardware**: **≤ 4
 |---|---|---|---|
 | grass and dune tufts | 30–50k | ≤ 4.5 M (today 4.3 M) | density prefix, blade widening (exists) |
 | reeds | 2–15k stems | ≤ 0.6 M | density prefix; plume cards dropped past 0.85 of the view |
-| desert shrubs | ≤ 2k | ≤ 1.5 M | twig cards dropped at low; impostor cards beyond the view half-width |
+| desert shrubs | ≤ 2k | ≤ 1.5 M | twig cards dropped at low |
 | shrubs and hedgerows | ≤ 400 crowns | ≤ 1.2 M | card count × preset (exists) |
 | deciduous hero trees | ≤ `MAX_UNIQUE` | ≤ 3 M | chunk merge (exists); bare trees use twig cards, not tubes, beyond level 2 |
-| forest interiors | any | 2 tris each | impostors (exists); add **close-zoom swap-back** within 20 m of the view centre at zoom ≥ 2.5 |
-| palms | ≤ 30 hero | ≤ 0.3 M | impostors in oasis groves |
+| forest interiors, the apron | any | LOD1 ~0.3–2.5 k a copy in view, LOD2 a few hundred for the shadows of copies out of view | the instanced 3D forest (`tree-lod.js`, §5.1) |
+| palms | ≤ 30 hero | ≤ 0.3 M | instanced 3D copies past the budget |
 
 - **Memory.** New atlases total 48 MB or less at high: foliage rebake 2k × layers, twig and thorn 1k, reed and
   marram 1k, palm leaflet 1k. Each has a 512 variant for low, following the `TEX_512_PRESETS` pattern of the
@@ -411,6 +411,29 @@ Frame budget for all vegetation at **high, 1280×720, medium hardware**: **≤ 4
 - **Draw calls.** At most 12 extra (one per new archetype group per material).
 
 ---
+
+### 5.1 The instanced 3D forest (2026-11-10)
+
+The user: "No trees are a single billboard. All trees are detailed". The trees past the unique budget used to be
+camera-facing billboard impostors (art/terrain/impostors.js: one card a tree, from atlases baked at load). They are
+now real 3D trees, drawn instanced (`art/terrain/tree-lod.js`; terrain-pipeline §2.10 has the mechanics):
+- **Levels.** LOD0 is the unique tree (unchanged). LOD1, every copy in view: the same generator and envelope with
+  fewer, larger sprays and only the trunk and main limbs as tubes (bare, dead and burnt crowns keep two more orders
+  and their twig sprays). LOD2, copies out of view whose shadow reaches into it: the silhouette. No level switches
+  with the zoom (the camera is orthographic: a copy is as large on screen at every distance), so nothing snaps. A copy
+  out of view within 12 m of its edge casts both levels' shadows through complementary dither masks in proportion
+  (`LOD_SHADOW_BAND`): a shadow reaching into the view morphs from LOD2 to LOD1 while the view pans toward its tree.
+- **Variation.** Seeded per copy: yaw, size, crown width ±8 %, lean ±1.7°, sway phase, and the colour its seed would
+  have grown as a unique tree (`treeLook`).
+- **Gameplay.** Untouched: the unique / instanced split is the same function of the preset as before, the gun-arc
+  branch stamps still measure the unique trees at 'high' (`gameplayBranches`), and the tree list the game reads keeps
+  the same entries (`lod: true` for the copies, no crown radius).
+- **Shadows and wind.** The copies cast alpha-tested 3D shadows and sway with the shared wind field, as the unique
+  trees do. They skip the GTAO prepass (their crown AO is per vertex, like the needles').
+- **Tests.** `tests/unit/tree-lod.test.mjs` (every species and look at both levels is a 3D tree: a trunk or stems,
+  sprays at ≥ 3 heights and ≥ 4 of 6 azimuth sectors; packing round trips; the cull), `tests/trees-3d.test.mjs`
+  (GPU: forest edges at the widest zoom hold no impostor and no card draw), `tests/pines.test.mjs` (a stand drawn
+  instanced matches the unique meshes in coverage, brightness and hue).
 
 ## 6. Plan of work (branch `feat/vegetation`)
 
@@ -503,7 +526,7 @@ attribute and `GeoAcc.vert(…, ext)` signature as that branch, written identica
 | Palms | `palms.js` | Date palm: tapered trunk with a sawtooth leaf-base ring every ~25 cm and boots under the crown, 24–36 pinnate fronds in phyllotaxis (young upright, old drooping), each a rachis tube with 26–42 pairs of separate leaflet quads in a V section, a dead-frond skirt (unless pruned), suckers at the foot and orange date bunches when ripe (Aug–Dec). `date_palm_town` (pruned) and `canary_palm` (thick trunk, dense round crown of arching fronds). Wind: frond whip (exists) plus leaflet flutter. |
 | Seasons | `veg-profile.js` `treeSeason` | From the mission date: spring and summer in leaf; late summer (M15, M16) fading with ~6 % turned leaves and apples; October turning; November–February bare (M17–M20) with marcescent oak and beech and ivy on 25–30 % of big trunks; desert evergreen with dates when ripe; snow theatre bare. `mission.vegetation.trees` overrides. |
 | Placement | `art/terrain.js` | `VARIANT_SPECIES`: `broadleaf_normandy` (oak, ash, hawthorn, apple, beech), `broadleaf`, `deciduous_bare`, `plane_tree`, `horse_chestnut`, `cypress`, `box_parterre`, `scrub_desert` / `camel_thorn`, `date_palm`; `pine_frost` (M20) turns 30 % of its pines into beech and oak. Theatre pools for variant-less trees and bushes (coast: sea buckthorn and gorse). Generic broadleaves within ~8 m of water become willow, alder or poplar. |
-| Forest areas | `forest-fill.js` `fillForest` | `tree`/`pine` structures with `points` (M04, M20) are filled with a seeded Poisson-disc wood (4.4 m, 3.7 m in the snow), trunks inside the footprint, denser and partly unique at the edge, interior trees impostor candidates. The gameplay footprint is unchanged. M20's strip becomes a mixed spruce / pine / bare beech and oak wood. |
+| Forest areas | `forest-fill.js` `fillForest` | `tree`/`pine` structures with `points` (M04, M20) are filled with a seeded Poisson-disc wood (4.4 m, 3.7 m in the snow), trunks inside the footprint, denser and partly unique at the edge, interior trees instancing candidates. The gameplay footprint is unchanged. M20's strip becomes a mixed spruce / pine / bare beech and oak wood. |
 | Hedgerows | `forest-fill.js` `hedgerowPlacements`, `bocage.js` | Bocage along a polyline (`mission.vegetation.hedgerows: [{points, gaps?, h?, standards?, spacing?}]`): overlapping hawthorn / blackthorn, hazel and shrub crowns every ~1.5 m with gate gaps and oak / ash standards every 10–20 m. Visual only. Since critic round 1 the farmland fringe (§9) lays hedges out automatically where they cannot change gameplay. `tools/perf/vegshot.mjs --hedge=1` shows one. |
 | Interaction | `art/terrain.js` `brushWorld`, `vegetation.agitate`, `scrub.crush` | Walkers and vehicles moving within reach of a bush, hedge or small tree part its sprays (pushed away from them) and shake them, and the shake dies out about 0.6 s after they pass (8 strongest movers, shader `uAgit`). Moving land vehicles crush the desert scrub under them: the plant is pressed flat, splayed and browned for the rest of the mission. Visual only: cover, sight and collision stay with the structures. |
 | Look-dev | `tools/perf/vegshot.mjs` | Sandbox groves (`--grove=theatre:species,…`, `--type`, `--date`, `--hedge`) or a mission framing, zoom 1/2 frames, and `--perf` (tree cost by interleaved frames with the vegetation shown / hidden, GPU timer query when available). |
@@ -524,8 +547,8 @@ other jobs, so single numbers move by about ±0.3 ms.
 
 - All four stay inside the §5 vegetation budget (≤ 4.0 ms). The largest rise is M20: its forest polygon used to be
   drawn as 9 loose pines and is now a filled wood of 86 trees (77 more), all unique at this size. Bigger woods fall
-  back to baked impostors past the preset's `MAX_UNIQUE`. The impostors are baked at load from the new geometry, so
-  nothing needs rebaking offline.
+  back to instanced copies past the preset's `MAX_UNIQUE` (then billboard impostors baked at load; since 2026-11-10
+  the instanced 3D forest, §5.1).
 - The frame triangle totals also include the pass 1 ground cover (grass, scrub mounds): M16 4.5 M → 6.2 M.
 - Atlases: `foliage.webp` 1.78 MB → 0.97 MB, plus the new `foliage_n.webp` at 1.21 MB (net +0.39 MB per mission
   that has trees).
@@ -640,7 +663,7 @@ other jobs, so single numbers move by about ±0.3 ms.
 - **Birch in February**: no twig-spray cards on birch (`twigSpray: 0`): they read as black dead-leaf balls; its fine
   pendulous twigs are the tubes. Marcescence stays on oak and beech only.
 - **Load** (`vegetation.js maxVisualUnique`): visual-only plants (forest-fill interiors, understorey brambles / hazel,
-  hedges) have their own unique budget (30 % of `MAX_UNIQUE`); past it the densest become impostors.
+  hedges) have their own unique budget (30 % of `MAX_UNIQUE`); past it the densest are instanced.
 - **Tests**: `tests/vegetation.test.mjs` (GPU): desert scrub height / width 0.5–0.75 (flat stars ≈ 0.05), no card
   shrub, the wind moves the shrubs, the date palms and the flowers (two sim times, same view, layer-isolated), autumn
   turning off the UV grid. Unit: bocage (apron, banks, gates, determinism), in-map farmland (no standards / orchards),

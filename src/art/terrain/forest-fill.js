@@ -2,7 +2,8 @@
  * Forest AREA structures (a tree/pine type with `points`, e.g. M04 and M20 `variant: 'forest'`) → seeded
  * Poisson-disc tree placements inside the polygon (docs/vegetation.md §3.10). The area's gameplay footprint is
  * unchanged (map-builder blocks it as before); this only draws the wood that was missing. Edge trees are larger and
- * kept unique; interior trees are impostor candidates (hero: false).
+ * kept unique; interior trees are instancing candidates (hero: false: the instanced 3D forest past the unique budget,
+ * tree-lod.js).
  * @module terrain/forest-fill
  */
 import { rng, fbm, vnoise } from './noise.js';
@@ -71,7 +72,7 @@ export function fillForest(def, place, o = {}) {
     const p = place({ type: def.type, variant: def.forestVariant ?? def.variant, x, z, h: def.h ? def.h * (0.75 + 0.4 * r()) : undefined, seed: (seed0 + out.length * 7919) >>> 0 }, out.length);
     if (!p) continue;
     p.hero = e < 4 && r() < 0.5;                                       // part of the edge stays unique
-    p.fill = true;                                                     // interior: impostor candidate (vegetation.js maxVisualUnique)
+    p.fill = true;                                                     // interior: instancing candidate (vegetation.js maxVisualUnique)
     out.push(p);
   }
   return out;
@@ -115,7 +116,7 @@ export function hedgerowPlacements(def) {
  * Forest understorey (visual only, inside the area's footprint): brambles, hazel and the odd shrub in the lighter
  * gaps, fallen boughs on the litter. Sparse (≈ 1 per 70 m²) and kept 1 m inside the outline.
  * @param {{points:Array, seed?:number}} def forest area
- * @returns {object[]} placements for createVegetation (fallen boughs unique; brambles / hazel impostor candidates)
+ * @returns {object[]} placements for createVegetation (fallen boughs unique; brambles / hazel instancing candidates)
  */
 export function forestUnderstorey(def, theater = 'temperate') {
   if (!Array.isArray(def?.points) || def.points.length < 3) return [];

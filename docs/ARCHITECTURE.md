@@ -847,8 +847,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
       `edges-void-<id>` GPU test measure the bank contours through each seam). Heights settle to y = 0 over the outer
       `fade` (24 m).
     - a flat 600 m skirt.
-    - impostor-only trees (`createVegetation(…, {maxUnique: 0})`, one instanced draw) at each side's edge-band
-      density, thinning (`treeFalloff`) to the theatre background, off water and roads.
+    - a wood of instanced 3D trees (`createVegetation(…, {maxUnique: 0})`: art/terrain/tree-lod.js, real prototypes,
+      a few draws) at each side's edge-band density, thinning (`treeFalloff`) to the theatre background, off water
+      and roads.
     - the map's 3D grass continued past the edge (`grass.setApron`, own 8 m chunks from the apron splat), thinning
       out over `grassBand` (30 m) along a noisy line, so no edge shows as a straight grass line.
   - What lies on an edge carries on past it (`src/world/edge-extend.js`, pure; visual only, the nav grid and footprints
@@ -1155,7 +1156,8 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   made again — layer arrays decoded, compressed maps encoded again (above), the environment light filtered again
   (`renderer.js`, keyed by the last lighting), and the trail targets stamped again (`trails.js replayRecords`: the
   mission's pre-trampled roads, faded by the time since through the fade pass, then the gameplay records at their
-  faded depth). Baked impostor atlases and other one-off bakes are not (as before).
+  faded depth). One-off bakes are not (as before); the instanced forest's prototype and instance textures are
+  DataTextures, re-uploaded by three.
 - **GPU texture compression** (`engine/gpu-compress.js`, perf/gpu-memory): material maps go to the GPU as BC7
   (desktop, `EXT_texture_compression_bptc`) or ASTC 4×4 (phones / iPads / Apple silicon, `WEBGL_compressed_texture_astc`):
   1 byte per texel instead of 4, nothing changes in what is downloaded. At load, three uploads the decoded image exactly
@@ -1178,9 +1180,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   tier. Measured on every mission: material textures −73 %, GPU total −56 % (desktop high) … −63 % (phone medium);
   RGB PSNR vs the uncompressed maps 45–55 dB albedo, 36–41 dB normal maps. Tools: `tools/perf/gpu-compress-quality.mjs`,
   `abdiff.py`, `load-ab.mjs`, `gpumem-table.py`; tests `tests/gpu-compress.test.mjs`, `tests/unit/gpu-compress.test.mjs`.
-- **Baked atlases and compact vertex arrays** (perf/gpu-memory): the tree impostor atlases are encoded straight from
-  their render targets (`GpuCompressor.compressTarget`) and the targets — colour and the depth buffers only the bake
-  needed — are freed (`vegetation.js compactImpostorBank`; M16 −99 MB). Vertex data that draws the same in fewer bytes
+- **Baked atlases and compact vertex arrays** (perf/gpu-memory): baked atlases can be encoded straight from their
+  render targets (`GpuCompressor.compressTarget`; the tree impostor atlases were, until the instanced 3D forest
+  replaced them on 2026-11-10 — their 19–129 MB went with them). Vertex data that draws the same in fewer bytes
   goes through `engine/vertex-pack.js`: values in [−1, 1] as normalized Int16, colours as half floats rounded to
   nearest, and 3-vectors always padded to 4 components (D3D11 has no 3-component 16-bit vertex format and Metal wants
   4-byte strides: ANGLE would keep a converted copy). Tree arrays (`treegen.js GeoAcc.toArrays`): normals / `aExt`
@@ -1188,7 +1190,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   the 4th (padding) component of its packed normal; the vegetation shaders bind the normal buffer a second time as
   `aNrm4` and fetch the root from `uRoots` (RGBA32F, the mission's trees end to end, `arraysToGeometry(a, base)`
   rebasing in place) — 56 of 84 bytes a vertex, on the GPU and in the session cache; positions, uv and `aInfo` (per-leaf
-  phases) stay Float32. Per-vertex roots remain for `GeoAcc.toGeometry` (impostor prototypes: `aRootV`, no `aNrm4`). Terrain mesh (`createTerrain`, before chunking): no uv (its shader maps
+  phases) stay Float32. Per-vertex roots remain for `GeoAcc.toGeometry` (test cards: `aRootV`, no `aNrm4`). The
+  instanced forest's prototypes pack 3 RGBA32F texels a vertex (position + atlas layer; octahedral normal in 24 bits,
+  sway, flex, phase; uv, tint in 24 bits, crown AO + snow catch in 24 bits: `tree-lod.js packLodBank`). Terrain mesh (`createTerrain`, before chunking): no uv (its shader maps
   world xz), normals Int16 × 4 (−21 % of its buffers); apron normals Int16 × 4. Not packed: kit / dressing geometry
   (merged in many places — a packed and a float normal cannot merge).
 - **Render-target formats** (perf/gpu-memory): the sun shadow map's depth texture is 16-bit (`slimShadowMap`: the ortho
@@ -1220,7 +1224,8 @@ Two layers, both generic (keyed by URL / asset id / content signature, never per
   simulation: `memo(key, fn, {bytes, dispose})` / `memoAsync` (one shared load, failures not cached). Users today:
   terrain layer arrays + noise (`layer:<url>…`), the splat and heightfield (`terrain:splat|height:<grid hash>…`; a splat painter hook is cached only with its
   `paintKey`, e.g. the road network's content hash),
-  vegetation strips, generated tree chunks (`trees:<quality>:<hash of the placements>`) and impostor bakes,
+  vegetation strips, generated tree chunks (`trees:<quality>:<hash of the placements>`) and the instanced forest's
+  packed prototypes (`treeLod:<level>:<hash of the plan>`),
   the placement-visual analyses (`visual:<kind>:<signature>`: node names, visibility, content-hashed geometry,
   world matrices — `visualSignature`), the renderer's filtered environment (`_envKey`, same HDRI + lighting).
   `Game.loadMission` calls `beginMission(id)`: entries used from then on are tagged with the mission; while it loads, a

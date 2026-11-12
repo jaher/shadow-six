@@ -1,6 +1,6 @@
 /**
  * WindField (PROGRESS step 4w) — ONE wind for the whole mission, shared by the CPU (cloth flags, particles, audio,
- * snow puffs, dust devils) and the GPU (grass, trees, impostors, clothing, tarps, water, VFX) through one uniform set.
+ * snow puffs, dust devils) and the GPU (grass, trees, the instanced forest, clothing, tarps, water, VFX) through one uniform set.
  *
  * Model: a mean wind (direction + speed, per mission or theater preset) modulated by
  *  - gust FRONTS: three families of curved bands travelling downwind across the map (visible as waves rolling through

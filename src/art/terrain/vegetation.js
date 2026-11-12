@@ -1,28 +1,33 @@
 /**
  * createVegetation — every placed tree/bush is generated from its own seed (treegen.js), so no two are alike.
  * Geometry is merged per 20 m chunk into 2 draw calls (bark + foliage cards; conifer needle sprays use their own
- * needle material, so only a chunk mixing broadleaves and conifers has a third) with frustum culling.
+ * needle material, so only a chunk mixing broadleaves and conifers has a third) with frustum culling. Past the unique
+ * budget (MAX_UNIQUE: the scenery apron's whole forest, dense stands on the lower presets) trees are instanced copies
+ * of real 3D prototypes with the same shaders (tree-lod.js): no tree is ever a flat card.
  * Textures: CC0 bark scans, ambientCG leaf-scan cluster cards and the baked needle-spray atlas in sampler2DArrays.
  * Shader: wind sway (trunk) + flutter (cards), bent crown normals, leaf translucency, snow cover, alpha-tested shadows.
  * @module terrain-b/vegetation
  */
 import * as THREE from 'three';
-import { generateTree, GeoAcc, TREE_QUALITY, SPECIES, LEAF_LAYERS, useThree, vertexRoot } from './treegen.js';
-import { bakeImpostors, createImpostorMesh } from './impostors.js';
+import { generateTree, GeoAcc, TREE_QUALITY, TREE_LOD, lodQuality, SPECIES, LEAF_LAYERS, useThree, vertexRoot, treeLook, WIND_KIND } from './treegen.js';
+import { packLodBank, lodTextures, disposeLodTextures, LodForest, LOD_VERT_GLSL, LOD_DITHER_GLSL, LOD_BUCKET_FILL } from './tree-lod.js';
 import { WIND_GLSL, WIND_UNIFORMS } from '../../world/wind.js';
 useThree(THREE);
 
-/** Unique (fully generated) trees per preset; the rest of a forest becomes impostors (must-fix 11). */
+/** Unique (fully generated) trees per preset; the rest of a forest is drawn as instanced copies of real 3D prototypes
+ * (tree-lod.js — user 2026-11-10: "No trees are a single billboard. All trees are detailed"). */
 export const MAX_UNIQUE = { low: 150, medium: 300, high: 400, ultra: 500 };
 /**
  * The tree set gameplay measures (gameplayBranches): what this quality draws, at every preset — the gun-arc branch cells
  * are part of the gameplay world, which never changes with the graphics preset ('high': the set every run was made on).
  */
 export const GAMEPLAY_TREES = 'high';
-const PROTOS_PER_SPECIES = 2;
-const IMP_TILE = { low: 160, medium: 192, high: 224, ultra: 256 };   // whole-tree tiles: below ~1:1 at zoom 1 they read blurry
-/** Conifer impostors: light gain standing in for the needle shader's canopy scattering and translucency. */
-const IMP_NEEDLE_GAIN = 1.3;
+/**
+ * Prototypes a look (species + bare / burnt) of the instanced forest, by how many copies it has: a lone tree one, a
+ * common look up to four (the commonest plants of a hedged apron — hedge, hazel — repeat least). Each copy also turns,
+ * scales, widens, leans and takes its own colour.
+ */
+const lodProtos = (n) => (n < 4 ? 1 : n < 120 ? 2 : n < 400 ? 3 : 4);
 
 let _pool = null;
 function workerPool(n) {
@@ -32,9 +37,18 @@ function workerPool(n) {
   const init = { threeUrl, treegenUrl: new URL('./treegen.js', import.meta.url).href };
   _pool = Array.from({ length: n }, () => {
     const w = new Worker(new URL('./treegen.worker.js', import.meta.url), { type: 'module' });
-    const ready = new Promise((res, rej) => { w.onmessage = (e) => e.data.ready && res(); w.onerror = rej; });
+    // jobs by id: the map's trees and the apron's prototypes may grow at the same time on the same workers
+    const jobs = new Map();
+    const ready = new Promise((res, rej) => {
+      w.onmessage = (e) => {
+        if (e.data.ready) return res();
+        const ok = jobs.get(e.data.job);
+        if (ok) { jobs.delete(e.data.job); ok(e.data.chunks); }
+      };
+      w.onerror = rej;
+    });
     w.postMessage({ init });
-    return { w, ready };
+    return { w, ready, jobs };
   });
   return _pool;
 }
@@ -48,19 +62,32 @@ async function genInWorkers(chunkList, q, nW) {
   const res = await Promise.all(pool.map((p, i) => new Promise((ok) => {
     if (!parts[i].length) return ok([]);
     const job = ++_job;
-    p.w.onmessage = (e) => { if (e.data.job === job) ok(e.data.chunks); };
+    p.jobs.set(job, ok);
     p.w.postMessage({ job, q, chunks: parts[i] });
   })));
   return res.flat();
 }
 
+/** A worker's packed tree arrays (GeoAcc.toArrays) back to plain per-vertex values (tree-lod.js packLodBank input). */
+function unpackArrays(a) {
+  if (!a) return null;
+  const n = a.p.length / 3, nrm = new Float32Array(n * 3), tint = new Float32Array(n * 3), ext = new Float32Array(n * 2);
+  const nS = a.n.length / n, packedN = a.n instanceof Int16Array, tS = a.tint.length / n, packedE = a.ext instanceof Int16Array;
+  for (let k = 0; k < n; k++) {
+    for (let c = 0; c < 3; c++) {
+      nrm[k * 3 + c] = packedN ? Math.max(-1, a.n[k * nS + c] / 32767) : a.n[k * nS + c];
+      tint[k * 3 + c] = a.tint instanceof Uint16Array ? THREE.DataUtils.fromHalfFloat(a.tint[k * tS + c]) : a.tint[k * tS + c];
+    }
+    for (let c = 0; c < 2; c++) ext[k * 2 + c] = packedE ? Math.max(-1, a.ext[k * 2 + c] / 32767) : a.ext[k * 2 + c];
+  }
+  return { p: a.p, n: nrm, uv: a.uv, info: a.info, tint, ext, idx: a.idx };
+}
+
 import { SNOW_COVER_GLSL } from './snowfx.js';
 import { hash2 } from './noise.js';
 import { loadLayerArray } from './layer-image.js';
-import { compressRenderTarget } from '../../engine/gpu-compress.js';
 import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
-import { due, runSliced, SLICED } from '../../engine/slice.js';
-import { compileAhead } from '../../engine/parallel-compile.js';
+import { due, runSliced } from '../../engine/slice.js';
 import { textureBytes } from '../../engine/scoped-assets.js';
 import { HD_TEXTURES, registerHdJob, uploadNow, hdPause } from '../../engine/hd-textures.js';
 import { takeReload } from '../../engine/texture-memory.js';
@@ -105,97 +132,43 @@ function swapStrip(dst, src) {
   return true;
 }
 
-/** Run a generator straight through (engine/slice.js runSync, kept local: the tree worker never loads this module). */
-function runSyncGen(gen) { let r = gen.next(); while (!r.done) r = gen.next(); return r.value; }
-/**
- * The impostor bake's programs (bakeImpostors: one ambient light, the bark / leaf / needle materials and their normal-pass
- * variants, drawn into a render target) created and linked by the driver without blocking: the same draws into a 4 × 4
- * target as a probe (engine/parallel-compile.js compileAhead, every new-program draw skipped). The returned material —
- * the bake's own MeshNormalMaterial twin — keeps that program alive until the bake has taken it; dispose it after.
- * @returns {Promise<THREE.Material|null>}
- */
-async function precompileBake(gl, protos, mats) {
-  if (!gl || !protos.length) return null;
-  const rt = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
-  const scene = new THREE.Scene();
-  scene.add(new THREE.AmbientLight(0xffffff, 1));
-  const bark = new THREE.Mesh(undefined, mats.barkMat), leaf = new THREE.Mesh(undefined, mats.leafMat);
-  const needle = new THREE.Mesh(undefined, mats.needleMat || mats.leafMat);
-  scene.add(bark, leaf, needle);
-  const nBark = new THREE.MeshNormalMaterial(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400), empty = new THREE.BufferGeometry();
-  cam.position.set(0, 0, 150); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
-  try {
-    await compileAhead(gl, () => {
-      const prev = gl.getRenderTarget();
-      try {
-        gl.setRenderTarget(rt);
-        for (const P of protos) for (const pass of [0, 1]) {
-          bark.geometry = P.bark || empty; bark.visible = !!P.bark;
-          leaf.geometry = P.leaf || empty; leaf.visible = !!P.leaf;
-          needle.geometry = P.needle || empty; needle.visible = !!P.needle;
-          bark.material = pass ? nBark : mats.barkMat;
-          leaf.material = pass ? mats.leafNormalMat : mats.leafMat;
-          needle.material = pass ? (mats.needleNormalMat || mats.leafNormalMat) : (mats.needleMat || mats.leafMat);
-          gl.render(scene, cam);
-        }
-      } finally { gl.setRenderTarget(prev); }
-    }, { all: true });
-  } catch (e) { console.warn('[vegetation] impostor precompile', e); }
-  finally { rt.dispose(); empty.dispose(); }
-  return nBark;
-}
-
-/** Impostor-bank cache entry dispose (module level: a callback made inside the builder would keep its whole scope — and the mission — alive). */
-const disposeImpostorEntry = (b) => { b.bank.disposed = true; b.bank.albedo.dispose(); b.bank.normal.dispose(); };
-
-/**
- * The baked impostor atlases go to the GPU compressed (engine/gpu-compress.js), straight from their render targets;
- * the targets — colour and the depth buffers only the bake needed — are freed then (m16: 122 → 31 MB). The materials
- * made from the bank (`bank.users`) switch to the compressed atlases; a later mesh takes them from the bank.
- */
-async function compactImpostorBank(bank) {
-  const [a, n] = await Promise.all([compressRenderTarget(bank.albedo), compressRenderTarget(bank.normal)]);
-  if (!a || !n || bank.disposed) { a?.dispose(); n?.dispose(); return; }
-  const wrap = (t) => ({ texture: t, width: t.image.width, height: t.image.height, dispose: () => t.dispose() });
-  const oldA = bank.albedo, oldN = bank.normal;
-  bank.albedo = cache.retain(wrap(a)); bank.normal = cache.retain(wrap(n));
-  for (const U of bank.users || []) { U.tImpA.value = a; U.tImpN.value = n; }
-  bank.users = null; bank.compacted = true;
-  bank.bytes = [a, n].reduce((s, t) => s + Math.ceil(t.image.width / 4) * Math.ceil(t.image.height / 4) * 16, 0);
-  oldA.dispose(); oldN.dispose();
-}
-
 /** Bytes of a worker chunk result (typed arrays). */
 const chunkBytes = (out) => out.reduce((n, r) => n + [r.bark, r.leaf].reduce((m, a) => m + (a ? Object.values(a).reduce((k, v) => k + (v?.byteLength || 0), 0) : 0), 0), 0);
 
 /** Hierarchical (SpeedTree-style) wind, step 4w: trunk bend from the root + branch sway + leaf flutter + palm whip,
- * all from the shared WindField sampled at the tree root (gust fronts roll through canopies tree by tree). */
-const vpars = (leaf, needle = false) => WIND_GLSL + (leaf ? '#define VEG_LEAF\n' : '') + (needle ? '#define VEG_NEEDLE\n' : '') + /* glsl */ `
+ * all from the shared WindField sampled at the tree root (gust fronts roll through canopies tree by tree).
+ * `lod`: the instanced forest's pulled vertices (tree-lod.js) — aExt / aInfo / aTint / aRoot are globals lodFetch()
+ * fills, not attributes. */
+const vpars = (leaf, needle = false, lod = false) => {
+  const att = lod ? '' : 'attribute ';
+  return WIND_GLSL + (leaf ? '#define VEG_LEAF\n' : '') + (needle ? '#define VEG_NEEDLE\n' : '') + /* glsl */ `
 #ifdef VEG_LEAF
-attribute vec2 aExt;  // crown AO, signed snow catch (broadleaf.js / shrubs.js; conifers.js on the needle material)
+${att}vec2 aExt;  // crown AO, signed snow catch (broadleaf.js / shrubs.js; conifers.js on the needle material)
 varying vec2 vExt;
 #ifndef VEG_NEEDLE
 varying vec2 vLeaf;   // per-card random, species kind (0 broad, 1 conifer, 2 palm, 3 bush)
 #endif
 #endif
-attribute vec4 aInfo;   // layer, sway weight (height), flex (0 trunk .. 1 leaf), phase
-attribute vec3 aTint;
+${att}vec4 aInfo;   // layer, sway weight (height), flex (0 trunk .. 1 leaf), phase
+${att}vec3 aTint;
+vec4 aRoot;
+` + (lod ? LOD_VERT_GLSL : /* glsl */ `
 // the vertex's tree root x, y, z, H + 100·kind (0 broad, 1 conifer, 2 palm, 3 bush): one entry a tree in uRoots (RGBA32F,
 // 1024 a row), its row in the 4th component of the packed normal (aNrm4: the normal's own buffer); geometries with
-// per-vertex roots (GeoAcc.toGeometry: impostor prototypes) have no aNrm4 (w reads 1) and use aRootV
+// per-vertex roots (GeoAcc.toGeometry: test cards) have no aNrm4 (w reads 1) and use aRootV
 attribute vec4 aRootV;
 attribute vec4 aNrm4;
 uniform highp sampler2D uRoots;
-vec4 aRoot;
 vec4 vegRoot() {
   float w = aNrm4.w;
   if (w > 0.99997) return aRootV;
   int id = int(w * 32767.0 + 0.5);
   return texelFetch(uRoots, ivec2(id & 1023, id >> 10), 0);
 }
+`) + /* glsl */ `
 uniform float uTime;
 uniform vec2 uWind;
-uniform float uWindStr; // 0..1 multiplier (0 while baking impostors)
+uniform float uWindStr; // 0..1 multiplier
 uniform vec4 uAgit[8];  // movers brushing through bushes / low boughs: x, z, strength, radius (createVegetation.agitate)
 varying vec3 vVUv;
 varying vec3 vTint;
@@ -251,10 +224,12 @@ vec3 vegWind(vec3 p) {
   return p + off;
 }
 `;
-const VBEGIN = /* glsl */ `
-aRoot = vegRoot();
-vec3 transformed = vegWind(position);
-vVUv = vec3(uv, aInfo.x);
+};
+/** begin_vertex of the vegetation programs (`lod`: the pulled vertex lodFetch() made at the start of main()). */
+const vbegin = (lod = false) => /* glsl */ `
+${lod ? '' : 'aRoot = vegRoot();'}
+vec3 transformed = vegWind(${lod ? 'lPos' : 'position'});
+vVUv = vec3(${lod ? 'lUv' : 'uv'}, aInfo.x);
 vTint = aTint;
 vFlex = aInfo.z;
 vScWP = transformed;
@@ -347,15 +322,36 @@ function rootTable(roots) {
   return t;
 }
 
-function makeMaterials(tex, U, kind) {
+/**
+ * The instanced forest's variant of a vegetation vertex shader (tree-lod.js): its vertex pulled first thing in main(),
+ * then read where the unique trees read their attributes (the normal, the normal map's uv).
+ */
+const pulled = (vs) => vs.replace('void main() {', 'void main() {\n  lodFetch();')
+  .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = lNrm;')
+  .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_NORMALMAP\n  vNormalMapUv = lUv;\n#endif');
+/** The instanced forest's shadow casters: LOD1 / LOD2 cross-fade masks first in main() (tree-lod.js LOD_DITHER_GLSL). */
+const dithered = (fs) => LOD_DITHER_GLSL + fs.replace('void main() {', 'void main() {\n  lodDither();');
+/** A vertex shader with the vegetation chunks: unique trees (attributes) or, with `lod`, the instanced forest's. */
+const vegVertex = (vs, leaf, needle, lod, depthNormal = false) => {
+  // (`depthNormal`: a shadow depth program — the instanced forest's reads its draw's shadow slots: LOD_SHADOW)
+  const v = (lod && depthNormal ? '#define LOD_SHADOW\n' : '') + vpars(leaf, needle, !!lod) + vs.replace('#include <begin_vertex>', (depthNormal ? `vec3 objectNormal = ${lod ? 'lNrm' : 'normal'};\n` : '') + vbegin(!!lod));
+  return lod ? pulled(v) : v;
+};
+
+/**
+ * Bark or leaf-card materials (colour + shadow depth). `lod` ({u, us}: the instanced forest's textures and the draw's
+ * first instance slot for the colour and the shadow pass, tree-lod.js LodForest.meshes): the same shaders on pulled
+ * vertices, one program shared by every such draw.
+ */
+function makeMaterials(tex, U, kind, lod = null) {
   const leaf = kind === 'leaf';
   const mat = new THREE.MeshStandardMaterial({ roughness: leaf ? 0.7 : 0.92, metalness: 0, side: leaf ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.45 : 0 });
   mat.normalMap = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1); // enables perturbNormal2Arb
   mat.normalMap.needsUpdate = true;
   mat.userData.U = U; // shared vegetation uniforms (season, wind, snow): tests / tools
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U, { tArr: { value: tex.alb }, tArrN: { value: tex.nor || tex.alb } });
-    sh.vertexShader = vpars(leaf) + sh.vertexShader.replace('#include <begin_vertex>', VBEGIN);
+    Object.assign(sh.uniforms, U, { tArr: { value: tex.alb }, tArrN: { value: tex.nor || tex.alb } }, lod?.u);
+    sh.vertexShader = vegVertex(sh.vertexShader, leaf, false, lod);
     let f = sh.fragmentShader;
     f = f.replace('#include <map_fragment>', leaf ? LEAF_MAP_FRAG : `
       vec4 tA = texture(tArr, vVUv);
@@ -393,27 +389,29 @@ function makeMaterials(tex, U, kind) {
       if (abs(vVUv.z - ${TWIG_LAYER + 0.5}) < 0.75) scCov *= 0.12;` : ''}
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.84, 0.9), scCov);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.6, scCov);');
-    f = f.replace('#include <opaque_fragment>', '#include <opaque_fragment>\n  if (uBake > 0.5) gl_FragColor = vec4(diffuseColor.rgb, 1.0); // impostor albedo bake');
-    sh.fragmentShader = 'uniform highp sampler2DArray tArr;\nuniform highp sampler2DArray tArrN;\n' + (leaf ? 'uniform vec3 uAut[24];\n' : '') + 'uniform vec3 uSunV;\nuniform float uSunI;\nuniform float uBake;\nuniform vec4 uSeason;\nvarying vec3 vVUv;\nvarying vec3 vTint;\nvarying float vFlex;\n'
+    sh.fragmentShader = 'uniform highp sampler2DArray tArr;\nuniform highp sampler2DArray tArrN;\n' + (leaf ? 'uniform vec3 uAut[24];\n' : '') + 'uniform vec3 uSunV;\nuniform float uSunI;\nuniform vec4 uSeason;\nvarying vec3 vVUv;\nvarying vec3 vTint;\nvarying float vFlex;\n'
       + (leaf ? 'varying vec2 vExt;\nvarying vec2 vLeaf;\n' + LEAF_ALPHA_GLSL : '') + SNOW_COVER_GLSL + f;
   };
-  mat.customProgramCacheKey = () => 'vegB-' + kind;
+  const L = lod ? '-lod' : '';
+  mat.customProgramCacheKey = () => 'vegB-' + kind + L;
   let depth = null;
   if (leaf) {
     depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
     depth.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, U, { tArrN: { value: tex.nor } });
-      sh.vertexShader = vpars(true) + sh.vertexShader.replace('#include <begin_vertex>', 'vec3 objectNormal = normal;\n' + VBEGIN);
+      Object.assign(sh.uniforms, U, { tArrN: { value: tex.nor } }, lod?.us);
+      sh.vertexShader = vegVertex(sh.vertexShader, true, false, lod, true);
       sh.fragmentShader = 'uniform highp sampler2DArray tArrN;\nvarying vec3 vVUv;\n' + LEAF_ALPHA_GLSL + sh.fragmentShader.replace('void main() {', LEAF_DISCARD);
+      if (lod) sh.fragmentShader = dithered(sh.fragmentShader);
     };
-    depth.customProgramCacheKey = () => 'vegB-leafdepth';
+    depth.customProgramCacheKey = () => 'vegB-leafdepth' + L;
   } else {
     depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     depth.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, U);
-      sh.vertexShader = vpars(false) + sh.vertexShader.replace('#include <begin_vertex>', 'vec3 objectNormal = normal;\n' + VBEGIN);
+      Object.assign(sh.uniforms, U, lod?.us);
+      sh.vertexShader = vegVertex(sh.vertexShader, false, false, lod, true);
+      if (lod) sh.fragmentShader = dithered(sh.fragmentShader);
     };
-    depth.customProgramCacheKey = () => 'vegB-barkdepth';
+    depth.customProgramCacheKey = () => 'vegB-barkdepth' + L;
   }
   return { mat, depth };
 }
@@ -438,13 +436,14 @@ float needleAlpha(float a) {
  * per-vertex crown AO, translucency through thin edges when back-lit, and snow loads on the top faces of tiers
  * (aExt.y sign × gl_FrontFacing) that fill the spray as soft clumps while the needles show at their edges.
  */
-function makeNeedleMaterials(tex, U) {
+function makeNeedleMaterials(tex, U, lod = null) {
   const mat = new THREE.MeshStandardMaterial({ roughness: 0.66, metalness: 0, side: THREE.DoubleSide });
+  const L = lod ? '-lod' : '';
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U, { tNA: { value: tex.alb }, tNN: { value: tex.nor } });
+    Object.assign(sh.uniforms, U, { tNA: { value: tex.alb }, tNN: { value: tex.nor } }, lod?.u);
     // shadow lookup taken 12 cm toward the sun: an alpha-tested card shadowing itself (and the snow body filling
     // its needle gaps) at shadow-map resolution sprinkled black specks through the snow clumps
-    sh.vertexShader = 'uniform vec3 uSunV;\n' + vpars(true, true) + sh.vertexShader.replace('#include <begin_vertex>', VBEGIN)
+    sh.vertexShader = 'uniform vec3 uSunV;\n' + vegVertex(sh.vertexShader, true, true, lod)
       .replace('#include <shadowmap_vertex>', `#ifdef USE_SHADOWMAP
         vec4 wpKeep = worldPosition; worldPosition.xyz += normalize((vec4(uSunV, 0.0) * viewMatrix).xyz) * 0.12;
         #endif
@@ -521,22 +520,23 @@ function makeNeedleMaterials(tex, U) {
         // snow bounce + canopy multiple scattering: shaded skirts over bright snow stay dark GREEN, not black/blue
         float gB = uSnowAmt > 0.001 ? 1.0 : 0.4;
         reflectedLight.indirectDiffuse = reflectedLight.indirectDiffuse * 1.45 * mix(1.0, ao, 0.4)
-          + nCol * uSunI * 0.05 * gB * ao * (1.0 - scCov);`)
-      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\n  if (uBake > 0.5) gl_FragColor = vec4(diffuseColor.rgb, 1.0); // impostor albedo bake');
-    sh.fragmentShader = 'uniform vec3 uSunV;\nuniform float uSunI;\nuniform float uBake;\nvarying vec3 vTint;\nvarying vec2 vExt;\nvarying float vFlex;\n' + NEEDLE_FRAG_PARS + SNOW_COVER_GLSL + f;
+          + nCol * uSunI * 0.05 * gB * ao * (1.0 - scCov);`);
+    sh.fragmentShader = 'uniform vec3 uSunV;\nuniform float uSunI;\nvarying vec3 vTint;\nvarying vec2 vExt;\nvarying float vFlex;\n' + NEEDLE_FRAG_PARS + SNOW_COVER_GLSL + f;
   };
-  mat.customProgramCacheKey = () => 'vegB-needle';
-  const alphaOnly = (base, key) => {
+  mat.customProgramCacheKey = () => 'vegB-needle' + L;
+  const alphaOnly = (base, key, u) => {
     base.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, U, { tNA: { value: tex.alb }, tNN: { value: tex.nor } });
-      sh.vertexShader = vpars(true, true) + sh.vertexShader.replace('#include <begin_vertex>', (key === 'depth' ? 'vec3 objectNormal = normal;\n' : '') + VBEGIN);
+      Object.assign(sh.uniforms, U, { tNA: { value: tex.alb }, tNN: { value: tex.nor } }, u);
+      sh.vertexShader = vegVertex(sh.vertexShader, true, true, lod, key === 'depth');
       sh.fragmentShader = NEEDLE_FRAG_PARS + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (needleAlpha(texture(tNN, vVUv).b) < 0.5) discard;');
+      if (lod && key === 'depth') sh.fragmentShader = dithered(sh.fragmentShader);
     };
-    base.customProgramCacheKey = () => 'vegB-needle' + key;
+    base.customProgramCacheKey = () => 'vegB-needle' + key + L;
     return base;
   };
-  const depth = alphaOnly(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide }), 'depth');
-  const aoMat = alphaOnly(new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }), 'ao');
+  const depth = alphaOnly(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide }), 'depth', lod?.us);
+  // (the instanced forest skips the GTAO prepass: no AO variant)
+  const aoMat = lod ? null : alphaOnly(new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }), 'ao');
   return { mat, depth, aoMat };
 }
 
@@ -547,7 +547,7 @@ function aoNormalMaterial(tex, U) {
   const m = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U, { tArrN: { value: tex } });
-    sh.vertexShader = vpars(true) + sh.vertexShader.replace('#include <begin_vertex>', VBEGIN);
+    sh.vertexShader = vegVertex(sh.vertexShader, true, false, null);
     sh.fragmentShader = 'uniform highp sampler2DArray tArrN;\nvarying vec3 vVUv;\n' + LEAF_ALPHA_GLSL + sh.fragmentShader.replace('void main() {', LEAF_DISCARD);
   };
   m.customProgramCacheKey = () => 'vegB-aonormal';
@@ -596,7 +596,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     ...WIND_UNIFORMS, // step 4w shared wind
     uTime: { value: 0 }, uWind: { value: wind }, uWindStr: { value: opts.windStrength ?? 1 },
     uSnowAmt: { value: snowDefault }, uSnowBias: { value: 0 },
-    uSunV: { value: new THREE.Vector3(0, 1, 0) }, uSunI: { value: 3 }, uBake: { value: 0 },
+    uSunV: { value: new THREE.Vector3(0, 1, 0) }, uSunI: { value: 3 },
     uAgit: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 1)) },
     uSeason: { value: new THREE.Vector4(opts.season?.autumn ?? 0, opts.season?.dull ?? 0, 0, 0) }, // leaf colour by date (treeSeason)
     uAut: { value: autumnTints() },
@@ -615,8 +615,55 @@ export async function createVegetation(scene, placements, theater = 'temperate',
   let trees = [];
 
   const gl = opts.renderer?.isWebGLRenderer ? opts.renderer : opts.renderer?.renderer;
-  let impBank = null;
+  /** The instanced forest of the current build (tree-lod.js): its textures, culled instances and materials. */
+  let lodParts = null;
   let building = null;
+  const disposeLod = () => {
+    if (!lodParts) return;
+    for (const t of lodParts.tex) disposeLodTextures(t);
+    lodParts.forest.dispose();
+    for (const m of lodParts.mats) { m.normalMap?.dispose(); m.dispose(); }
+    lodParts = null;
+  };
+  /**
+   * The instanced forest's prototypes at one level (treegen TREE_LOD) grown and packed for the GPU (session cache: a
+   * restart neither regrows nor repacks them): in the tree workers when there are several, else here a slice at a
+   * time — the same trees. @param {object[]} plan [{key, species, seed, …placement flags, tint0}] @param {number} level
+   */
+  async function growLodBank(plan, level) {
+    // (bare, dead and burnt crowns keep more limbs and twigs: lodQuality's sparse)
+    const lplan = plan.map((p) => ({ ...p, q: lodQuality(level, p.sparse) }));
+    const key = `treeLod:${level}:${dataKey((h) => { h.str(JSON.stringify(lplan)); })}`;
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const kindOf = (p) => WIND_KIND[SPECIES[p.species]?.kind] ?? 0;
+    let protos = null;
+    if (opts.workers !== 0 && plan.length >= 4) {
+      try {
+        const nW = opts.workers ?? Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) - 1));
+        const out = await genInWorkers(lplan.map((p) => ({ key: p.key, trees: [p] })), lplan[0].q, nW);
+        if (out) {
+          const by = new Map(out.map((r) => [r.key, r]));
+          protos = plan.map((p) => { const r = by.get(p.key); return { H: r.info[0].height, kind: kindOf(p), bark: unpackArrays(r.bark), leaf: unpackArrays(r.leaf), needle: unpackArrays(r.needle) }; });
+        }
+      } catch (e) { console.warn('[vegetation] prototype workers failed, growing here', e); protos = null; }
+    }
+    if (!protos) {
+      protos = await runSliced((function* growProtos() {
+        const res = [];
+        for (const p of lplan) {
+          const bark = new GeoAcc(), leaf = new GeoAcc(), needle = new GeoAcc();
+          const info = generateTree(p.species, p.seed, p.q, bark, leaf, p, needle);
+          res.push({ H: info.height, kind: kindOf(p), bark: bark.count ? bark : null, leaf: leaf.count ? leaf : null, needle: needle.count ? needle : null });
+          if (due()) yield;
+        }
+        return res;
+      })());
+    }
+    const bank = packLodBank(protos, LOD_BUCKET_FILL[level]);
+    cache.set(key, bank, { bytes: bank.bytes });
+    return bank;
+  }
 
   const ts = opts.season || {};
   /** Every planted tree with its seed, ground height and season looks (the same at every quality). */
@@ -635,32 +682,32 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     }
     return list;
   }
-  /** The trees drawn unique at `qName` (`hero`) and those drawn as impostors (`imp`). */
+  /** The trees drawn unique at `qName` (`hero`) and those drawn as instanced copies of prototypes (`far`, tree-lod.js). */
   function heroSplit(list, qName) {
-    // unique budget: heroes first (p.hero), then a seeded shuffle, so impostors are spread evenly through forests
+    // unique budget: heroes first (p.hero), then a seeded shuffle, so the instanced copies spread evenly through forests
     const maxU = opts.maxUnique ?? MAX_UNIQUE[qName] ?? 500;
-    let hero = list, imp = [];
-    // impostor candidates = trees in dense stands (forest interiors); solitary / hedge / designed trees stay unique
+    let hero = list, far = [];
+    // instancing candidates = trees in dense stands (forest interiors); solitary / hedge / designed trees stay unique
     const cell = new Map(), ck = (x, z) => Math.floor(x / 6) + ',' + Math.floor(z / 6);
     for (const p of list) cell.set(ck(p.x, p.z), (cell.get(ck(p.x, p.z)) || 0) + 1);
     const dens = (p) => { let n = 0; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) n += cell.get(Math.floor(p.x / 6 + a) + ',' + Math.floor(p.z / 6 + b)) || 0; return n; };
-    if (list.length > maxU && gl && opts.impostors !== false) {
-      // key: heroes first, then sparsest stands; densest forest interiors end up as impostors
+    if (list.length > maxU && gl && opts.instanced !== false) {
+      // key: heroes first, then sparsest stands; densest forest interiors end up instanced
       const ord = list.map((p) => [p.hero ? Infinity : 1 / (1 + dens(p)) + 0.02 * hash2(p.seed & 0xffff, p.seed >>> 16, 5), p])
         .sort((a, b) => b[0] - a[0]).map((a) => a[1]);
-      hero = ord.slice(0, maxU); imp = ord.slice(maxU);
+      hero = ord.slice(0, maxU); far = ord.slice(maxU);
     }
     // load budget (docs/vegetation.md §5): visual-only plants (forest-fill interiors, understorey) have their own small
-    // unique budget; past it the densest become impostors (worker generation of 300+ unique M20 plants cost +4-5 s)
+    // unique budget; past it the densest are instanced (worker generation of 300+ unique M20 plants cost +4-5 s)
     const maxV = opts.maxVisualUnique ?? Math.round(maxU * 0.3);
-    if (gl && opts.impostors !== false) {
+    if (gl && opts.instanced !== false) {
       const vis = hero.filter((p) => !p.hero && p.species !== 'fallen' && (p.visual || p.understorey || p.fill));
       if (vis.length > maxV) {
         const drop = new Set(vis.map((p) => [dens(p) + 0.02 * hash2(p.seed & 0xffff, p.seed >>> 16, 7), p]).sort((a, b) => b[0] - a[0]).slice(0, vis.length - maxV).map((a) => a[1]));
-        hero = hero.filter((p) => !drop.has(p)); imp = imp.concat([...drop]);
+        hero = hero.filter((p) => !drop.has(p)); far = far.concat([...drop]);
       }
     }
-    return { hero, imp };
+    return { hero, far };
   }
   /** The unique trees in CHUNK m squares (one geometry set per chunk). */
   function chunksOf(hero) {
@@ -710,9 +757,25 @@ export async function createVegetation(scene, placements, theater = 'temperate',
   async function build() {
     const t0 = performance.now();
     const q = TREE_QUALITY[quality], qName = quality;
-    const { hero, imp } = heroSplit(treeList(), qName);
+    const { hero, far } = heroSplit(treeList(), qName);
     const chunkList = chunksOf(hero);
-    const gen = await generate(chunkList, qName, hero.length);
+    // the trees past the unique budget: instanced copies of K real prototypes a look (species, bare, burnt), grown at
+    // this quality with a neutral colour — each copy brings the tints its own seed would have grown (treeLook); grown
+    // alongside the unique trees (the same workers), swapped in with them
+    const lookOf = (p) => p.species + (p.leafless ? '|bare' : '') + (p.burnt ? '|burnt' : '');
+    const counts = new Map();
+    for (const p of far) counts.set(lookOf(p), (counts.get(lookOf(p)) || 0) + 1);
+    const first = new Map(), K = new Map(), plan = [];
+    for (const k of counts.keys()) {
+      const [sp] = k.split('|'), bare = k.includes('|bare'), burnt = k.includes('|burnt');
+      first.set(k, plan.length); K.set(k, lodProtos(counts.get(k)));
+      for (let v = 0; v < K.get(k); v++) {
+        plan.push({ key: `lod${plan.length}`, species: sp, seed: 9173 + v * 131 + plan.length * 7, x: 0, y: 0, z: 0, leafless: bare, burnt,
+          marc: bare ? ts.marc || 0 : 0, marcTrees: ts.marcTrees, dates: !!ts.dates, fruit: !!ts.fruit, tint0: true,
+          sparse: bare || burnt || !SPECIES[sp]?.leaf });
+      }
+    }
+    const [gen, ...banks] = await Promise.all([generate(chunkList, qName, hero.length), ...(plan.length ? TREE_LOD.map((_, lv) => growLodBank(plan, lv)) : [])]);
     const out = gen.out;
     stats.cached = gen.cached;
     stats.worker = gen.worker;
@@ -728,7 +791,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     let at = 0;
     const baseOf = (a) => { if (!a?.roots) return 0; const b = at; table.set(a.roots, b * 4); at += a.roots.length / 4; return b; };
     for (const r of out) {
-      byKey.get(r.key).trees.forEach((t, i) => trees.push({ ...t, ...r.info[i], impostor: false }));
+      byKey.get(r.key).trees.forEach((t, i) => trees.push({ ...t, ...r.info[i], lod: false }));
       for (const [a, M] of [[r.bark, barkM], [r.leaf, leafM], [r.needle, needleM]]) {
         if (!a) continue;
         const mesh = new THREE.Mesh(GeoAcc.arraysToGeometry(a, baseOf(a)), M.mat);
@@ -749,68 +812,33 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     U.uRoots.value = rootTable(table);
     old.dispose();
     stats.roots = nRoots;
-    stats.impostors = 0;
-    if (imp.length) {
-      // K prototypes per species/variant, baked once per quality change (and once per page for the same set:
-      // session cache, so a restart neither regenerates the prototypes nor re-renders the atlas)
-      const protoKeys = [...new Set(imp.map((p) => p.species + (p.leafless ? '|bare' : '') + (p.burnt ? '|burnt' : '')))];
-      const pitch = opts.camera ? Math.asin(Math.min(1, Math.abs(new THREE.Vector3(0, 0, -1).applyQuaternion(opts.camera.quaternion).y))) : THREE.MathUtils.degToRad(opts.pitchDeg ?? 40);
-      const tile = IMP_TILE[quality] ?? 256;
-      const impKey = `impostors:${dataKey((h) => h.str(JSON.stringify([protoKeys, q, tile, ts.marc || 0, ts.marcTrees || null, +pitch.toFixed(5), theater, U.uSnowAmt.value, U.uSnowBias.value])))}`;
-      const prev = impBank;
-      const genProtos = function* genProtos() {
-        const protos = [];
-        for (const k of protoKeys) {
-          const [sp] = k.split('|');
-          for (let v = 0; v < PROTOS_PER_SPECIES; v++) {
-            const bark = new GeoAcc(), leaf = new GeoAcc(), needle = new GeoAcc();
-            const info = generateTree(sp, 9173 + v * 131 + protos.length, q, bark, leaf, { x: 0, y: 0, z: 0, leafless: k.includes('|bare'), burnt: k.includes('|burnt'), marc: k.includes('|bare') ? ts.marc || 0 : 0, marcTrees: ts.marcTrees }, needle);
-            protos.push({ key: k, v, info, bark: bark.count ? bark.toGeometry() : null, leaf: leaf.count ? leaf.toGeometry() : null, needle: needle.count ? needle.toGeometry() : null });
-            if (due()) yield;
-          }
-        }
-        return protos;
-      };
-      const bakeMats = { barkMat: barkM.mat, leafMat: leafM.mat, leafNormalMat: aoMat, needleMat: needleM.mat, needleNormalMat: needleM.aoMat, U };
-      // not baked yet: the prototypes are grown a slice at a time and the bake's programs linked by the driver first
-      // (engine/parallel-compile.js), so the bake itself — the same draws — never waits for a compile
-      let pre = null, preKeep = null;
-      if (SLICED && !cache.has(impKey)) {
-        pre = await runSliced(genProtos());
-        preKeep = await precompileBake(gl, pre, bakeMats);
-        // …and the strips it samples on the GPU a task apart (its first draws uploaded them all in one go): only those
-        // the prototypes draw — bark always, leaf cards / needle sprays when there are some
-        const ups = [];
-        if (pre.some((P) => P.bark)) ups.push(bAlb, bNor);
-        if (pre.some((P) => P.leaf)) ups.push(lAlb, lNor);
-        if (pre.some((P) => P.needle)) ups.push(nAlb, nNor);
-        for (const t of ups) if (t && gl?.initTexture) { gl.initTexture(t); await new Promise((ok) => setTimeout(ok, 0)); }
-      }
-      const baked = cache.memo(impKey, () => {
-        const protos = pre || runSyncGen(genProtos());
-        pre = null;
-        const bank = bakeImpostors(gl, protos, bakeMats, { views: 6, tile, pitch });
-        for (const pr of protos) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); }
-        cache.retain(bank.albedo); cache.retain(bank.normal);
-        compactImpostorBank(bank);
-        return { bank, heights: protos.map((pr) => pr.info.height) };
-      }, { bytes: (b) => b.bank.bytes || 0, dispose: disposeImpostorEntry });
-      preKeep?.dispose();
-      for (const pr of pre || []) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); } // (baked meanwhile by another build)
-      impBank = baked.bank;
-      if (prev && prev !== impBank) { cache.release(prev.albedo); cache.release(prev.normal); }
-      const protos = baked.heights.map((height) => ({ info: { height } }));
-      const inst = imp.map((p) => {
-        const base = protoKeys.indexOf(p.species + (p.leafless ? '|bare' : '') + (p.burnt ? '|burnt' : '')) * PROTOS_PER_SPECIES;
-        const pi = base + (p.seed % PROTOS_PER_SPECIES);
-        const H = protos[pi].info.height, sp = SPECIES[p.species];
+    disposeLod();
+    stats.lod = 0;
+    if (far.length && banks.length) {
+      const tex = banks.map(lodTextures);
+      const inst = far.map((p) => {
+        const k = lookOf(p), pi = first.get(k) + (p.seed % K.get(k));
+        const H = banks[0].protos[pi].H, sp = SPECIES[p.species];
         const want = (sp.H ? sp.H[0] + (sp.H[1] - sp.H[0]) * ((p.seed % 997) / 997) : H) * (p.scale || 1);
-        trees.push({ ...p, height: want, impostor: true });
-        return { x: p.x, y: p.y, z: p.z, rot: ((p.seed % 6283) / 1000), proto: pi, scale: want / H, bright: 0.85 + 0.3 * ((p.seed % 101) / 101), gain: sp.kind === 'conifer' && !p.burnt ? IMP_NEEDLE_GAIN : 0 };
+        trees.push({ ...p, height: want, lod: true });
+        const look = treeLook(p.species, p.seed, { burnt: p.burnt });
+        return { x: p.x, y: p.y, z: p.z, yaw: (p.seed % 6283) / 1000, proto: pi, scale: want / H, phase: look.phase, bare: !!p.leafless,
+          bark: p.burnt ? [1, 1, 1] : look.tint, leaf: look.leafTint };
       });
-      group.add(createImpostorMesh(impBank, inst));
-      stats.impostors = inst.length;
-      stats.impostorMB = +(impBank.bytes / 1048576).toFixed(1);
+      const forest = new LodForest(banks, inst), mats = [];
+      const make = (lv, m, u, us) => {
+        const M = m === 'bark' ? makeMaterials({ alb: bAlb, nor: bNor }, U, 'bark', { u, us })
+          : m === 'leaf' ? makeMaterials({ alb: lAlb, nor: lNor }, U, 'leaf', { u, us }) : makeNeedleMaterials({ alb: nAlb, nor: nNor }, U, { u, us });
+        mats.push(M.mat, M.depth);
+        return M;
+      };
+      for (const mesh of forest.meshes(tex, make)) group.add(mesh);
+      lodParts = { tex, forest, mats };
+      stats.lod = inst.length;
+      stats.lodProtos = plan.length;
+      stats.lodDraws = forest.lists.length;
+      stats.lodMB = +((banks.reduce((n, b) => n + b.bytes, 0) + forest.slots.reduce((n, sl) => n + sl.data.byteLength, 0)) / 1048576).toFixed(2);
+      stats.lodLists = forest.lists.map((l) => `L${l.level + 1}${l.mat}:${l.corners / 3}t×${l.members}`).join(' ');
     }
     stats.trees = trees.length;
     stats.unique = hero.length;
@@ -830,7 +858,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     if (hashFor !== trees) {
       lowHash = new Map(); hashFor = trees;
       for (const t of trees) {
-        if (t.impostor || !(SPECIES[t.species]?.kind === 'bush' || (t.height ?? 99) < 7)) continue;
+        if (!(SPECIES[t.species]?.kind === 'bush' || (t.height ?? 99) < 7)) continue; // (the instanced copies too: 3D sprays part as well)
         const k = Math.floor(t.x / 8) + ',' + Math.floor(t.z / 8);
         if (!lowHash.has(k)) lowHash.set(k, []);
         lowHash.get(k).push(t);
@@ -846,6 +874,8 @@ export async function createVegetation(scene, placements, theater = 'temperate',
   return {
     group, stats,
     get trees() { return trees; },
+    /** The instanced forest of the trees past the unique budget (tree-lod.js LodForest), or null: tests / tools. */
+    get lod() { return lodParts?.forest ?? null; },
     /** @deprecated no longer needed: the renderer's AlphaAwareGTAOPass reads mesh.userData.aoMaterial. Kept as a no-op. */
     attachRenderer() {},
     update(dt, camera) {
@@ -868,17 +898,17 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       await building;
       if (builtQuality === GAMEPLAY_TREES) { stats.gameplay = { drawn: true }; return { root: group, trees, dispose() {} }; }
       const t0 = performance.now();
-      const { hero, imp } = heroSplit(treeList(), GAMEPLAY_TREES);
+      const { hero, far } = heroSplit(treeList(), GAMEPLAY_TREES);
       const chunkList = chunksOf(hero), byKey = new Map(chunkList.map((c) => [c.key, c]));
       const { out, cached, worker } = await generate(chunkList, GAMEPLAY_TREES, hero.length, { barkOnly: true });
       stats.gameplay = { drawn: false, unique: hero.length, cached, worker, ms: Math.round(performance.now() - t0) }; // (load cost at 'low')
       const root = new THREE.Group(), list = [];
       root.name = 'vegetationB:gameplay';
       for (const r of out) {
-        byKey.get(r.key).trees.forEach((t, i) => list.push({ ...t, ...r.info[i], impostor: false }));
+        byKey.get(r.key).trees.forEach((t, i) => list.push({ ...t, ...r.info[i], lod: false }));
         if (r.bark) { const m = new THREE.Mesh(GeoAcc.arraysToGeometry(r.bark, 0)); m.name = 'vegBark'; root.add(m); }
       }
-      for (const p of imp) list.push({ ...p, impostor: true });
+      for (const p of far) list.push({ ...p, lod: true });
       return { root, trees: list, dispose() { for (const m of root.children) { m.geometry.dispose(); m.material.dispose(); } } };
     },
     setSnow(a) { U.uSnowAmt.value = a; },
@@ -907,6 +937,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     dispose() {
       gone = true;
       for (const m of group.children) m.geometry.dispose();
+      disposeLod();
       scene.remove(group);
       [barkM.mat, barkM.depth, leafM.mat, leafM.depth, needleM.mat, needleM.depth, needleM.aoMat].forEach((m) => m.dispose());
       [lAlb, bAlb, bNor, lNor, nAlb, nNor].forEach((t) => cache.release(t));

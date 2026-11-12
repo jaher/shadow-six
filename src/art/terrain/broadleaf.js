@@ -173,7 +173,9 @@ export function makeBroadleaves(h) {
       }
       if (lvl === 0) { trunk.pts = pts; trunk.rads = rads; }
       const radial = Math.max(3, Math.round(L.radial * q.radial));
-      tube(bark, pts, rads, radial, barkLayer, windFn(lvl), tint, Math.max(1, Math.round((2 * Math.PI * r0) / 0.5)));
+      // (q.barkLevels: the instanced forest's reduced levels, tree-lod.js — the wood inside the crown is left out; a bare
+      // or dead crown keeps one order more: its limbs are what it shows)
+      if (q.barkLevels == null || lvl <= q.barkLevels + (bare || dead ? 1 : 0)) tube(bark, pts, rads, radial, barkLayer, windFn(lvl), tint, Math.max(1, Math.round((2 * Math.PI * r0) / 0.5)));
       if (broken < 1) return;
       const nC = L.children ? Math.max(1, Math.round(L.children * (0.75 + 0.5 * r()) * (lvl >= 2 ? q.twigs : 1))) : 0;
       // trunk: limbs start at the crown base (clear bole below)
@@ -251,7 +253,7 @@ export function makeBroadleaves(h) {
     }
     // root flare (big trees): short buttresses that swell out of the trunk foot and arch down into the soil within a
     // metre, curving all the way (no straight run over ~0.3 m), partly buried; graded into the soil colour below
-    if (sp.roots && trunk.pts && !sp.pollard) {
+    if (sp.roots && trunk.pts && !sp.pollard && q.roots !== false) {
       const nR = Math.round((4 + 2 * r()) * Math.min(1, q.radial + 0.2));
       for (let k = 0; k < nR; k++) {
         const a = (k / nR) * 6.28 + (r() - 0.5) * 0.7, o = V(Math.cos(a), 0, Math.sin(a)), side = V(-o.z, 0, o.x);

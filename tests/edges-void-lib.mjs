@@ -102,23 +102,30 @@ export async function voidCheck(page, t, id) {
   t(fails.length === 0, `${id}: no void at any edge / corner, zoom, angle, aspect${fails.length ? '\n         ' + fails.slice(0, 6).join('\n         ') : ''}`);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  // cost: the apron is a handful of draws and a bounded triangle count
+  // cost: the apron ground is a handful of draws, its forest a bounded number, the whole a bounded triangle count
   const perf = await page.evaluate(() => {
     const g = window.__game, G = g.game, ap = G.mapHandle.terrain.apron;
     g.centerOn(0, 0);
     for (let i = 0; i < 8; i++) g.render(); // settle after the 21:9 → 16:9 resize (render targets, queued GPU work)
     const on = g.renderStats();
     const t0 = performance.now(); for (let i = 0; i < 20; i++) g.render(); const msOn = (performance.now() - t0) / 20;
-    ap.mesh.visible = ap.skirt.visible = false; if (ap.vegetation) ap.vegetation.group.visible = false;
+    if (ap.vegetation) ap.vegetation.group.visible = false;
+    g.render();
+    const ground = g.renderStats();
+    ap.mesh.visible = ap.skirt.visible = false;
     g.render();
     const off = g.renderStats();
     const t1 = performance.now(); for (let i = 0; i < 20; i++) g.render(); const msOff = (performance.now() - t1) / 20;
     ap.mesh.visible = ap.skirt.visible = true; if (ap.vegetation) ap.vegetation.group.visible = true;
-    return { on, off, msOn, msOff };
+    return { on, ground, off, msOn, msOff };
   });
   const dCalls = perf.on.calls - perf.off.calls, dTris = perf.on.triangles - perf.off.triangles;
-  t.log(`${id}: apron cost +${dCalls} draw calls, +${dTris} triangles, ${perf.msOff.toFixed(2)} → ${perf.msOn.toFixed(2)} ms/frame (CPU-side)`);
-  t(dCalls <= 16, `${id}: apron adds at most 16 draw calls incl. shadow / depth passes (${dCalls})`);
+  const groundCalls = perf.ground.calls - perf.off.calls, forestCalls = perf.on.calls - perf.ground.calls;
+  t.log(`${id}: apron cost +${dCalls} draw calls (ground ${groundCalls}, forest ${forestCalls}), +${dTris} triangles, ${perf.msOff.toFixed(2)} → ${perf.msOn.toFixed(2)} ms/frame (CPU-side)`);
+  t(groundCalls <= 16, `${id}: the apron ground adds at most 16 draw calls incl. shadow / depth passes (${groundCalls})`);
+  // the forest: real 3D trees since 2026-11-10 (art/terrain/tree-lod.js; it was one billboard draw): a draw per level,
+  // material and size class with copies in this view or casting into it, colour and shadow passes
+  t(forestCalls <= 40, `${id}: the apron's instanced 3D forest adds at most 40 draw calls incl. its shadows (${forestCalls})`);
   t(dTris <= 900000, `${id}: apron adds at most 900k triangles over all passes (${dTris})`);
 
   await touchFlings(t, id);

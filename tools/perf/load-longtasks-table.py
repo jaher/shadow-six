@@ -20,7 +20,7 @@ RULES = [
     ('terrain layer decode (loadLayerArray)', lambda c, s: 'loadLayerArray' in c or 'loadLayerArray' in s),
     ('map build (placement / structures / decks)', lambda c, s: re.search(r'buildMap|placeStructures|stampOverhead|libraryDecks|memoVisual|resolvePlacement', c)),
     ('terrain build (splat / noise / trails)', lambda c, s: re.search(r'createTerrain|buildSplat|preTrample|fbm|blur8', c + ' ' + s)),
-    ('vegetation / impostors', lambda c, s: re.search(r'createVegetation|bakeImpostors|scatter', c)),
+    ('vegetation', lambda c, s: re.search(r'createVegetation|growLodBank|packLodBank|scatter', c)),
     ('water bake', lambda c, s: re.search(r'buildWater|bakeBody|captureHeights|distanceField', c + ' ' + s)),
     ('chunking', lambda c, s: 'chunkLargeMeshes' in c or 'chunkMesh' in s),
     ('spawn units / characters', lambda c, s: re.search(r'_spawnUnits|spawnSquadMember|createUnitModel|initCommandos|bodyClips|buildClip|prepareCharacters', c)),

@@ -19,8 +19,8 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
 | `src/snowfx.js` | Falling snow and the snow-cover shader chunk (used on trees and stones) |
 | `src/treegen.js` | One seeded tree generator (broadleaf, conifer, palm, bush) with T-A crown density, B's scans, and worker-safe code (THREE is injected) |
 | `src/treegen.worker.js` | Module worker that generates chunk vertex arrays off the main thread |
-| `src/vegetation.js` | `createVegetation()`: a unique-tree budget, geometry merged per 20 m chunk, translucent foliage, snow load, and impostor forests |
-| `src/impostors.js` | Impostor atlases (albedo and view-space normal) baked from real prototypes at the game camera pitch, plus the instanced billboard material |
+| `src/vegetation.js` | `createVegetation()`: a unique-tree budget, geometry merged per 20 m chunk, translucent foliage, snow load, and the instanced 3D forest past the budget |
+| `src/tree-lod.js` | The instanced 3D forest (2026-11-10, replacing the billboard impostors): reduced real prototypes in float textures, pulled per vertex, culled per view and per sun shadow (§2.10) |
 | `src/game-adapter.js` | Game glue: `createTerrainHandle` (synchronous, with `.ready`), footprint event wiring, unit and vehicle stamping, `tracksNear` for the AI |
 | `engine/renderer.js` | Patched copy of `src/engine/renderer.js`: the water post hooks, **alpha-aware GTAO** and **environment grading** (`engine/renderer-terrain.patch`, 72 added lines) |
 | `engine/gtao-alpha.js`, `engine/env-grade.js` | The two renderer fixes (must-fix 1 and 2) as small modules imported by the renderer |
@@ -43,8 +43,8 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
 - **A CPU mirror for gameplay.** The same stamp calls write a ring buffer of records `{kind, x, z, heading, id, t,
   material, visibility}`. The AI queries these records; it never reads the GPU texture.
 - **The fixed game camera drives LOD.** The camera is orthographic, so screen size does not depend on distance.
-  Grass density, blade width and glint cell size therefore follow the pixel footprint (metres per pixel), and
-  impostors are baked at the camera's own pitch.
+  Grass density, blade width and glint cell size therefore follow the pixel footprint (metres per pixel). Trees past
+  the unique budget are instanced 3D copies (§2.10): no level of detail switches with the zoom, so nothing snaps.
 - **Renderer fixes live in the renderer.** Nothing in terrain or vegetation monkeypatches passes or rebalances
   ambient per material any more. The two engine problems the judge found are fixed at the source (§2.1, §2.2).
 
@@ -74,7 +74,7 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
 - `userData.aoMaterial` on the object or its material wins. Vegetation sets it on leaf chunks: a `MeshNormalMaterial`
   with the same wind vertex code and the card's alpha test.
 - `userData.aoExclude` leaves the object out of the prepass. It is used for grass (its self-occlusion is baked into
-  the blade colour) and for impostors.
+  the blade colour), needle sprays and the instanced forest (their crown AO is per vertex).
 - Any material with `alphaTest > 0` and a `map` or `alphaMap` automatically gets a cached cut-out normal material.
 - Everything else uses the stock normal material.
 
@@ -251,11 +251,9 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
     M1 1.0, M2 0.8, M3 1.15) and defaults to 1 in the snow theater.
   - **Wind.** All sprays of a limb share its phase. Flex runs 0.2 at the trunk to 1 at the tip, so tiers sway as
     units through the shared `vegWind`, with needle flutter on top.
-  - **Impostors** are baked from the same needle meshes. A per-instance light gain (`IMP_NEEDLE_GAIN` 1.3, in
-    `iDat.w`) stands in for the scattering and translucency the flat atlas cannot carry. The impostor albedo gets a
-    4-tap unsharp mask (texels outside the silhouette count as the centre), because the ~1:1 bake looked softer
-    than the mesh sprays. In `tests/pines.test.mjs`,
-    impostor brightness is within 7 % of the meshes and coverage within 2 %.
+  - **The instanced forest** (§2.10) draws reduced copies of the same needle trees with the same needle shader.
+    In `tests/pines.test.mjs` a stand drawn instanced matches the unique meshes in coverage (×1.00), brightness
+    (×1.11) and hue.
   - **Cost.**
     - Average tris per tree, bark included, at high: spruce 6.2 k (was 4.8 k), Scots pine 6.7 k, fir 4.4 k,
       stone pine 3.9 k, Aleppo 3.8 k. Low is about 40–60 % cheaper (spruce 3.7 k, Scots pine 2.7 k, fir 3.0 k):
@@ -274,21 +272,46 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
   Cards stay green on the shadow side instead of going black.
 - **Snow.** Conifers carry a snow load (B's `snowCoverage`). Broadleaves in the snow theatre are leafless.
 
-### 2.10 Forests: impostors and workers (must-fix 11)
+### 2.10 Forests: the unique budget, the instanced 3D forest and workers (must-fix 11)
 - **Unique budget.** `MAX_UNIQUE` is 150/300/400/500 for low/medium/high/ultra.
   - Trees above the budget are ranked by stand density (neighbours within an 18 m window). Hedges, solitary trees,
-    designed trees and anything flagged `hero` stay unique. Only forest interiors become impostors.
-- **Impostors.** Two prototypes per species (plus bare and burnt variants) are generated.
-  - Each prototype is baked from six azimuths at the camera's actual pitch into an sRGB albedo atlas and a
-    view-space normal atlas. Tile size is 160/192/224/256 px by preset.
-  - The impostors are drawn as one instanced, camera-facing billboard per tree, anchored at the root. The view
-    tile is picked by camera azimuth minus the tree's rotation.
-  - They are **lit at runtime**, with the atlas normals, by the same sun, hemisphere and IBL as the 3D trees, and
-    they cast alpha-tested shadows. There is one draw call per forest.
+    designed trees and anything flagged `hero` stay unique. Only forest interiors are instanced. The scenery apron's
+    whole forest (art/apron.js, `maxUnique: 0`) is instanced.
+- **The instanced 3D forest** (`tree-lod.js`, 2026-11-10; the user: "No trees are a single billboard. All trees are
+  detailed"). It replaced the camera-facing billboard impostors (baked atlases, one card a tree) and their load-time
+  bake. No tree is a flat card any more.
+  - **Prototypes.** One to four a look (species, bare, burnt; more for the commoner looks: hedge and hazel in the
+    bocage aprons), grown by the same generator with a neutral colour, at two reduced levels (`treegen TREE_LOD`).
+    **LOD1** (the trees in view): the same crown envelope and colours, fewer and larger leaf or needle sprays, the
+    trunk and main limbs as tubes (a bare, dead or burnt crown keeps two orders more and its twig sprays; spruces
+    drop the limbs hidden under their sprays; pines keep their limbs), no root flare. Oak 1.1 k triangles (6.5 k
+    unique), spruce 1.8 k (5.9 k). **LOD2** (trees out of view whose shadow reaches into it): the silhouette, a few
+    hundred triangles. The unique trees (LOD0) never take these paths: the knobs exist only in `TREE_LOD`.
+  - **Copies.** Each copy has its own seeded yaw, size, crown width (±8 %), lean (±1.7°), sway phase and colour: the
+    tints its own seed would have grown as a unique tree (`treeLook`, the generator's first draws). They draw with the
+    unique trees' own bark, leaf and needle shaders: wind (the same trunk, branch and leaf terms), snow, seasons,
+    translucency, alpha-tested shadow casters. Brushing parts their low sprays as well.
+  - **Draws.** The prototypes' vertices live in float textures (3 RGBA32F texels a vertex); every copy's vertex shader
+    pulls its prototype's triangles (gl_VertexID → corner → vertex). One draw per material (bark, leaves, needles),
+    size class (prototypes within 68 % of the class's largest; the rest is zero-area padding) and level: a few to
+    two dozen draws for a whole forest, only those with copies in the view.
+  - **Culling.** A draw's own frustum test (`intersectsFrustum`) culls the forest for that view once (cached while
+    the view, the forest and the sun stand still): a copy whose bounding sphere is in the view draws LOD1 and casts
+    LOD1's shadow (its crown shadows itself right); a copy whose sphere, swept along the sun to the ground, reaches
+    into the view casts LOD2's shadow. The survivors go front to back into an instance texture three uploads at the
+    draw. With a low sun about ten times as many trees cast into a view as stand in it: LOD2 keeps those cheap. A
+    copy within 12 m outside the view casts both levels through complementary dither masks of the shadow map's
+    texels, LOD1's share growing as it nears the edge, so its shadow morphs instead of switching when it enters. The
+    last four views' results are kept (own instance textures): the main view and the water mirrors' cost nothing
+    while they stand still.
+  - **Load.** The prototypes grow on the tree workers (beside the unique trees), packed arrays kept in the session
+    cache; no bake, no atlas. A list draws once at the load's warm-up frame whatever its count, so every program is
+    linked before play.
 - **Workers.** `treegen.worker.js` is a module worker, and THREE is injected because import maps do not apply
-  inside workers. With 40 or more unique trees, generation runs on up to four workers. Typed arrays are
-  transferred back, and new chunks replace old ones only when complete, so nothing pops.
-- **Measured.** 1,610 trees built in 0.6–0.9 s on workers: 500 unique and 1,110 impostors, 50–69 MB of atlases.
+  inside workers. With 40 or more unique trees, generation runs on up to four workers; jobs are matched by id, so
+  the map's trees and the apron's prototypes can grow at the same time. Typed arrays are transferred back, and new
+  chunks replace old ones only when complete, so nothing pops.
+- **Measured (2026-11-10).** See docs/PROGRESS.md for the per-mission draws and triangles before and after.
 
 ## 3. Assets and licences
 
@@ -304,7 +327,7 @@ no faces or voices. The per-file record is `scratchpad/terrain/final/ASSETS.md` 
 | Bark | Poly Haven **bark_brown_02, bark_platanus, bark_willow, pine_bark, palm_bark**; ambientCG **Bark012**; birch synthesised | CC0 / own |
 | Foliage cluster cards (`assets/foliage.png`, rebuilt denser) | ambientCG **LeafSet004/010/013/022/024/030, PineNeedles001** leaf scans composed by `tools/build_foliage.py`; twigs and palm fronds procedural | CC0 / own |
 | HDRIs (demo lighting) | Poly Haven **goegap, kloofendal_43d_clear_puresky, snowy_park_01** (1k) | CC0 |
-| Grass tufts, flowers, weeds, shrubs, stones, trail stamps, impostors, snow particles | procedural, own code | own work |
+| Grass tufts, flowers, weeds, shrubs, stones, trail stamps, instanced trees, snow particles | procedural, own code | own work |
 | Water (demo) | `scratchpad/water/final`; see `docs/water-pipeline.md` §6 | CC0 / own |
 
 - **Downloads:** `https://dl.polyhaven.org/file/ph-assets/Textures/...` and
@@ -403,7 +426,7 @@ const seen = tracksNear(terrain, guard.x, guard.z, 3);   // newest first, aiVisi
 | Desert, no water (`water=0`) | 0.37 | 0.65 | 1.15 | 1.34 | same |
 | Meadow | 0.73 (0.76) | 1.27 (1.39) | 2.37 (2.42) | **3.67** (3.70) | 0.53 / 0.82 / 2.60 / **5.12** |
 | Snow | 0.59 (0.62) | 0.81 (0.93) | 1.64 (1.68) | 2.33 (2.36) | 0.46 / 0.65 / 1.30 / 1.89 |
-| Meadow + 1,500-tree forest (500 unique + 1,110 impostors) | 1.40 | 2.61 | 6.87 | 13.07 | not measured |
+| Meadow + 1,500-tree forest (500 unique + 1,110 impostors; measured before the instanced 3D forest) | 1.40 | 2.61 | 6.87 | 13.07 | not measured |
 
 - **Meadow ultra** (must-fix 9): 4.3M triangles instead of 9.8M, and 3.67 ms instead of 5.12 ms. High costs
   2.37 ms against 2.60 ms before. Low and medium cost 0.2–0.45 ms more than T-B. This is probably the extra splat
@@ -417,7 +440,8 @@ const seen = tracksNear(terrain, guard.x, guard.z, 3);   // newest first, aiVisi
   the GTAO prepass (`userData.aoExclude`), if ultra must hold 60 fps in dense forests.
 - **Memory.**
   - Trails: 4.8 MB (80×60 m at 32 px/m; T-B used about 40 MB).
-  - Impostor atlases: 50–69 MB when a forest needs them (two RGBA8 atlases plus depth).
+  - Instanced forest: a few MB of prototype vertex textures and a small instance texture (the impostor atlases it
+    replaced were 19–129 MB before their GPU compression).
   - Grass: 47k tuft instances on the meadow map (the LOD draws 40–100 % of them).
   - Tree generation: 0.6–0.9 s for 1,610 trees on four workers, and 40–70 ms for the demo maps.
 - **Mid-range GPUs (must-fix 13).** No mid-range card was available to this job. On a GPU about six times slower
@@ -427,10 +451,9 @@ const seen = tracksNear(terrain, guard.x, guard.z, 3);   // newest first, aiVisi
 
 ## 6. Known weaknesses
 
-1. **Impostors at close zoom.** Impostors are 192–224 px tiles. At zoom 2.5 and above they look soft next to unique
-   trees, and there is no cross-fade when the camera pitch changes (they are baked at one pitch). Their shadows face
-   the light, not the geometry. A later step could swap impostors inside the close-zoom view back to meshes, which
-   workers make cheap.
+1. **Instanced trees at close zoom.** The instanced copies are LOD1 prototypes (fewer, larger sprays). At zoom 2 they
+   are a little sparser than the unique trees beside them; they are 3D with real shadows (the billboard impostors
+   they replaced were soft cards with shadows facing the light).
 2. **Spruce from directly above** still reads as a radial star of drooping branches at zoom 2.5 and above. That is
    close to reality, but sparse on the lower whorls.
 3. **Road edges** are ragged at 0.3–3 m, but the demo's roads are still painted by the grid, so their centre lines
@@ -487,6 +510,6 @@ The WebGL context was never lost in any run. There were no page errors; the only
 | 8 | Trail realism | Cohesion-driven slump and spill, wander, jitter, depth noise; A's API; readable grass flattening (§2.6) |
 | 9 | Meadow grass budget | Shuffled-prefix LOD by zoom and distance, ultra cap, no AO prepass: 9.8M to 4.3M triangles, 5.12 to 3.67 ms (§2.8) |
 | 10 | Trail texture memory | RG16F plus ¼-resolution R16F, in-place fade: about 40 MB to 4.8 MB. Tiling not done (§6.5) |
-| 11 | Forests | Unique budget, lit impostors from baked prototypes, worker generation (§2.10) |
+| 11 | Forests | Unique budget, an instanced 3D forest of reduced real prototypes past it (was: lit billboard impostors), worker generation (§2.10) |
 | 12 | Snow sparkle flicker | Footprint-sized, world-anchored cells; flicker 0.82 to 0.28 (§2.7) |
 | 13 | Mid-range perf, medium default | Medium is the default; RTX 5090 numbers measured, mid-range extrapolated (§5, §6.7) |

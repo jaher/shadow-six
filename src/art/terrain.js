@@ -2,7 +2,7 @@
  * Terrain & vegetation (ART; docs/terrain-pipeline.md §4). `buildTerrain(grid, theater, ctx)` returns a handle
  * synchronously; with a live renderer it is the final asset-driven ground (`src/art/terrain/`): hex-tiled splat
  * of de-lit CC0 photoscans per theatre with macro variation, 3D grass, clutter, snow sparkle/drifts/falling snow,
- * the deformable trail field, and seeded unique trees (impostors past the preset's unique budget). Without a
+ * the deformable trail field, and seeded unique trees (instanced 3D copies past the preset's unique budget). Without a
  * renderer / DOM (unit tests, headless tools) it falls back to the painted placeholder below.
  * Water: the real path leaves it to src/art/water (ownWater); the masked flat plane is the placeholder/fallback.
  * @module art/terrain

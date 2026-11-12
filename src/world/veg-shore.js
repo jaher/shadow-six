@@ -19,9 +19,9 @@ import { T } from './grid.js';
  */
 export const SHORE_MARGIN = 1.0;
 /**
- * The scenery forest past the map edge (art/apron.js): its trees are big impostors whose lowest skirt spreads ~2 m
- * round the trunk, and the 40° camera reads a conifer as standing where that skirt meets the ground; past the edge
- * nothing constrains them, so they keep their crowns off the water too.
+ * The scenery forest past the map edge (art/apron.js): its trees' lowest skirts spread ~2 m round the trunk, and the
+ * 40° camera reads a conifer as standing where that skirt meets the ground; past the edge nothing constrains them, so
+ * they keep their crowns off the water too.
  */
 export const APRON_SHORE_MARGIN = 2.5;
 

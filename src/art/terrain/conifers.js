@@ -173,13 +173,14 @@ export function makeConifers(env) {
     const T = trunk(sp, r, H, q, bark, tint, phase, sway, r0);
     const crown = [];
     const width = Math.min(sp.width * H * (0.85 + 0.3 * r()), (sp.maxWidth ?? Infinity) - 0.6);
-    const cb = sp.crownBase, gap = sp.tier ?? 0.42;
+    const cb = sp.crownBase, gap = (sp.tier ?? 0.42) * (q.tierGap ?? 1);   // (q.tierGap: the instanced forest's far level)
     const prof = (tt) => width * Math.pow(Math.max(0, 1 - tt), 0.88) + 0.22;   // cone radius at crown fraction tt
     const nW = Math.max(4, Math.round((H * (1 - cb)) / gap));
     const dTT = gap / (H * (1 - cb));
     const foliage = sp.leaf !== null;
     // spray scale: a small tree has more, smaller sprays (a few tree-sized cards read as cardboard)
-    const sc = clamp(H / 10, 0.38, 1), qs = q.cards < 0.6 ? 1.3 : 1;   // qs: fewer, longer sprays at the low preset
+    // qs: fewer, longer sprays at the low preset (q.sprayLen: the instanced forest's reduced levels, tree-lod.js)
+    const sc = clamp(H / 10, 0.38, 1), qs = q.sprayLen ?? (q.cards < 0.6 ? 1.3 : 1);
     // per-vertex AO (radial depth in the tier + tiers above) and snow catch (sky exposure × geometric normal y)
     const extAt = (tt, aoMul) => (p, n) => {
       const c = T.at(p.y), rho = Math.hypot(p.x - c.x, p.z - c.z);
@@ -208,7 +209,8 @@ export function makeConifers(env) {
       // the limb ends under its outer spray (a bare snow-capped stick past the needles read as a white line)
       // and hangs just below the spray's centre line, so the sprays (not a snow-capped stick) carry the snow
       const bt = (small || q.seg < 0.6 ? [0, 1, 2] : [0, 2, 3]).filter((i) => i <= L.woodN).map((i) => path[i]).map((x, i) => (i ? x.clone().add(V(0, -rb * 1.6 - 0.02, 0)) : x));
-      if (bt.length >= 2) tube(bark, bt, bt.map((_, i) => Math.max(0.008, rb * (1 - i / (s3 + 1)))), 3, BARK_LAYERS.indexOf(sp.bark), (pp) => [sway(pp.y), flexAt(pp) * 0.6, phB], tint, 1);
+      // (q.limbs false: the instanced forest's far level — the limbs under the sprays are left out)
+      if (bt.length >= 2 && q.limbs !== false && q.spruceLimbs !== false) tube(bark, bt, bt.map((_, i) => Math.max(0.008, rb * (1 - i / (s3 + 1)))), 3, BARK_LAYERS.indexOf(sp.bark), (pp) => [sway(pp.y), flexAt(pp) * 0.6, phB], tint, 1);
       if (!foliage) return;
       const info = (layer) => (pp) => [layer, sway(pp.y), flexAt(pp), phB];
       const nS = Math.max(1, Math.round(len / ((0.9 + 0.3 * r()) * sc * qs)));
@@ -350,7 +352,7 @@ export function makeConifers(env) {
     }
     for (const Ld of leaders) {
       const y0 = Math.max(crownLo, Ld[0].y), y1 = Ld[Ld.length - 1].y;
-      const nW = Math.max(2, Math.round((y1 - y0) / (sp.tier ?? 0.7)));
+      const nW = Math.max(2, Math.round((y1 - y0) / ((sp.tier ?? 0.7) * (q.tierGap ?? 1))));   // (q.tierGap: the instanced forest's far level)
       for (let w = 0; w < nW; w++) {
         const y = y0 + (y1 - y0) * ((w + 0.3 + 0.4 * r()) / nW), tt = clamp((y - crownLo) / (crownTop - crownLo), 0, 1);
         const fL = (y - Ld[0].y) / Math.max(0.1, y1 - Ld[0].y), c0 = along(Ld, fL).p;
@@ -372,7 +374,7 @@ export function makeConifers(env) {
           // limb LOD: 2 / 3 / 4 tube segments at low / medium / high (most of a low-preset Scots pine's tris were limbs)
           const lb = q.seg < 0.6 ? [0, 2, 4] : q.seg < 0.9 ? [0, 1, 3, 4] : [0, 1, 2, 3, 4];
           const lk = lb.filter((i) => i <= L.woodN);
-          if (lk.length >= 2) tube(bark, lk.map((i) => path[i]), lk.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
+          if (lk.length >= 2 && q.limbs !== false) tube(bark, lk.map((i) => path[i]), lk.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
           if (!foliage) continue;
           pad(path[4].clone().addScaledVector(d, padSz * 0.2), out, 1, phB, acc);
           const nt = Math.round((0.6 + 1.4 * r()) * Math.min(1.2, len / 1.2) * (q.twigs ?? 1));
@@ -381,7 +383,7 @@ export function makeConifers(env) {
             const sd = td.clone().applyAxisAngle(UP, (r() < 0.5 ? -1 : 1) * (0.6 + 0.5 * r())).setY(td.y + 0.3).normalize();
             const tl = 0.3 + 0.4 * r();
             const te = tp.clone().addScaledVector(sd, tl);
-            tube(ft * 4 <= L.woodN ? bark : SINK, [tp, te], [rb * 0.5, 0.008], 3, barkL, (pp) => [sway(pp.y), 0.6, phB], tint, 1);   // twig wood past the cut: none
+            tube(ft * 4 <= L.woodN && q.limbs !== false && q.pineTwigs !== false ? bark : SINK, [tp, te], [rb * 0.5, 0.008], 3, barkL, (pp) => [sway(pp.y), 0.6, phB], tint, 1);   // twig wood past the cut: none
             pad(te, V(sd.x, 0, sd.z).normalize(), 0.85, phB, acc);
           }
         }

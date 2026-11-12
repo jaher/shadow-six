@@ -7,7 +7,7 @@
  *    splat built from the code field (world/apron-field.js) — rivers, roads, the sea, shore rims continue off-map;
  *    heights = the theatre's world-space undulation + the same water carve, blended into the map's own edge heights
  *    over seamBand m (no seam) and settling to y = 0 over the outer `fade` m, where a flat far skirt takes over;
- *  - forest: impostor trees (one instanced draw, no unique meshes) at the density of the map's edge band, thinning
+ *  - forest: instanced 3D trees (art/terrain/tree-lod.js: real prototypes, a few draws) at the density of the map's edge band, thinning
  *    outward to the theatre's background density; none on water / roads or within 3 m of the edge;
  *  - water: buildWater extends every edge-crossing body over the apron (art/water.js extendBodiesOverApron);
  *  - grass: the map's 3D tufts (terrain/grass.js setApron) continue from the apron splat, thinning out over
@@ -471,11 +471,7 @@ export function* createApronG(R, parent, t, grid, mission, theater, o = {}) {
     try {
       veg = await o.createVegetation(parent, placements, theater, { quality: o.quality, renderer: R, pitchDeg: o.pitchDeg, maxUnique: 0, terrain: { heightAt: H.heightAt }, season: o.season, snow: o.snow }); // the map's season: bare winter hedges
       if (disposed) { veg.dispose(); veg = null; }
-      if (veg) {
-        veg.group.name = 'vegetation:apron'; veg.group.userData.apron = true;
-        // no unit stands out here: the cards' bottoms may slide up to clear the ground (art/terrain/impostors.js)
-        veg.group.traverse((m) => { const U = m.userData?.impostorUniforms; if (U) U.uImpLift.value = 1; });
-      }
+      if (veg) { veg.group.name = 'vegetation:apron'; veg.group.userData.apron = true; }
     } catch (e) { console.warn('[apron] forest failed', e); veg = null; }
     stats.trees = veg?.stats?.trees ?? 0;
     stats.ms = Math.round(performance.now() - t0);
