@@ -598,7 +598,8 @@ export function buildTwinGatehouse(o) {
     segBox(G, 'iron', F, um - 0.08, um + 0.08, D2, D2 + 0.02, 3.4, 5.0, 0.1);
     segBox(G, 'iron', F, um - 0.4, um + 0.4, D2, D2 + 0.02, 4.1, 4.25, 0.1);
     segBox(G, 'iron', F, um - 0.45, um + 0.45, -D2 - 0.02, -D2, 3.2, 4.4, 0.15);
-    segBox(G, 'dressed', F, um - 0.06, um + 0.06, -D2 - 0.06, -D2, 3.2, 4.4, 1.05);
+    // (windows z-fight fix: mullion top 5 mm above the iron light's top — the two top faces were coplanar at 4.4)
+    segBox(G, 'dressed', F, um - 0.06, um + 0.06, -D2 - 0.06, -D2, 3.2, 4.405, 1.05);
     segBox(G, 'dressed', F, um - 0.6, um + 0.6, -D2 - 0.1, -D2, 3.05, 3.2, 1.05);
     segBox(G, 'dressed', F, um - 0.6, um + 0.6, -D2 - 0.1, -D2, 4.4, 4.6, 1.05);
     // the open oak leaves, swung back into their rebates in the passage walls
@@ -688,7 +689,9 @@ export function buildRange(o) {
       if (yb + hh > H - 0.6 || buried(uc, yb + hh)) continue;
       const door = i % 4 === 1 && yb < y0 + 2;
       const ww = door ? 1.3 : 1.1, b0 = door ? y0 : yb, b1 = door ? y0 + 2.4 : yb + hh;
-      segBox(G, door ? 'planks' : 'iron', F, uc - ww / 2, uc + ww / 2, D2 - 0.02, D2 + 0.0, b0, b1, door ? 0.75 : 0.12);
+      // (windows z-fight fix: the light/door fronts stand 1 cm proud of the ashlar body face — at D2+0.0 they were
+      // exactly coplanar with it, so the whole S facade shimmered; the dressed frame pieces already sit proud)
+      segBox(G, door ? 'planks' : 'iron', F, uc - ww / 2, uc + ww / 2, D2 - 0.02, D2 + 0.01, b0, b1, door ? 0.75 : 0.12);
       segBox(G, 'dressed', F, uc - ww / 2 - 0.16, uc - ww / 2, D2, D2 + 0.08, b0, b1, 1.05);
       segBox(G, 'dressed', F, uc + ww / 2, uc + ww / 2 + 0.16, D2, D2 + 0.08, b0, b1, 1.05);
       segBox(G, 'dressed', F, uc - ww / 2 - 0.2, uc + ww / 2 + 0.2, D2, D2 + 0.1, b1, b1 + 0.28, 1.07);
@@ -908,7 +911,8 @@ export function buildWing(o) {
         segBox(G, 'dressed', Ff, u + 0.5, u + 0.66, 0, 0.08, b0, b1, 1.05);
         segBox(G, 'dressed', Ff, u - 0.7, u + 0.7, 0, 0.12, b0 - 0.14, b0, 1.0);
         segBox(G, 'dressed', Ff, u - 0.7, u + 0.7, 0, 0.1, b1, b1 + 0.22, 1.06);
-        segBox(G, 'dressed', Ff, u - 0.04, u + 0.04, 0, 0.05, b0, b1, 1.05);
+        // (windows z-fight fix: mullion top 5 mm above the iron light's top — the two top faces were coplanar at b1)
+        segBox(G, 'dressed', Ff, u - 0.04, u + 0.04, 0, 0.05, b0, b1 + 0.005, 1.05);
       }
     }
   }

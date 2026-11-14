@@ -268,7 +268,9 @@ export function buildChurch(o) {
         lancet(G, Ff, uc, bel, 0.78, 1.5, [], 'round');
         for (let yy = bel + 0.2; yy < bel + 1.5; yy += 0.28) segBox(G, 'timber', Ff, uc - 0.38, uc + 0.38, -0.2, -0.14, yy, yy + 0.08, 0.5);
       }
-      G.cyl('dressed', ...(() => { const [x, z] = Ff.at(mid, 0.12); return [x, bel, z]; })(), 0.13, 0.13, 1.5, 8, 1.0);
+      // (windows z-fight fix: the middle column is 5 mm shorter — its top cap was exactly coplanar with the
+      // belfry lancets' jamb tops at bel+1.5, overlapping them on both sides)
+      G.cyl('dressed', ...(() => { const [x, z] = Ff.at(mid, 0.12); return [x, bel, z]; })(), 0.13, 0.13, 1.495, 8, 1.0);
     }
     // narrow loops lighting the stair in the lower stages
     if (side !== 'E' && side !== 'W') { for (const y of [4.0, 8.0]) segBox(G, 'iron', Ff, (a + b) / 2 - 0.08, (a + b) / 2 + 0.08, -0.02, 0.01, y, y + 1.0, 0.1); }

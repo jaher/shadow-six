@@ -505,7 +505,8 @@ function bifora(G, Ff, u, y, h = 1.9, wl = 0.42) {
     fan(G, 'iron', [fP(Ff, c - wl / 2, 0.01, y + h), fP(Ff, c + wl / 2, 0.01, y + h), fP(Ff, c, 0.01, y + h + tip)], fN(Ff), 0.12);
   }
   segBox(G, 'dressed', Ff, u - 0.06, u + 0.06, 0, 0.07, y, y + h + 0.1, 1.05);                    // mullion
-  for (const s of [-1, 1]) segBox(G, 'dressed', Ff, u + s * half - (s > 0 ? 0 : 0.14), u + s * half + (s > 0 ? 0.14 : 0), 0, 0.1, y - 0.05, y + h, 1.04); // jambs
+  // (windows z-fight fix: jamb tops 5 mm above the iron lights' tops — the two top faces were coplanar at y+h)
+  for (const s of [-1, 1]) segBox(G, 'dressed', Ff, u + s * half - (s > 0 ? 0 : 0.14), u + s * half + (s > 0 ? 0.14 : 0), 0, 0.1, y - 0.05, y + h + 0.005, 1.04); // jambs
   segBox(G, 'dressed', Ff, u - half - 0.2, u + half + 0.2, 0, 0.16, y - 0.2, y - 0.04, 1.0);      // sill
   // the pointed head's dressed surround and the hood-mould over it (two raking stones)
   for (const s of [-1, 1]) {
@@ -532,7 +533,8 @@ export function slit(G, Ff, u, y, h = 1.2) {
 /** A small square window with a barred dark light and a chamfered dressed frame. */
 function squareWin(G, Ff, u, y, s = 0.75) {
   segBox(G, 'iron', Ff, u - s / 2, u + s / 2, -0.02, 0.01, y, y + s, 0.14);
-  for (let k = 1; k < 3; k++) segBox(G, 'iron', Ff, u - s / 2 + (k * s) / 3 - 0.02, u - s / 2 + (k * s) / 3 + 0.02, 0, 0.04, y, y + s, 0.35);
+  // (windows z-fight fix: bar tops 5 mm below the light's top — the two top faces were coplanar at y+s)
+  for (let k = 1; k < 3; k++) segBox(G, 'iron', Ff, u - s / 2 + (k * s) / 3 - 0.02, u - s / 2 + (k * s) / 3 + 0.02, 0, 0.04, y, y + s - 0.005, 0.35);
   segBox(G, 'dressed', Ff, u - s / 2 - 0.14, u + s / 2 + 0.14, 0, 0.08, y - 0.14, y, 1.03);
   segBox(G, 'dressed', Ff, u - s / 2 - 0.14, u + s / 2 + 0.14, 0, 0.08, y + s, y + s + 0.16, 1.05);
   for (const sg of [-1, 1]) segBox(G, 'dressed', Ff, u + sg * (s / 2) - (sg > 0 ? 0 : 0.14), u + sg * (s / 2) + (sg > 0 ? 0.14 : 0), 0, 0.08, y, y + s, 1.02);
