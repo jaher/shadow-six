@@ -7,7 +7,8 @@
  *   LONG PRESS        = a commando: add / remove him from the selection (Ctrl+click); an enemy: his vision cone;
  *                       the ground: the probe marker (Shift+click).
  *   ONE-FINGER DRAG   = pan the map 1:1 under the finger, coasting on release (never an order).
- *   TWO FINGERS       = pinch to zoom about the fingers' midpoint (spread = zoom in); moving both pans.
+ *   TWO FINGERS       = pinch to zoom about the fingers' midpoint (spread = zoom in) and twist to rotate the
+ *                       view (clockwise with the fingers); moving both pans. Zoom and twist compose in one gesture.
  *
  * Mouse and pen pointers are left to Input / CameraRig (desktop controls are unchanged). Panning follows the same
  * rules as the other user scrolling (frozen by the faithful pause, CameraRig.panLocked); zoom always works.
@@ -211,14 +212,22 @@ export class TouchGame {
     this._pinchZoom = this.cam?.zoom || 1;
   }
 
-  _pinch({ scale, cx, cy, dx, dy }) {
+  _pinch({ scale, dAngle, cx, cy, dx, dy }) {
     if (!this._active) return 'inactive';
     const cam = this.cam;
     if (!this.rig?.panLocked) {
       if (cam.tracking && (dx || dy)) cam.untrack();
       cam.panScreen(-dx, -dy);
     }
+    // the twist rides on the same gesture as the pinch zoom: the map turns with the fingers (frozen by the
+    // faithful pause / scripted camera, like hold-to-rotate — CameraRig.twistYaw guards on panLocked)
+    if (dAngle) this.rig?.twistYaw?.(dAngle);
     return cam.zoomAt(this._pinchZoom * scale, cx, cy);
+  }
+
+  _pinchend() {
+    // the twist's settled yaw goes to the persisted Options CAMERA ANGLE so the menu never shows a stale angle
+    this.rig?.flushUserYaw?.();
   }
 
   /** Per frame (real time): long-press timing and pan momentum. */

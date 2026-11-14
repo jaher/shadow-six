@@ -190,7 +190,7 @@ export class Help {
       el('h4', null, R, touch ? 'TOUCH' : 'MOUSE');
       const dl = el('dl', 'mk-keys', R);
       const rows = touch
-        ? [['TAP', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['HOLD', 'ADD A MAN · VISION CONE'], ['DRAG', 'PAN'], ['PINCH', 'ZOOM'], ['NOTEBOOK', 'TAP OPENS · TAP AGAIN CLOSES · DRAG MOVES THE VIEW'], ['TURN', 'HOLD TO ROTATE THE VIEW']]
+        ? [['TAP', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['HOLD', 'ADD A MAN · VISION CONE'], ['DRAG', 'PAN'], ['PINCH', 'ZOOM'], ['TWIST', 'ROTATE THE VIEW'], ['NOTEBOOK', 'TAP OPENS · TAP AGAIN CLOSES · DRAG MOVES THE VIEW'], ['TURN', 'HOLD TO ROTATE THE VIEW']]
         : [['LEFT', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['RIGHT', 'CANCEL · DESELECT'], ['DRAG', 'SELECT A GROUP'], ['SHIFT', 'WHO WATCHES THIS SPOT'], ['WHEEL', 'ZOOM']];
       for (const [k, v] of rows) {
         el('dt', null, dl).append(cap(k));

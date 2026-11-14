@@ -129,3 +129,61 @@ test('pointercancel ends a gesture without a tap', () => {
   assert.equal(g.state, 'idle');
   assert.deepEqual(g.up(1, 0, 0, 10), []);
 });
+
+/** Two-finger twist: rotating the fingers turns the map with them, never an order. */
+function twistPair(g, cx, cy, r, a0, a1, t) {
+  // both fingers around (cx, cy) at distance r, from angle a0 to a1 (deg, clockwise-positive on screen)
+  const pt = (a, s) => [cx + s * r * Math.cos((a * Math.PI) / 180), cy + s * r * Math.sin((a * Math.PI) / 180)];
+  const out = [];
+  out.push(...g.move(1, ...pt(a1, -1), t));
+  out.push(...g.move(2, ...pt(a1, 1), t));
+  return out;
+}
+
+test('two fingers twisting: pinch events carry dAngle (clockwise-positive), scale stays ~1, no tap', () => {
+  const g = new GestureClassifier();
+  g.down(1, 100, 100, 0);
+  const s = g.down(2, 200, 100, 10);
+  assert.deepEqual(types(s), ['pinchstart']);
+  // rotate both fingers +30° about their midpoint (150, 100), distance held at 100 px
+  const evs = twistPair(g, 150, 100, 50, 0, 30, 30);
+  assert.equal(evs.length, 2, 'one pinch event per moved finger');
+  for (const e of evs) assert.equal(e.type, 'pinch');
+  near(evs[0].dAngle + evs[1].dAngle, 30, 0.6, 'the two samples sum to the +30° twist');
+  assert.ok(evs[0].dAngle > 0 && evs[1].dAngle > 0, 'both samples turn the same (clockwise) way');
+  near(evs[1].scale, 1, 1e-9, 'once both fingers moved, a pure twist does not zoom');
+  // and the other way: −30° back
+  const back = twistPair(g, 150, 100, 50, 30, 0, 50);
+  near(back[0].dAngle + back[1].dAngle, -30, 0.6);
+  // lifting both fingers ends the pinch and never taps
+  assert.deepEqual(types(g.up(1, 100, 100, 60)), ['pinchend']);
+  assert.deepEqual(g.up(2, 200, 100, 70), []);
+  assert.equal(g.state, 'idle');
+});
+
+test('twist and pinch compose: one gesture reports both scale and dAngle', () => {
+  const g = new GestureClassifier();
+  g.down(1, 100, 100, 0);
+  g.down(2, 200, 100, 10);
+  // spread 100 → 140 px while rotating +20° (both fingers move; the twist is split across the two samples)
+  const evs = [];
+  evs.push(...g.move(1, 150 - 70 * Math.cos((20 * Math.PI) / 180), 100 - 70 * Math.sin((20 * Math.PI) / 180), 30));
+  evs.push(...g.move(2, 150 + 70 * Math.cos((20 * Math.PI) / 180), 100 + 70 * Math.sin((20 * Math.PI) / 180), 30));
+  const last = evs.at(-1);
+  assert.equal(last.type, 'pinch');
+  near(last.scale, 1.4, 0.02, 'spreading zooms in');
+  near(evs[0].dAngle + evs[1].dAngle, 20, 0.6, 'and the twist turns with it');
+});
+
+test('a tap is never fired on touch-down; a second finger cancels the pending tap', () => {
+  const g = new GestureClassifier();
+  assert.deepEqual(g.down(1, 100, 100, 0), [], 'touch-down fires nothing');
+  // the first finger is still inside the tap window when the second lands: still no tap
+  assert.deepEqual(types(g.down(2, 200, 100, 10)), ['pinchstart']);
+  assert.deepEqual(types(g.up(1, 100, 100, 50)), ['pinchend']);
+  assert.deepEqual(g.up(2, 200, 100, 60), [], 'the second lift is not a tap either');
+  // a quick single tap still fires (deferred to touch-up)
+  const h = new GestureClassifier();
+  assert.deepEqual(h.down(1, 100, 100, 0), []);
+  assert.deepEqual(types(h.up(1, 100, 100, 120)), ['tap']);
+});

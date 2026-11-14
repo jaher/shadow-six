@@ -48,6 +48,20 @@ export async function openPhone(t, name) {
     }
     await touch('touchEnd', []);
   };
+  /** Two fingers: rotate around midpoint m by `deg` (clockwise-positive on screen) at distance d0 → d1. */
+  const twist = async (m, d0, deg, d1 = d0, steps = 8) => {
+    const pts = (d, a) => {
+      const rad = (a * Math.PI) / 180, r = d / 2;
+      return [[m[0] - r * Math.cos(rad), m[1] - r * Math.sin(rad)], [m[0] + r * Math.cos(rad), m[1] + r * Math.sin(rad)]];
+    };
+    await touch('touchStart', [pts(d0, 0)[0]]);
+    await touch('touchStart', pts(d0, 0));
+    for (let k = 1; k <= steps; k++) {
+      await touch('touchMove', pts(d0 + ((d1 - d0) * k) / steps, (deg * k) / steps));
+      await page.waitForTimeout(16);
+    }
+    await touch('touchEnd', []);
+  };
   const tapEl = async (sel) => {
     const box = await page.evaluate((s) => {
       const e = [...document.querySelectorAll(s)].find((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !x.closest('[hidden]'); });
@@ -60,14 +74,14 @@ export async function openPhone(t, name) {
   };
   /** tests/out/touch-game-<n>.jpg (docs/screenshots with DOC_SHOTS=1) at CSS-pixel size (≤ 1000 px wide). */
   const shot = (n) => page.screenshot({ path: docShotPath(`touch-game-${n}.jpg`), type: 'jpeg', quality: 72, scale: 'css' });
-  return { ctx, page, errs, touch, drag, pinch, tapEl, shot, vp: dev.viewport };
+  return { ctx, page, errs, touch, drag, pinch, twist, tapEl, shot, vp: dev.viewport };
 }
 
 /** Stage 1: phone + M00, tap select / tap walk / double-tap run. @returns the shared context for the next stages */
 async function tapStage(t, name) {
   const tag = name.replace(/\s+/g, '').toLowerCase();
   const P = await openPhone(t, name);
-  const { page, drag, pinch, tapEl, shot } = P;
+  const { page, drag, pinch, twist, tapEl, shot } = P;
   try {
     // M00 with the fuel guard on open ground west of the Green Beret (as tests/knife.test.mjs)
     const boot = await page.evaluate(async () => {
@@ -97,7 +111,7 @@ async function tapStage(t, name) {
       const G = window.__game.game, cam = G.cameraController, w = G.world;
       const gb = w.commandos.find((c) => c.role === 'greenberet'), guard = w.enemies[0];
       const scr = (e, y = 0.5) => cam.worldToScreen(e.x, y, e.z);
-      return { gb: scr(gb), guard: scr(guard, 0.9), sel: G.input.selection.map((c) => c.role), orders: window.__orders.slice(), target: { x: cam.target.x, z: cam.target.z }, zoom: cam.zoom, targeting: G.input.targeting?.abilityId || null, state: G.state, cone: !!guard.coneVisible };
+      return { gb: scr(gb), guard: scr(guard, 0.9), sel: G.input.selection.map((c) => c.role), orders: window.__orders.slice(), target: { x: cam.target.x, z: cam.target.z }, zoom: cam.zoom, yaw: G.cameraRig.yawDeg, targeting: G.input.targeting?.abilityId || null, state: G.state, cone: !!guard.coneVisible };
     });
     const tick = (s = 0.05) => page.evaluate((d) => { window.__game.advance(d); window.__game.render(); }, s);
 
@@ -126,7 +140,7 @@ async function tapStage(t, name) {
     t(mv.length === 3 && !mv[1].run && mv[2].run, `${tag}: double tap runs (${JSON.stringify(mv)})`);
     await shot(`${tag}-tap-walk`);
     await page.waitForTimeout(450);
-    return { t, P, S, tick, tag, page, drag, pinch, tapEl, shot };
+    return { t, P, S, tick, tag, page, drag, pinch, twist, tapEl, shot };
   } catch (e) {
     await P.ctx.close().catch(() => {});
     throw e;
@@ -325,6 +339,42 @@ async function panZoomStage(c) {
   t.equal(s.orders.length, n0, `${tag}: pinching gives no order`);
   t.equal(s.sel.join(), sel0, `${tag}: pinching keeps the selection`);
   await page.evaluate(() => { window.__game.setZoom(1); window.__game.centerOn(22, 46); window.__game.render(); });
+}
+
+/** Stage 2a: two fingers twisting rotate the view clockwise with the fingers (no order); twist + pinch compose. */
+async function twistStage(c) {
+  const { t, P, S, tag, page, twist, tick } = c;
+  const { width: W, height: H } = P.vp;
+  await page.evaluate(() => { window.__game.setZoom(1); window.__game.centerOn(22, 46); window.__game.game.cameraRig.setYaw(15); window.__game.render(); });
+  let s = await S();
+  const y0 = s.yaw, n0 = s.orders.length, sel0 = s.sel.join();
+  const M = [W * 0.42, H * 0.5];
+  // --- clockwise twist +30°: the view turns with the fingers
+  await twist(M, 120, 30);
+  await tick();
+  s = await S();
+  const d1 = ((s.yaw - y0 + 540) % 360) - 180;
+  t.log(tag, 'twist', JSON.stringify({ y0, y1: s.yaw, d: d1 }));
+  t(Math.abs(d1 - 30) < 5, `${tag}: a clockwise two-finger twist turns the view +30° (yaw ${y0.toFixed(1)} → ${s.yaw.toFixed(1)})`);
+  t.equal(s.orders.length, n0, `${tag}: twisting gives no order`);
+  t.equal(s.sel.join(), sel0, `${tag}: twisting keeps the selection`);
+  // --- counter-clockwise twist −30° turns it back
+  await twist(M, 120, -30);
+  await tick();
+  s = await S();
+  const d2 = ((s.yaw - y0 + 540) % 360) - 180;
+  t(Math.abs(d2) < 5, `${tag}: twisting back restores the yaw (yaw ${s.yaw.toFixed(1)}, want ${y0.toFixed(1)})`);
+  t.equal(s.orders.length, n0, `${tag}: twisting back gives no order`);
+  // --- twist + pinch compose: spreading while twisting zooms in AND turns
+  const z0 = s.zoom;
+  await twist(M, 100, 30, 160);
+  await tick();
+  s = await S();
+  const d3 = ((s.yaw - y0 + 540) % 360) - 180;
+  t(s.zoom > z0 * 1.3, `${tag}: spreading while twisting zooms in (zoom ${z0.toFixed(2)} → ${s.zoom.toFixed(2)})`);
+  t(Math.abs(d3 - 30) < 5, `${tag}: and turns the view +30° (yaw ${s.yaw.toFixed(1)})`);
+  t.equal(s.orders.length, n0, `${tag}: twist + pinch gives no order`);
+  await page.evaluate(() => { window.__game.setZoom(1); window.__game.centerOn(22, 46); window.__game.game.cameraRig.setYaw(15); window.__game.render(); });
 }
 
 /** Stage 2b: a pinch with one finger resting on the bag (either finger first) zooms; the bag finger presses nothing. */
@@ -658,6 +708,7 @@ export async function playFlow(t, name) {
   const c = await tapStage(t, name);
   try {
     await panZoomStage(c);
+    await twistStage(c);
     await hudPinchStage(c);
     await notebookStage(c);
     await hudStage(c);

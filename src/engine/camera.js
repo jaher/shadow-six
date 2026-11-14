@@ -723,6 +723,7 @@ export class CameraRig {
     this.onUserYaw = null;
     this._yawDirty = false; // a turn since the last onUserYaw report
     this._yawSettle = 0; // s turned since the last report (reports are throttled to 4/s, plus one on release)
+    this._twistAccum = 0; // deg twisted since the last onUserYaw report (reports are throttled to 5°, plus one on release)
     /** A scripted camera move owns the view (the briefing tour): Game.render locks user scrolling while it is set. */
     this.scripted = false;
     /** Called after views/layout/active change: fn(rig). */
@@ -960,6 +961,30 @@ export class CameraRig {
     this._yawDirty = true;
     this._yawSettle += dt;
     if (this._yawSettle >= 0.25) { this._yawSettle = 0; this._yawDirty = false; this.onUserYaw?.(Math.round(yaw)); }
+  }
+
+  /**
+   * Two-finger twist (touch-game.js): rotate yaw by deltaDeg (clockwise-positive on screen, so the map turns
+   * with the fingers — yaw+ is a clockwise turn of the map), wrapped 0-360 and applied through setYaw exactly
+   * like hold-to-rotate. Frozen by the same guard (not the faithful pause, not a scripted camera). Reports are
+   * throttled to every 5° of twist; flushUserYaw reports the remainder on gesture end.
+   */
+  twistYaw(deltaDeg) {
+    if (!this.enabled || this.panLocked || !deltaDeg) return;
+    const yaw = (((this.active.yawDeg + deltaDeg) % 360) + 360) % 360;
+    this.setYaw(yaw);
+    this._twistAccum += deltaDeg;
+    if (Math.abs(this._twistAccum) >= 5) { this._twistAccum = 0; this.onUserYaw?.(Math.round(yaw)); }
+  }
+
+  /** Report the settled yaw (twist remainder, or a hold-to-rotate turn not yet reported): gesture end. */
+  flushUserYaw() {
+    if (this._twistAccum || this._yawDirty) {
+      this._twistAccum = 0;
+      this._yawDirty = false;
+      this._yawSettle = 0;
+      this.onUserYaw?.(Math.round(this.cfg.yawDeg));
+    }
   }
 
   /** Back to one untracked view (mission load). */

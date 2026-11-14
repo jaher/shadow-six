@@ -1,5 +1,5 @@
 /** TouchGame (src/input/touch-game.js) with a stub game: the tap that stops a coasting map gives no order. */
-import { test, assert } from './lib.mjs';
+import { test, assert, near } from './lib.mjs';
 import { TouchGame, TOUCH_PAN } from '../../src/input/touch-game.js';
 
 function rig() {
@@ -105,4 +105,67 @@ test('bag: a tap on a slot is that slot; between slots, the nearest one within t
   assert.equal(nearestSlot([a, b], 110, 134), 'decoy');
   assert.equal(nearestSlot([a, b], 125, 160), 'decoy'); // beside the narrow decoy
   assert.equal(nearestSlot([a, b], 300, 300), null);
+});
+
+function twistRig() {
+  const clicks = [];
+  const twists = [];
+  const flushes = [];
+  const zooms = [];
+  const game = {
+    input: { active: true, click: (x, y, o) => { clicks.push({ x, y, ...o }); return 'move'; } },
+    cameraController: { zoom: 1, tracking: false, panScreen() {}, zoomAt: (z) => { zooms.push(z); return z; }, untrack() {} },
+    cameraRig: { count: 1, panLocked: false, twistYaw: (d) => twists.push(d), flushUserYaw: () => flushes.push(1) },
+    hud: null,
+  };
+  const tg = new TouchGame(game, null);
+  /** Two fingers down at (x1, y1) / (x2, y2), as the pointer listeners feed them. */
+  const twoDown = (x1, y1, x2, y2, t) => {
+    tg.touchDown(t);
+    tg.handle(tg.gestures.down(1, x1, y1, t));
+    tg.handle(tg.gestures.down(2, x2, y2, t + 10));
+  };
+  /** Rotate both fingers about (cx, cy) from angle a0 to a1 (deg), distance r held. */
+  const twist = (cx, cy, r, a0, a1, t) => {
+    const pt = (a, s) => [cx + s * r * Math.cos((a * Math.PI) / 180), cy + s * r * Math.sin((a * Math.PI) / 180)];
+    tg.handle(tg.gestures.move(1, ...pt(a1, -1), t));
+    tg.handle(tg.gestures.move(2, ...pt(a1, 1), t));
+  };
+  const twoUp = (t) => {
+    tg.handle(tg.gestures.up(1, 0, 0, t));
+    tg.handle(tg.gestures.up(2, 0, 0, t + 10));
+  };
+  return { tg, clicks, twists, flushes, zooms, twoDown, twist, twoUp };
+}
+
+test('a two-finger twist rotates the rig and never taps', () => {
+  const { tg, clicks, twists, flushes, twoDown, twist, twoUp } = twistRig();
+  twoDown(100, 100, 200, 100, 1000);
+  twist(150, 100, 50, 0, 30, 1030);
+  assert.ok(twists.length === 2, 'one twist per moved finger');
+  near(twists[0] + twists[1], 30, 0.6, 'the twist sums to +30°');
+  assert.ok(twists.every((d) => d > 0), 'clockwise on screen');
+  twoUp(1100);
+  assert.equal(flushes.length, 1, 'pinch end flushes the settled yaw');
+  assert.equal(clicks.length, 0, 'no tap, no order');
+  assert.equal(tg.log.filter((e) => e.type === 'tap').length, 0);
+});
+
+test('twist composes with pinch zoom in one gesture', () => {
+  const { tg, twists, zooms, twoDown } = twistRig();
+  twoDown(100, 100, 200, 100, 1000);
+  // fingers from ±50 px at 0° to ±70 px at +20° about (150, 100): spread while twisting
+  const pt = (a, s, r) => [150 + s * r * Math.cos((a * Math.PI) / 180), 100 + s * r * Math.sin((a * Math.PI) / 180)];
+  tg.handle(tg.gestures.move(1, ...pt(20, -1, 70), 1030));
+  tg.handle(tg.gestures.move(2, ...pt(20, 1, 70), 1030));
+  assert.ok(zooms.length > 0 && zooms.at(-1) > 1.3, `spreading zooms in (${zooms.at(-1)})`);
+  near(twists.reduce((a, b) => a + b, 0), 20, 0.6, 'and the twist turns with it');
+});
+
+test('the twist is touch-only: mouse and pen pointers are not owned', () => {
+  const { tg } = twistRig();
+  assert.equal(tg.owns({ pointerType: 'touch' }), true);
+  assert.equal(tg.owns({ pointerType: 'mouse' }), false);
+  assert.equal(tg.owns({ pointerType: 'pen' }), false);
+  assert.equal(tg.owns(null), false);
 });

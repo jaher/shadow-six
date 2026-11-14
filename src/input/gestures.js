@@ -5,8 +5,11 @@
  *              (double = a second tap within doubleTapMs and doubleTapPx of the previous one)
  *   LONG PRESS one finger held still ≥ longPressMs (reported by tick)  → {type:'longpress', x, y}
  *   PAN        one finger moved ≥ tapMovePx                            → 'panstart', 'pan' {dx, dy}, 'panend' {vx, vy}
- *   PINCH      two fingers                                             → 'pinchstart', 'pinch' {scale, cx, cy, dx, dy}, 'pinchend'
+ *   PINCH      two fingers                                             → 'pinchstart', 'pinch' {scale, dAngle, cx, cy, dx, dy}, 'pinchend'
  *              scale = current finger distance / distance at pinch start (> 1 = spreading = zoom in);
+ *              dAngle = change in the angle between the fingers since the last sample (deg, clockwise-positive
+ *              on screen: a clockwise twist turns the map clockwise with the fingers); a pure twist keeps
+ *              scale ≈ 1, a pure spread keeps dAngle ≈ 0, and both compose in one gesture.
  *              (cx, cy) = the fingers' midpoint, (dx, dy) = midpoint movement since the last sample.
  * A gesture that ever became a pan, a pinch or a long press can no longer end as a tap, so a finger that drags the
  * map or a pinch that lifts one finger first never issues an order. Times are in ms, positions in CSS px.
@@ -33,7 +36,7 @@ export class GestureClassifier {
     this.state = 'idle';
     this._lastTap = null; // {t, x, y}
     this._samples = []; // pan samples {t, x, y}
-    this._pinch = null; // {d0, cx, cy}
+    this._pinch = null; // {d0, cx, cy, pa} — pa = angle (rad) between the fingers at the last sample
   }
 
   get count() {
@@ -45,6 +48,17 @@ export class GestureClassifier {
     return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) };
   }
 
+  /** Angle (rad) of the line from the first finger to the second, screen coords (y down: + is clockwise). */
+  _angle() {
+    const [a, b] = [...this.pointers.values()];
+    return Math.atan2(b.y - a.y, b.x - a.x);
+  }
+
+  /** Degrees wrapped to [-180, 180). */
+  static _wrapDeg(d) {
+    return (((d + 180) % 360) + 360) % 360 - 180;
+  }
+
   /** A finger touches. @returns {object[]} gestures */
   down(id, x, y, t) {
     const out = [];
@@ -54,7 +68,7 @@ export class GestureClassifier {
     } else if (this.pointers.size === 2) {
       if (this.state === 'pan') out.push(this._panEnd(t, true));
       const m = this._mid();
-      this._pinch = { d0: m.d, cx: m.cx, cy: m.cy };
+      this._pinch = { d0: m.d, cx: m.cx, cy: m.cy, pa: this._angle() };
       this.state = 'pinch';
       out.push({ type: 'pinchstart', cx: m.cx, cy: m.cy });
     }
@@ -71,7 +85,10 @@ export class GestureClassifier {
     const out = [];
     if (this.state === 'pinch' && this.pointers.size >= 2) {
       const m = this._mid(), pi = this._pinch;
-      out.push({ type: 'pinch', scale: m.d / pi.d0, cx: m.cx, cy: m.cy, dx: m.cx - pi.cx, dy: m.cy - pi.cy });
+      const a = this._angle();
+      const dAngle = GestureClassifier._wrapDeg((a - pi.pa) * 180 / Math.PI);
+      pi.pa = a;
+      out.push({ type: 'pinch', scale: m.d / pi.d0, dAngle, cx: m.cx, cy: m.cy, dx: m.cx - pi.cx, dy: m.cy - pi.cy });
       pi.cx = m.cx;
       pi.cy = m.cy;
       return out;

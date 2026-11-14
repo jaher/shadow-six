@@ -237,3 +237,70 @@ test('audio pans along the screen-right axis of a yawed camera', async () => {
   near(spatialize({ x: -10 * Math.sin(yaw), z: -10 * Math.cos(yaw) }, 0, 0, 40, 0, 'mech', yaw).pan, 0, 1e-9);
   near(spatialize({ x: 10, z: 0 }, 0, 0, 40).pan, 0.4, 1e-9, 'yaw 0 unchanged');
 });
+
+test('twistYaw rotates through setYaw and wraps 0-360', () => {
+  const rig = new CameraRig({});
+  rig.resize(1200, 800);
+  rig.setBounds(...MAP);
+  rig.setYaw(15);
+  rig.twistYaw(30);
+  near(rig.yawDeg, 45, 1e-9);
+  near(rig.cfg.yawDeg, 45, 1e-9, 'the rig yaw follows');
+  for (const v of rig.views) near(v.yawDeg, 45, 1e-9, 'every view re-aims');
+  rig.twistYaw(330);
+  near(rig.yawDeg, 15, 1e-9, '375° wraps to 15°');
+  rig.twistYaw(-30);
+  near(rig.yawDeg, 345, 1e-9, 'a counter-clockwise twist wraps the other way');
+});
+
+test('twistYaw is frozen while panLocked (faithful pause / scripted camera), live otherwise', () => {
+  const rig = new CameraRig({});
+  rig.resize(1200, 800);
+  rig.setBounds(...MAP);
+  rig.setYaw(15);
+  rig.panLocked = true;
+  rig.twistYaw(30);
+  near(rig.yawDeg, 15, 1e-9, 'no turn while locked');
+  rig.panLocked = false;
+  rig.twistYaw(30);
+  near(rig.yawDeg, 45, 1e-9);
+});
+
+test('twistYaw reports the settled yaw (throttled to 5°, plus flush on release)', () => {
+  const rig = new CameraRig({});
+  rig.resize(1200, 800);
+  rig.setBounds(...MAP);
+  rig.setYaw(15);
+  const reports = [];
+  rig.onUserYaw = (deg) => reports.push(deg);
+  rig.twistYaw(2);
+  rig.twistYaw(2);
+  assert.deepEqual(reports, [], 'under 5° of twist: no report yet');
+  rig.twistYaw(2);
+  assert.deepEqual(reports, [21], 'at 6°: one report of the settled yaw');
+  rig.twistYaw(1);
+  assert.deepEqual(reports, [21], 'a 1° remainder waits for the release');
+  rig.flushUserYaw();
+  assert.deepEqual(reports, [21, 22], 'flush reports the remainder');
+  rig.flushUserYaw();
+  assert.deepEqual(reports, [21, 22], 'a second flush reports nothing new');
+});
+
+test('hold-to-rotate keys and TURN buttons still turn (desktop unchanged)', () => {
+  const rig = new CameraRig({ input: { isDown: (a) => a === 'rotLeft' } });
+  rig.resize(1200, 800);
+  rig.setBounds(...MAP);
+  rig.setYaw(45);
+  rig._rotateStep(1);
+  near(rig.yawDeg, 355, 1e-9, 'Comma turns left at 50°/s');
+  rig.input = { isDown: (a) => a === 'rotRight' };
+  rig._rotateStep(1);
+  near(rig.yawDeg, 45, 1e-9, 'Period turns right at 50°/s');
+  rig.input = { isDown: () => false };
+  rig.touchRotate('r', true);
+  rig._rotateStep(1);
+  near(rig.yawDeg, 95, 1e-9, 'the TURN button turns right');
+  rig.touchRotate('r', false);
+  rig._rotateStep(1);
+  near(rig.yawDeg, 95, 1e-9, 'released: no further turn');
+});
