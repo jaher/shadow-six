@@ -191,8 +191,13 @@ function* curtains(w, m) {
     if (due()) yield;
     if (s.type !== 'castle_wall' || !s.points) continue;
     const crag = /crag/.test(s.variant || '');
+    // (the crag wall's walk top would sit exactly on the HQ terrace's prism top
+    // at y=13 where the wall crosses the terrace's S edge — the climb landing
+    // z-fights there. Lift the whole crag wall 1 cm: its walk lands at 13.01,
+    // 1 cm off the prism top, 4 mm above the terrace gutter (13.006) and 5 mm
+    // below the lowest flag slab (13.015) — the only slot that clears all three.)
     const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside), {
-      seed: s.id, width: s.width ?? 5, h: s.h ?? 7, inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
+      seed: s.id, width: s.width ?? 5, h: (s.h ?? 7) + (crag ? 0.01 : 0), inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
       base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag,
       gaps: crag ? [[15, 79, 2.2]] : [], name: `curtain:${s.id}`,
     });
