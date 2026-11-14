@@ -378,11 +378,10 @@ export function gateCrown(G, o) {
   // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face)
   segBox(G, 'ashlar', F, -P2 - 0.02, P2 + 0.02, D2 - 0.55, D2, Y + 1.0, g1 + 1.35, 1);
   segBox(G, 'dressed', F, -P2 - 0.1, P2 + 0.1, D2 - 0.62, D2 + 0.07, g1 + 1.32, g1 + 1.45, 1.05);
-  // its crenellated top: the gate's fighting front over the gallery's roof
-  for (let u = -P2 + 0.05; u + 0.8 <= P2 + 0.06; u += 1.35) {
-    segBox(G, 'ashlar', F, u, u + 0.8, D2 - 0.55, D2, g1 + 1.45, g1 + 2.2, 0.95);
-    segBox(G, 'dressed', F, u - 0.03, u + 0.83, D2 - 0.6, D2 + 0.05, g1 + 2.2, g1 + 2.3, 1.04);
-  }
+  // (user 2026-11-14: no crenellations here — the merlons crowned the wall that
+  // cuts through the gate chamber's saddle roof, so they read as merlons sitting
+  // on a roof. The wall itself stays: it closes the gallery roof against the
+  // chamber roof, and its dressed top course is the flat cap now.)
   // the gate chamber's roof over the arch, between the towers' tops (the walk crosses the arch beneath it on its
   // plank): oak corner posts on the towers' inner edges, wall plates, a slate saddle roof, boarded gables
   for (const s of [-1, 1]) for (const ww of [-D2 + 0.35, D2 - 0.35]) segBox(G, 'timber', F, s * (P2 + 0.15) - 0.13, s * (P2 + 0.15) + 0.13, ww - 0.13, ww + 0.13, Y + 0.95, Y + 3.15, 0.7);
