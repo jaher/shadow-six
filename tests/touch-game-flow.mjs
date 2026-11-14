@@ -111,7 +111,8 @@ async function tapStage(t, name) {
       const G = window.__game.game, cam = G.cameraController, w = G.world;
       const gb = w.commandos.find((c) => c.role === 'greenberet'), guard = w.enemies[0];
       const scr = (e, y = 0.5) => cam.worldToScreen(e.x, y, e.z);
-      return { gb: scr(gb), guard: scr(guard, 0.9), sel: G.input.selection.map((c) => c.role), orders: window.__orders.slice(), target: { x: cam.target.x, z: cam.target.z }, zoom: cam.zoom, yaw: G.cameraRig.yawDeg, targeting: G.input.targeting?.abilityId || null, state: G.state, cone: !!guard.coneVisible };
+      const centre = cam.screenToGround(cam.width / 2, cam.height / 2);
+      return { gb: scr(gb), guard: scr(guard, 0.9), sel: G.input.selection.map((c) => c.role), orders: window.__orders.slice(), target: { x: cam.target.x, z: cam.target.z }, zoom: cam.zoom, yaw: G.cameraRig.yawDeg, centre: centre && { x: centre.x, z: centre.z }, targeting: G.input.targeting?.abilityId || null, state: G.state, cone: !!guard.coneVisible };
     });
     const tick = (s = 0.05) => page.evaluate((d) => { window.__game.advance(d); window.__game.render(); }, s);
 
@@ -349,6 +350,13 @@ async function twistStage(c) {
   let s = await S();
   const y0 = s.yaw, n0 = s.orders.length, sel0 = s.sel.join();
   const M = [W * 0.42, H * 0.5];
+  const centreDrift = (a, b) => (a && b ? Math.hypot(a.x - b.x, a.z - b.z) : NaN);
+  // Centre tolerance (0.1 m ≈ 4 px at zoom 1): the twist pivot itself is exact (unit tests), but a real
+  // gesture's finger samples alternate (finger 1 moves, then finger 2), so the pinch midpoint wobbles ~2 px
+  // per sample and the pan/zoom steps between the twist's re-aims leave a few cm of residual — invisible,
+  // and ~150× tighter than the ~14 m the old walk left.
+  const CENTRE_TOL = 0.1;
+  const c0 = s.centre;
   // --- clockwise twist +30°: the view turns with the fingers
   await twist(M, 120, 30);
   await tick();
@@ -356,6 +364,7 @@ async function twistStage(c) {
   const d1 = ((s.yaw - y0 + 540) % 360) - 180;
   t.log(tag, 'twist', JSON.stringify({ y0, y1: s.yaw, d: d1 }));
   t(Math.abs(d1 - 30) < 5, `${tag}: a clockwise two-finger twist turns the view +30° (yaw ${y0.toFixed(1)} → ${s.yaw.toFixed(1)})`);
+  t(centreDrift(s.centre, c0) < CENTRE_TOL, `${tag}: the twist turns in place around the screen centre (drift ${centreDrift(s.centre, c0).toFixed(3)} m)`);
   t.equal(s.orders.length, n0, `${tag}: twisting gives no order`);
   t.equal(s.sel.join(), sel0, `${tag}: twisting keeps the selection`);
   // --- counter-clockwise twist −30° turns it back
@@ -364,6 +373,7 @@ async function twistStage(c) {
   s = await S();
   const d2 = ((s.yaw - y0 + 540) % 360) - 180;
   t(Math.abs(d2) < 5, `${tag}: twisting back restores the yaw (yaw ${s.yaw.toFixed(1)}, want ${y0.toFixed(1)})`);
+  t(centreDrift(s.centre, c0) < CENTRE_TOL, `${tag}: twisting back keeps the screen centre put (drift ${centreDrift(s.centre, c0).toFixed(3)} m)`);
   t.equal(s.orders.length, n0, `${tag}: twisting back gives no order`);
   // --- twist + pinch compose: spreading while twisting zooms in AND turns
   const z0 = s.zoom;
@@ -373,6 +383,28 @@ async function twistStage(c) {
   const d3 = ((s.yaw - y0 + 540) % 360) - 180;
   t(s.zoom > z0 * 1.3, `${tag}: spreading while twisting zooms in (zoom ${z0.toFixed(2)} → ${s.zoom.toFixed(2)})`);
   t(Math.abs(d3 - 30) < 5, `${tag}: and turns the view +30° (yaw ${s.yaw.toFixed(1)})`);
+  t.equal(s.orders.length, n0, `${tag}: twist + pinch gives no order`);
+  // --- twist + spread about the screen centre: both pivots coincide, so the centre must stay put
+  await page.evaluate(() => { window.__game.setZoom(1); window.__game.centerOn(22, 46); window.__game.game.cameraRig.setYaw(15); window.__game.render(); });
+  s = await S();
+  const c1 = s.centre, z1 = s.zoom;
+  await twist([W / 2, H / 2], 100, 30, 160);
+  await tick();
+  s = await S();
+  const d4 = ((s.yaw - y0 + 540) % 360) - 180;
+  t(s.zoom > z1 * 1.3, `${tag}: spreading about the screen centre zooms in (zoom ${z1.toFixed(2)} → ${s.zoom.toFixed(2)})`);
+  t(Math.abs(d4 - 30) < 5, `${tag}: and turns the view +30° (yaw ${s.yaw.toFixed(1)})`);
+  t(centreDrift(s.centre, c1) < CENTRE_TOL, `${tag}: twist + spread about the centre keeps the centre put (drift ${centreDrift(s.centre, c1).toFixed(3)} m)`);
+  t.equal(s.orders.length, n0, `${tag}: twist + spread about the centre gives no order`);
+  // --- twist + pinch-in about the centre: pinching while twisting zooms OUT and turns back
+  const z2 = s.zoom;
+  await twist([W / 2, H / 2], 160, -30, 100);
+  await tick();
+  s = await S();
+  const d5 = ((s.yaw - y0 + 540) % 360) - 180;
+  t(s.zoom < z2 * 0.8, `${tag}: pinching while twisting zooms out (zoom ${z2.toFixed(2)} → ${s.zoom.toFixed(2)})`);
+  t(Math.abs(d5) < 5, `${tag}: and turns the view back (yaw ${s.yaw.toFixed(1)}, want ${y0.toFixed(1)})`);
+  t(centreDrift(s.centre, c1) < CENTRE_TOL, `${tag}: twist + pinch about the centre keeps the centre put (drift ${centreDrift(s.centre, c1).toFixed(3)} m)`);
   t.equal(s.orders.length, n0, `${tag}: twist + pinch gives no order`);
   await page.evaluate(() => { window.__game.setZoom(1); window.__game.centerOn(22, 46); window.__game.game.cameraRig.setYaw(15); window.__game.render(); });
 }

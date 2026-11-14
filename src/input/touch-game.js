@@ -7,8 +7,10 @@
  *   LONG PRESS        = a commando: add / remove him from the selection (Ctrl+click); an enemy: his vision cone;
  *                       the ground: the probe marker (Shift+click).
  *   ONE-FINGER DRAG   = pan the map 1:1 under the finger, coasting on release (never an order).
- *   TWO FINGERS       = pinch to zoom about the fingers' midpoint (spread = zoom in) and twist to rotate the
- *                       view (clockwise with the fingers); moving both pans. Zoom and twist compose in one gesture.
+ *   TWO FINGERS       = pinch to zoom about the fingers' midpoint (spread = zoom in, pinch = zoom out) and
+ *                       twist to rotate the view about the centre of the screen (clockwise with the fingers);
+ *                       moving both pans. Zoom and twist compose in one gesture — the rotation holds the
+ *                       screen centre while the zoom holds the ground under the fingers.
  *
  * Mouse and pen pointers are left to Input / CameraRig (desktop controls are unchanged). Panning follows the same
  * rules as the other user scrolling (frozen by the faithful pause, CameraRig.panLocked); zoom always works.
@@ -220,7 +222,10 @@ export class TouchGame {
       cam.panScreen(-dx, -dy);
     }
     // the twist rides on the same gesture as the pinch zoom: the map turns with the fingers (frozen by the
-    // faithful pause / scripted camera, like hold-to-rotate — CameraRig.twistYaw guards on panLocked)
+    // faithful pause / scripted camera, like hold-to-rotate — CameraRig.twistYaw guards on panLocked). The two
+    // deltas compose, each holding its own pivot: the twist holds the screen centre (CameraRig.twistYaw) while
+    // the zoom below holds the ground under the fingers' midpoint (zoomAt) — so a twist+spread turns in place
+    // AND zooms in, in one motion.
     if (dAngle) this.rig?.twistYaw?.(dAngle);
     return cam.zoomAt(this._pinchZoom * scale, cx, cy);
   }

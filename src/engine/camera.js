@@ -968,11 +968,23 @@ export class CameraRig {
    * with the fingers — yaw+ is a clockwise turn of the map), wrapped 0-360 and applied through setYaw exactly
    * like hold-to-rotate. Frozen by the same guard (not the faithful pause, not a scripted camera). Reports are
    * throttled to every 5° of twist; flushUserYaw reports the remainder on gesture end.
+   * The twist pivots on the world point at the centre of the screen: setYaw re-aims the target through
+   * focusTarget, which puts the OLD target at the usable centre — but the target sits usableShift (~0.9 m
+   * with the HUD bar) up-screen of it, so every incremental setYaw walks the view ~0.9 m, and a +30° twist
+   * in 16 samples walked it ~14 m across the map. The centre point is therefore captured first and re-aimed
+   * back after the yaw change (the zoomAt pattern), so the view turns in place instead of swinging.
+   * Keyboard / TURN-button rotation is untouched (it still goes through setYaw alone).
    */
   twistYaw(deltaDeg) {
     if (!this.enabled || this.panLocked || !deltaDeg) return;
+    const v = this.active;
+    const o = v._origin();
+    const cx = o.left + v.width / 2, cy = o.top + v.height / 2;
+    const before = v.screenToGround(cx, cy);
     const yaw = (((this.active.yawDeg + deltaDeg) % 360) + 360) % 360;
     this.setYaw(yaw);
+    const after = before && v.screenToGround(cx, cy);
+    if (after) v.panBy(before.x - after.x, before.z - after.z);
     this._twistAccum += deltaDeg;
     if (Math.abs(this._twistAccum) >= 5) { this._twistAccum = 0; this.onUserYaw?.(Math.round(yaw)); }
   }

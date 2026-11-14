@@ -286,6 +286,61 @@ test('twistYaw reports the settled yaw (throttled to 5°, plus flush on release)
   assert.deepEqual(reports, [21, 22], 'a second flush reports nothing new');
 });
 
+test('twistYaw rotates in place around the screen centre (a gesture does not walk the view)', () => {
+  const rig = new CameraRig({});
+  rig.resize(800, 400);
+  rig.setBounds(100, 100);
+  const v = rig.active;
+  v.setHudTop(47); // the phone bar: without the re-aim, every setYaw walks the view ~usableShift
+  v.centerOn(50, 50);
+  rig.setYaw(15);
+  const centre = () => v.screenToGround(400, 200);
+  const play = () => v.screenToGround(400, (47 + 400) / 2);
+  const before = centre(), pb = play();
+  const t0 = { x: v.target.x, z: v.target.z };
+  // a +30° twist arrives as ~16 incremental samples (two fingers × 8 moves), like the real gesture
+  for (let i = 0; i < 16; i++) rig.twistYaw(30 / 16);
+  near(rig.yawDeg, 45, 1e-9, 'yaw turned +30°');
+  const after = centre();
+  near(Math.hypot(after.x - before.x, after.z - before.z), 0, 1e-6, 'the screen-centre ground point stays put');
+  near(Math.hypot(v.target.x - t0.x, v.target.z - t0.z), 0, 1e-6, 'the target stays put');
+  const swing = Math.hypot(play().x - pb.x, play().z - pb.z);
+  assert.ok(swing > 0.2 && swing < 0.6, `the play centre swings by the bar offset only (${swing.toFixed(2)} m, not ~14 m)`);
+});
+
+test('twist and pinch zoom compose: the zoom anchors on the fingers and the twist adds no centre drift', () => {
+  const setup = () => {
+    const rig = new CameraRig({});
+    rig.resize(800, 400);
+    rig.setBounds(100, 100);
+    const v = rig.active;
+    v.setHudTop(47);
+    v.centerOn(50, 50);
+    rig.setYaw(15);
+    return { rig, v };
+  };
+  const centre = (v) => v.screenToGround(400, 200);
+  const drift = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+  // A: zoom only, about the fingers' midpoint (500, 200) — off-centre, as in a real pinch
+  const A = setup();
+  const cA0 = centre(A.v), mA0 = A.v.screenToGround(500, 200);
+  A.v.zoomAt(1.6, 500, 200);
+  const dA = drift(centre(A.v), cA0);
+  near(A.v.zoom, 1.6, 1e-9, 'spreading zooms in');
+  near(drift(A.v.screenToGround(500, 200), mA0), 0, 1e-6, 'the zoom holds the ground under the fingers');
+  // B: the same zoom, but twisted +30° first (16 incremental samples, as the gesture delivers)
+  const B = setup();
+  const cB0 = centre(B.v);
+  for (let i = 0; i < 16; i++) B.rig.twistYaw(30 / 16);
+  const mB1 = B.v.screenToGround(500, 200); // the fingers' ground point after the twist
+  B.v.zoomAt(1.6, 500, 200);
+  const dB = drift(centre(B.v), cB0);
+  near(B.rig.yawDeg, 45, 1e-9, 'and the twist turned +30°');
+  near(B.v.zoom, 1.6, 1e-9, 'and the spread zoomed in');
+  near(drift(B.v.screenToGround(500, 200), mB1), 0, 1e-6, 'the zoom holds the ground under the fingers across the zoom step');
+  near(Math.abs(dB - dA), 0, 0.05, 'the twist adds no centre drift beyond the zoom\'s own');
+});
+
 test('hold-to-rotate keys and TURN buttons still turn (desktop unchanged)', () => {
   const rig = new CameraRig({ input: { isDown: (a) => a === 'rotLeft' } });
   rig.resize(1200, 800);
