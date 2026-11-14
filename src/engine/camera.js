@@ -93,9 +93,14 @@ export class CameraController {
     const a = THREE.MathUtils.degToRad(Number(deg) || 0);
     if (a === this.azimuth) return;
     this.azimuth = a;
-    // the clamps depend on the yaw: re-aim at the old centre like a recentre, so switching the Options angle near
-    // a map corner shows no void wedge (the loose manual-scroll clamp would leave up to ~11 m at 45°)
-    const f = this.focusTarget(this.target.x, this.target.z);
+    // the clamps depend on the yaw: re-clamp the target under the new yaw, but hold it. The old
+    // focusTarget re-aim put the old target at the usable (play) centre, so every incremental setYaw
+    // walked the view ~usableShift (~0.9 m with the HUD bar; ~53 m over a 50° hold-turn). The target
+    // is the ground point at the literal screen centre, so holding it turns the view in place — the
+    // twist's pivot, now shared by every caller (keys, TURN buttons, Options, dial). The strict fit
+    // pulls the target in only as far as the new yaw's footprint requires to show no void wedge at
+    // a map corner, like the old re-aim did.
+    const f = this._strictFit(this.target.x, this.target.z);
     this.target.x = f.x;
     this.target.z = f.z;
     this._applyTransform();
@@ -327,6 +332,19 @@ export class CameraController {
     const e = this.clampHalfExtents(), s = this.usableShift();
     const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
     return { x: fit(x + s.x, b.minX, b.maxX, e.x) - s.x, z: fit(z + s.z, b.minZ, b.maxZ, e.z) - s.z };
+  }
+
+  /**
+   * Target clamped so the whole view footprint stays inside the map bounds (no void past the margin):
+   * the strict fit focusTarget's S uses. Mid-map it returns the target unchanged (no walk); near a
+   * map corner it pulls the target in only as far as the new yaw's footprint requires.
+   */
+  _strictFit(x, z) {
+    const b = this.bounds;
+    if (!b) return { x, z };
+    const e = this.viewHalfExtents();
+    const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
+    return { x: fit(x, b.minX, b.maxX, e.x), z: fit(z, b.minZ, b.maxZ, e.z) };
   }
 
   /**
@@ -968,23 +986,15 @@ export class CameraRig {
    * with the fingers — yaw+ is a clockwise turn of the map), wrapped 0-360 and applied through setYaw exactly
    * like hold-to-rotate. Frozen by the same guard (not the faithful pause, not a scripted camera). Reports are
    * throttled to every 5° of twist; flushUserYaw reports the remainder on gesture end.
-   * The twist pivots on the world point at the centre of the screen: setYaw re-aims the target through
-   * focusTarget, which puts the OLD target at the usable centre — but the target sits usableShift (~0.9 m
-   * with the HUD bar) up-screen of it, so every incremental setYaw walks the view ~0.9 m, and a +30° twist
-   * in 16 samples walked it ~14 m across the map. The centre point is therefore captured first and re-aimed
-   * back after the yaw change (the zoomAt pattern), so the view turns in place instead of swinging.
-   * Keyboard / TURN-button rotation is untouched (it still goes through setYaw alone).
+   * The twist pivots on the world point at the centre of the screen: setYaw holds the target (the
+   * screen-centre ground point) while it turns, so the view turns in place instead of swinging — the play
+   * centre (below the HUD bar) orbits it by the bar shift. The capture/re-aim this used to do itself is
+   * now inside setYaw, so every caller (keys, TURN buttons, Options, dial) holds the same centre.
    */
   twistYaw(deltaDeg) {
     if (!this.enabled || this.panLocked || !deltaDeg) return;
-    const v = this.active;
-    const o = v._origin();
-    const cx = o.left + v.width / 2, cy = o.top + v.height / 2;
-    const before = v.screenToGround(cx, cy);
     const yaw = (((this.active.yawDeg + deltaDeg) % 360) + 360) % 360;
     this.setYaw(yaw);
-    const after = before && v.screenToGround(cx, cy);
-    if (after) v.panBy(before.x - after.x, before.z - after.z);
     this._twistAccum += deltaDeg;
     if (Math.abs(this._twistAccum) >= 5) { this._twistAccum = 0; this.onUserYaw?.(Math.round(yaw)); }
   }

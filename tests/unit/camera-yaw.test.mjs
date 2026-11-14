@@ -308,6 +308,69 @@ test('twistYaw rotates in place around the screen centre (a gesture does not wal
   assert.ok(swing > 0.2 && swing < 0.6, `the play centre swings by the bar offset only (${swing.toFixed(2)} m, not ~14 m)`);
 });
 
+test('setYaw holds the screen centre over incremental turns (no walk)', () => {
+  const rig = new CameraRig({});
+  rig.resize(800, 400);
+  rig.setBounds(100, 100);
+  const v = rig.active;
+  v.setHudTop(47); // the phone bar: the old focusTarget re-aim walked the view ~usableShift per call
+  v.centerOn(50, 50);
+  rig.setYaw(15);
+  const centre = () => v.screenToGround(400, 200);
+  const play = () => v.screenToGround(400, (47 + 400) / 2);
+  const c0 = centre(), p0 = play(), t0 = { x: v.target.x, z: v.target.z };
+  // 60 incremental setYaw calls (+50°, as a hold-turn delivers) — the old code walked ~53 m
+  let playMax = 0;
+  for (let i = 1; i <= 60; i++) {
+    rig.setYaw(15 + (50 * i) / 60);
+    const p = play();
+    playMax = Math.max(playMax, Math.hypot(p.x - p0.x, p.z - p0.z));
+  }
+  near(rig.yawDeg, 65, 1e-9, 'yaw turned +50°');
+  const c1 = centre();
+  near(Math.hypot(c1.x - c0.x, c1.z - c0.z), 0, 1e-6, 'the screen-centre ground point stays put');
+  near(Math.hypot(v.target.x - t0.x, v.target.z - t0.z), 0, 1e-6, 'the target stays put');
+  assert.ok(playMax > 0.5 && playMax < 1.0, `the play centre orbits by the bar offset only (${playMax.toFixed(2)} m, not ~53 m)`);
+  // a full turn returns the view exactly (the target never moves, so the orbit closes on itself)
+  for (let i = 1; i <= 72; i++) rig.setYaw((65 + 5 * i) % 360);
+  near(rig.yawDeg, 65, 1e-9, '425° wraps to 65°');
+  const c2 = centre();
+  near(Math.hypot(c2.x - c0.x, c2.z - c0.z), 0, 1e-6, 'after a full turn the centre is back');
+});
+
+test('hold-to-rotate holds the screen centre (TURN buttons and keys)', () => {
+  const rig = new CameraRig({});
+  rig.resize(800, 400);
+  rig.setBounds(100, 100);
+  const v = rig.active;
+  v.setHudTop(47);
+  v.centerOn(50, 50);
+  rig.setYaw(15);
+  const centre = () => v.screenToGround(400, 200);
+  const c0 = centre();
+  rig.touchRotate('r', true);
+  for (let i = 0; i < 60; i++) rig._rotateStep(1 / 60); // 1 s at 50°/s, as a held TURN button delivers
+  rig.touchRotate('r', false);
+  rig._rotateStep(1 / 60); // released: settle, no further turn
+  near(rig.yawDeg, 65, 1e-9, 'the TURN button turned +50°');
+  const c1 = centre();
+  near(Math.hypot(c1.x - c0.x, c1.z - c0.z), 0, 1e-6, 'the screen centre stays put through the hold');
+});
+
+test('Options angle switch holds the view mid-map (one setYaw, no walk)', () => {
+  const rig = new CameraRig({});
+  rig.resize(800, 400);
+  rig.setBounds(100, 100);
+  const v = rig.active;
+  v.setHudTop(47);
+  v.centerOn(50, 50);
+  rig.setYaw(15);
+  const t0 = { x: v.target.x, z: v.target.z };
+  rig.setYaw(45); // Options CAMERA ANGLE 15° → 45° in one step
+  near(rig.yawDeg, 45, 1e-9);
+  near(Math.hypot(v.target.x - t0.x, v.target.z - t0.z), 0, 1e-9, 'one Options switch moves the view 0 m, not ~0.9 m');
+});
+
 test('twist and pinch zoom compose: the zoom anchors on the fingers and the twist adds no centre drift', () => {
   const setup = () => {
     const rig = new CameraRig({});
