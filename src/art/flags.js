@@ -116,7 +116,13 @@ export function bannerTexture(theater, mode = getInsignia()) {
   return t;
 }
 
-/** Hanging-banner cloth material (one per theater; repainted with the flags when INSIGNIA changes). */
+/** Hanging-banner cloth material (one per theater; repainted with the flags when INSIGNIA changes).
+ * Gentle sway (m20-banners-gentle-sway): a small vertex-shader swing driven by the shared FLAG_UNIFORMS
+ * (same breeze as the pole flags, advanced by tickFlags). The cloth hangs from the rod (uv.y = 1 at the
+ * top), so the swing grows with depth below the rod and is 0 at the rod itself: mostly lateral (local x),
+ * a small out-of-plane (local z) component. Max |displacement| at the hem ≈ 2 cm at full wind (≈1.3 cm at
+ * the default wind 0.55); the inward (-z, toward the stone) component is capped at 0.8 cm — far inside the
+ * 6 cm minimum mounting clearance (HQ / church), so the cloth can never reach the wall. */
 export function bannerMaterial(theater) {
   const name = `banner:${theaterKey(theater)}`;
   if (C.mats.has(name)) return C.mats.get(name);
@@ -126,6 +132,22 @@ export function bannerMaterial(theater) {
   m.userData.snowCover = true;
   m.userData.flagTheater = theaterKey(theater);
   m.userData.flagKind = 'banner';
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, FLAG_UNIFORMS);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float uFlagTime; uniform float uFlagWind;
+vec3 bannerSway(vec3 p, vec2 q){
+  float v = 1.0 - q.y; // 0 at the rod, 1 at the hem
+  float amp = (0.35 + 0.65 * uFlagWind) * v * v;
+  float ph = v * 2.5 - uFlagTime * (1.2 + 1.5 * uFlagWind) + q.x * 1.8;
+  p.x += sin(ph) * 0.018 * amp;
+  p.z += sin(ph * 1.31 + 0.9) * 0.008 * amp;
+  return p;
+}`)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = bannerSway(transformed, uv);');
+  };
+  m.customProgramCacheKey = () => 'banner_sway_v1';
   C.mats.set(name, m);
   return m;
 }
