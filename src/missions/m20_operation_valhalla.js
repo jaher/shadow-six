@@ -452,7 +452,12 @@ const LADDERS = [
   ladder('L_hq1', [25.1, 63.5, Y.HQ], [25.1, 60.5, Y.ROOF], 270), // T_hq → the HQ roof ledge (up to a crenel of the château's parapet, x 24.8–25.4: at 24.5 it leant on a merlon and the way onto the roof went through it)
   ladder('L_hq2', [25.5, 60, Y.ROOF], [27.8, 58, Y.TUR], 315), // the roof ledge → the turret deck ("the small ladder")
   L_RNG,
-  stairs('S_sw', [37, 95.5, Y.BAT], [35, 89.5, Y.SW], 250), // T_sw → the SW battlements
+  // (user 2026-11-15: the tilted stairs — S_sw ran diagonally across the cw_sw walk, 27° off parallel, and all
+  // three flights below died 0.6-1.2 m short of their landing, their top steps buried in the level face: stopAt
+  // cuts the run at the level edge but the rise stays spread over the full run. S_sw is re-seated parallel to
+  // cw_sw on its centreline (w 0); all three tops sit 5 cm short of the level edge, one riser (0.2 m) below its
+  // paving, so the last tread lands on the level instead of inside its face.)
+  stairs('S_sw', [37.25, 95.25, Y.BAT], [33.04, 91.04, Y.SW - 0.2], 225), // T_sw → the SW battlements
   stairs('S_nw2', [41, 66, Y.NW], [36.5, 63, Y.HQ], 215), // T_nw → T_hq ("the stairs in front of the flak" [NL])
   stairs('S_n3', [47.5, 34, Y.NW], [47.5, 30.5, Y.N], 270), // T_nw ↔ T_n
   stairs('S_nw1', [58.5, 50, Y.WB], [54.5, 50, Y.NW], 180), // T_wb ↔ T_nw
@@ -460,8 +465,8 @@ const LADDERS = [
   stairs('S_n', [90.5, 40, 0], [90.5, 31, Y.N], 270), // blk_n: the N court ↔ T_n ("the big stairs" [DE])
   stairs('S_ne1', [98.5, 42, 0], [103, 42, Y.NE], 0), // the N court ↔ T_ne (the Driver's way to the tank)
   stairs('S_e', [113.5, 58, 0], [113.5, 50, Y.NE], 270), // the E road court ↔ T_ne
-  stairs('S_ne2', [125, 46.5, Y.NE], [129.5, 41.5, Y.BAT], 315), // T_ne ↔ the NE battlements (by blk_ne)
-  stairs('S_ne3', [111, 25, Y.BAT], [106, 21.5, Y.N], 215), // the NE battlements ↔ T_n
+  stairs('S_ne2', [125, 46.5, Y.NE], [127.62, 43.59, Y.BAT - 0.2], 315), // T_ne ↔ the NE battlements (by blk_ne): top at the cw_e2 band edge, one riser below the walk
+  stairs('S_ne3', [111, 25, Y.BAT], [108.04, 22.93, Y.N - 0.2], 215), // the NE battlements ↔ T_n: top at the T_n edge, one riser below its paving
   // the wall walk over the two gate arches and the water gate (the passages below stay at ground level)
   plank('P_gsw', [54.07, 113.26, Y.BAT], [59.93, 114.74, Y.BAT], 15),
   plank('P_gse', [113.9, 116.1, Y.BAT], [118.1, 111.9, Y.BAT], 315),
