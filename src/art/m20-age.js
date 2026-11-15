@@ -285,8 +285,10 @@ function keepFaces(D, s, R) {
     if (north(n[1])) for (let u = 1 + R() * 2; u < L - 1; u += 4 + R() * 3) D.wall(R() < 0.6 ? 'lichen' : 'moss', a[0] + t[0] * u, a[1] + t[1] * u, t, n[0], n[1], y0 + 0.5, 1.6, 0.9, 0.04);
   }
   // a walled-up older window high on the donjon's W face, a neat repair on the hall's S face
+  // (brick-window fix: the repair sat at y0+6.2, centred on the hall's u=16.2 bifora — its coursed-block
+  //  texture filled the window's right light. Moved up clear of the window head, same x/size.)
   D.wall('blockedArch', x0, 44.5, [0, -1], -1, 0, yDon - 5.5, 1.3, 1.9, 0.05);
-  D.wall('repairA', 16.8, z1, [1, 0], 0, 1, y0 + 6.2, 2.2, 1.4, 0.05);
+  D.wall('repairA', 16.8, z1, [1, 0], 0, 1, y0 + 8.3, 2.2, 1.4, 0.05);
   // the waterline along the W face's plinth (battered 0.45 m out at the bed)
   for (let z = z0 + 1.2; z < z1 - 0.6; z += 2.4) {
     const f = (3.0 - WATER_Y) / (3.0 - BED_Y), xw = x0 - 0.5 - 0.45 * f - 0.03;
