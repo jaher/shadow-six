@@ -104,15 +104,19 @@ export const ccw = (p) => (area2(p) < 0 ? p.slice().reverse() : p);
  */
 export class Geo {
   constructor(seed = 1) { this.parts = new Map(); this.R = rng(seedOf(seed)); this.seed = seedOf(seed) % 997; }
-  _arr(mat) { if (!this.parts.has(mat)) this.parts.set(mat, { pos: [], tone: [] }); return this.parts.get(mat); }
-  /** One triangle; `tone` multiplies its vertex colour (per-block variation). */
-  tri(mat, a, b, c, tone = 1) {
+  _arr(mat) { if (!this.parts.has(mat)) this.parts.set(mat, { pos: [], tone: [], uv: [] }); return this.parts.get(mat); }
+  /** One triangle; `tone` multiplies its vertex colour (per-block variation). `uv` (optional): explicit [u, v] in
+   * metres per vertex — overrides the box projection in build() (for faces whose slope sits off the world axes). */
+  tri(mat, a, b, c, tone = 1, uv = null) {
     const A = this._arr(mat);
     A.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
     A.tone.push(tone, tone, tone);
+    if (uv) A.uv.push(uv[0], uv[1], uv[2]); else A.uv.push(null, null, null);
   }
   /** Quad a-b-c-d (counter-clockwise seen from outside). */
   quad(mat, a, b, c, d, tone = 1) { this.tri(mat, a, b, c, tone); this.tri(mat, a, c, d, tone); }
+  /** Quad with explicit per-corner UVs in metres ([u, v] per corner, same order as the vertices). */
+  quadUV(mat, a, b, c, d, uv, tone = 1) { this.tri(mat, a, b, c, tone, [uv[0], uv[1], uv[2]]); this.tri(mat, a, c, d, tone, [uv[0], uv[2], uv[3]]); }
   /** Hexahedron from 8 corners: bottom ring p0..p3 (CCW from above), top ring p4..p7. */
   hexa(mat, p, tone = 1, { bottom = false } = {}) {
     const [a, b, c, d, e, f, g, h] = p;
@@ -196,7 +200,8 @@ export class Geo {
       for (let i = 0; i < n; i++) {
         const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
         const nx = N.getX(i), ny = N.getY(i), nz = N.getZ(i), ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
-        const [u, v] = ay >= ax && ay >= az ? [x, z] : ax >= az ? [z * Math.sign(nx || 1), y] : [-x * Math.sign(nz || 1), y];
+        const ov = A.uv[i];
+        const [u, v] = ov || (ay >= ax && ay >= az ? [x, z] : ax >= az ? [z * Math.sign(nx || 1), y] : [-x * Math.sign(nz || 1), y]);
         uv[i * 2] = u / tile; uv[i * 2 + 1] = v / tile;
         let k = A.tone[i] * (1 + amp * fbm(x * 0.08, y * 0.08, z * 0.08, s, 3));
         if (stone && ay < 0.6) {

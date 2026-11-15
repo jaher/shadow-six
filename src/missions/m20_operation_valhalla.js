@@ -82,6 +82,9 @@ export const PARAPETS = [
   ['t_par_hq_s', [[22, 77.5], [37.4, 77.5], [37.4, 78], [22, 78]], Y.HQ],
   ['t_par_sw_e', [[37.4, 78], [38, 78], [38, 91], [37.4, 91]], Y.SW],
   ['t_par_sw_s', [[22, 90.4], [38, 90.4], [38, 91], [22, 91]], Y.SW],
+  // (user 2026-11-14: the SW bastion's moat-facing west face was bare — a flat top edge with no merlons — while the
+  // terrace's south parapet beside it carries a full row. The west edge never had a strip: the S and E edges do.)
+  ['t_par_sw_w', [[22, 78], [22.6, 78], [22.6, 91], [22, 91]], Y.SW],
   ['t_par_hq_b', [[4, 68.5], [23, 68.5], [23, 69], [4, 69]], Y.HQ, BALUSTRADE_H],
   ['t_par_hq_b2', [[33.5, 68.5], [37.4, 68.5], [37.4, 69], [33.5, 69]], Y.HQ, BALUSTRADE_H],
   ['t_par_n', [[92, 31.4], [104, 31.4], [104, 32], [92, 32]], Y.N],
@@ -704,7 +707,7 @@ export default {
     // the bastion's corner under its parapet; the HQ terrace, its forecourt screen and the château's wing stand on the
     // crag; the N rampart's parapet on its edge; the range's E bullet stop is built against the curtain's inner face, its
     // N one runs through the target berm (the berm's art stops short of it: m20-art crossingStops)
-    ['cw_sw', 't_par_sw_s'], ['crag', 't_hq'], ['crag', 't_par_hq_b'], ['crag', 'hq_wing'], ['t_n', 't_par_n'],
+    ['cw_sw', 't_par_sw_s'], ['cw_w', 't_par_sw_w'], ['crag', 't_hq'], ['crag', 't_par_hq_b'], ['crag', 'hq_wing'], ['t_n', 't_par_n'],
     // layout audit: the smithy is built against the SW curtain (its W gable stands on the curtain's inner face); the
     // inner gate's sentry box stands against its S face, E of the arch
     ['h_w2', 'cw_sw'], ['gh_in', 'gbox_in']]),

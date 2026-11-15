@@ -377,11 +377,11 @@ export function gateCrown(G, o) {
   }
   // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face)
   segBox(G, 'ashlar', F, -P2 - 0.02, P2 + 0.02, D2 - 0.55, D2, Y + 1.0, g1 + 1.35, 1);
-  segBox(G, 'dressed', F, -P2 - 0.1, P2 + 0.1, D2 - 0.62, D2 + 0.07, g1 + 1.32, g1 + 1.45, 1.05);
   // (user 2026-11-14: no crenellations here — the merlons crowned the wall that
   // cuts through the gate chamber's saddle roof, so they read as merlons sitting
   // on a roof. The wall itself stays: it closes the gallery roof against the
-  // chamber roof, and its dressed top course is the flat cap now.)
+  // chamber roof. The dressed top course is gone too (user 2026-11-14: the flat
+  // pale slab should not cross the roof) — the wall now ends flat in ashlar.)
   // the gate chamber's roof over the arch, between the towers' tops (the walk crosses the arch beneath it on its
   // plank): oak corner posts on the towers' inner edges, wall plates, a slate saddle roof, boarded gables
   for (const s of [-1, 1]) for (const ww of [-D2 + 0.35, D2 - 0.35]) segBox(G, 'timber', F, s * (P2 + 0.15) - 0.13, s * (P2 + 0.15) + 0.13, ww - 0.13, ww + 0.13, Y + 0.95, Y + 3.15, 0.7);
@@ -392,8 +392,14 @@ export function gateCrown(G, o) {
     const q = (mat, a, b, c, dd, tn = 1) => (flip ? G.quad(mat, a, b, c, dd, tn) : G.quad(mat, dd, c, b, a, tn));
     const t = (mat, a, b, c, tn = 1) => (flip ? G.tri(mat, a, b, c, tn) : G.tri(mat, c, b, a, tn));
     const ua = -P2 - 0.55, ub = P2 + 0.55, we = D2 + 0.25, yE = Y + 3.2, yR = Y + 5.6;
-    q('slate', P(ua, 0, yR), P(ub, 0, yR), P(ub, we, yE), P(ua, we, yE));
-    q('slate', P(ub, 0, yR), P(ua, 0, yR), P(ua, -we, yE), P(ub, -we, yE));
+    // (the saddle roof's slate courses are mapped in the roof's own frame — u along the ridge, v down the slope — so
+    // the courses run parallel to the ridge, stepping down it. The box projection maps (x, z) on a slope whose ridge
+    // sits 15°/45° off the world axes, which tilted the courses diagonally across the roof. v is the true slope
+    // distance, so the tile size stays square; u/v are in metres, divided by the tile in Geo.build like the projection.)
+    const quv = (a, b, c, dd, uva, uvb, uvc, uvd, tn = 1) => (flip ? G.quadUV('slate', a, b, c, dd, [uva, uvb, uvc, uvd], tn) : G.quadUV('slate', dd, c, b, a, [uvd, uvc, uvb, uva], tn));
+    const slopeLen = Math.hypot(we, yR - yE);
+    quv(P(ua, 0, yR), P(ub, 0, yR), P(ub, we, yE), P(ua, we, yE), [ua, 0], [ub, 0], [ub, slopeLen], [ua, slopeLen]);
+    quv(P(ub, 0, yR), P(ua, 0, yR), P(ua, -we, yE), P(ub, -we, yE), [ub, 0], [ua, 0], [ua, -slopeLen], [ub, -slopeLen]);
     for (const [uu, sg] of [[ua + 0.2, -1], [ub - 0.2, 1]]) {
       if (sg > 0) t('boards', P(uu, -we + 0.3, yE), P(uu, we - 0.3, yE), P(uu, 0, yR - 0.15), 0.8);
       else t('boards', P(uu, we - 0.3, yE), P(uu, -we + 0.3, yE), P(uu, 0, yR - 0.15), 0.8);
