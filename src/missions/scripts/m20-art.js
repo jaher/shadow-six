@@ -203,7 +203,7 @@ function* curtains(w, m) {
     // below the lowest flag slab (13.015) — the only slot that clears all three.)
     const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside, s.gateSeat ?? 0), {
       seed: s.id, width: s.width ?? 5, h: (s.h ?? 7) + (crag ? 0.01 : 0), inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
-      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet, parapetOut: s.parapetOut,
+      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet, parapetOut: s.parapetOut, parapetKerb: s.parapetKerb,
       gaps: crag ? [[15, 79, 2.2]] : [], name: `curtain:${s.id}`,
     });
     if (!crag) {

@@ -300,8 +300,12 @@ const CURTAIN = [
     // projecting parapet out 0.33 m so the merlons' inner faces sit flush with
     // the wall's outer face and the walk is clear to the face line. Whole
     // curtain: the parapet is one continuous assembly; a per-segment jog would
-    // show a step at the (134,46) joint.)
-    { parapetOut: 0.33 }),
+    // show a step at the (134,46) joint. parapetKerb (same day): with the
+    // merlons on the face line the walk paving ran flush into their bases
+    // with no visible junction — a low dressed kerb along the parapet foot,
+    // mirroring the inner kerb, stops the paving at a deliberate line. The
+    // merlon row does not move; walkable width between kerbs is 4.40 m.)
+    { parapetOut: 0.33, parapetKerb: true }),
   { id: 'cw_w', type: 'castle_wall', variant: 'curtain_limestone_crag', points: [[4, 78.5], [22, 79.5]], width: 4, h: Y.HQ, mat: 'stone' },
   { id: 'bartizan_s', type: 'watchtower', variant: 'bartizan_round_decor', x: 99, z: 130.8, w: 1.2, d: 1.2, h: 8.5, deckY: 0.1 },
   // the inner gatehouse between the S courts and the N court (its W tower top belongs to T_wb)

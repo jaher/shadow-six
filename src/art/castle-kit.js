@@ -314,6 +314,15 @@ export function buildCurtain(points, o = {}) {
     }
     // inner coping kerb, arrow slits and drain spouts on the outer face
     segBox(G, 'dressed', F, e0, e1, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
+    // (o.parapetKerb: a low dressed kerb along the parapet-side foot of the
+    // walk, mirroring the inner kerb — cw_e2 by S_ne3, user 2026-11-15: the
+    // walk paving ran flush into the merlon bases with no visible junction.
+    // The kerb stops the paving at a deliberate line; its outer face butts
+    // the parapet base (half-0.35+pOut), its inner face at w=+2.20 mirrors
+    // the inner kerb's at -2.20. 0.12 m high, same as the inner kerb. The
+    // merlon row does not move: faces stay at w=2.50, clear width 4.70 m;
+    // walkable width between the two kerbs is 4.40 m.)
+    if (o.parapetKerb) segBox(G, 'dressed', F, e0, e1, half - 0.35 + pOut - 0.28, half - 0.35 + pOut, h, h + 0.12, 1.0);
     for (let u = 3 + R() * 2; u < F.L - 2; u += 6 + R() * 2) {
       segBox(G, 'iron', F, u - 0.09, u + 0.09, half + 0.0, half + 0.02, 3.2, 4.6, 0.1);
       segBox(G, 'dressed', F, u - 0.3, u + 0.3, half - 0.02, half + 0.05, 3.05, 3.2, 1.0);
