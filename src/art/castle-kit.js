@@ -291,20 +291,25 @@ export function buildCurtain(points, o = {}) {
       return out;
     })();
     for (const [a, b] of spans) segBox(G, 'dressed', F, a, b, half - 0.05, half + 0.12, h - 1.45, h - 1.25, 1.0);
+    // (o.parapetOut: shift the projecting parapet outward by this much, so its
+    // merlons sit on the wall's outer face instead of inside the walk — cw_e2 by
+    // S_ne3, user 2026-11-15: the merlons stood 0.33 m inside the corridor. The
+    // corbels extend (stay rooted in the face); base, coping and merlons shift.)
+    const pOut = o.parapetOut ?? 0;
     if (o.parapet !== false) {
-      for (let u = e0 + 0.45; u < e1 - 0.2; u += 1.1) segBox(G, 'dressed', F, u - 0.17, u + 0.17, half - 0.1, half + 0.32, h - 0.75, h - 0.05, 0.96, { taperOut: -0.25 });
+      for (let u = e0 + 0.45; u < e1 - 0.2; u += 1.1) segBox(G, 'dressed', F, u - 0.17, u + 0.17, half - 0.1, half + 0.32 + pOut, h - 0.75, h - 0.05, 0.96, { taperOut: -0.25 });
       for (const [a, b] of spans) {
-        segBox(G, 'ashlar', F, a, b, half - 0.35, half + 0.32, h - 0.08, pTop, 0.98);
-        segBox(G, 'dressed', F, a, b, half - 0.42, half + 0.38, pTop, pTop + 0.1, 1.05);
+        segBox(G, 'ashlar', F, a, b, half - 0.35 + pOut, half + 0.32 + pOut, h - 0.08, pTop, 0.98);
+        segBox(G, 'dressed', F, a, b, half - 0.42 + pOut, half + 0.38 + pOut, pTop, pTop + 0.1, 1.05);
       }
       // merlons with a coping stone; crenels left open (gaps: no merlons, e.g. over a climb spot)
       for (let u = e0 + 0.6; u + mL < e1 - 0.3; u += mL + mG) {
         const [cx, cz] = F.at(u + mL / 2, half);
         if ((o.gaps || []).some(([gx, gz, gr]) => Math.hypot(cx - gx, cz - gz) < gr)) continue;
         const tn = 0.94 + R() * 0.1;
-        segBox(G, 'ashlar', F, u, u + mL, half - 0.33, half + 0.3, pTop + 0.1, mTop, tn);
-        segBox(G, 'dressed', F, u - 0.04, u + mL + 0.04, half - 0.37, half + 0.34, mTop, mTop + 0.1, 1.04);
-        if (R() < 0.45) segBox(G, 'iron', F, u + mL / 2 - 0.05, u + mL / 2 + 0.05, half + 0.3, half + 0.32, pTop + 0.2, mTop - 0.2, 0.12);
+        segBox(G, 'ashlar', F, u, u + mL, half - 0.33 + pOut, half + 0.3 + pOut, pTop + 0.1, mTop, tn);
+        segBox(G, 'dressed', F, u - 0.04, u + mL + 0.04, half - 0.37 + pOut, half + 0.34 + pOut, mTop, mTop + 0.1, 1.04);
+        if (R() < 0.45) segBox(G, 'iron', F, u + mL / 2 - 0.05, u + mL / 2 + 0.05, half + 0.3 + pOut, half + 0.32 + pOut, pTop + 0.2, mTop - 0.2, 0.12);
       }
     }
     // inner coping kerb, arrow slits and drain spouts on the outer face

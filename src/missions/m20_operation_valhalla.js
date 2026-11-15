@@ -294,7 +294,14 @@ const CURTAIN = [
   // the outer ward's plank footbridge over the ring's S leg (castle pass)
   { id: 'br_w', type: 'bridge', variant: 'footbridge_timber', x: BR_W.x, z: BR_W.z, rot: deg(90), w: BR_W.w, d: BR_W.d, h: 0.4 },
   curtain('cw_e1', [[119.8, 110.3], [139, 97], [139, 83.6]]),
-  curtain('cw_e2', [[139, 80.9], [139, 50], [134, 46], [106, 20.2]]),
+  curtain('cw_e2', [[139, 80.9], [139, 50], [134, 46], [106, 20.2]], Y.BAT,
+    // (user 2026-11-15: the merlons in front of S_ne3 stand 0.33 m inside the
+    // corridor — their inner faces at w=2.17, the wall face at w=2.5. Shift the
+    // projecting parapet out 0.33 m so the merlons' inner faces sit flush with
+    // the wall's outer face and the walk is clear to the face line. Whole
+    // curtain: the parapet is one continuous assembly; a per-segment jog would
+    // show a step at the (134,46) joint.)
+    { parapetOut: 0.33 }),
   { id: 'cw_w', type: 'castle_wall', variant: 'curtain_limestone_crag', points: [[4, 78.5], [22, 79.5]], width: 4, h: Y.HQ, mat: 'stone' },
   { id: 'bartizan_s', type: 'watchtower', variant: 'bartizan_round_decor', x: 99, z: 130.8, w: 1.2, d: 1.2, h: 8.5, deckY: 0.1 },
   // the inner gatehouse between the S courts and the N court (its W tower top belongs to T_wb)
