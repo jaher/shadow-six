@@ -487,7 +487,7 @@ const LADDERS = [
   // top — so there is no overlap with the paving and no penetration of the level face.)
   stairs('S_sw', [37.25, 95.25, Y.BAT], [33.04, 91.04, Y.SW], 225), // T_sw → the SW battlements
   stairs('S_nw2', [41, 66, Y.NW], [36.5, 63, Y.HQ], 215), // T_nw → T_hq ("the stairs in front of the flak" [NL])
-  stairs('S_n3', [47.5, 34, Y.NW], [47.5, 30.5, Y.N], 270), // T_nw ↔ T_n
+  stairs('S_n3', [47.5, 36, Y.NW], [47.5, 32.10, Y.N], 270), // T_nw ↔ T_n (user 2026-11-15: the left-side stair of the inner gate, mirror of S_ne3 — its top sat 1.5 m inside T_n with the cheek copings 0.65 m proud across the full width, and stopAt cut it 1.20 m short. Top at the T_n S edge, 0.10 m short, at its paving; the foot moves 2.0 m S along the same line because top-at-the-edge on the old foot is a 57.7 deg ladder (run 1.90, tread 0.127). Run 3.90, pitch 37.6 deg, tread 0.260 — the S_ne3 family.)
   stairs('S_nw1', [58.5, 50, Y.WB], [54.5, 50, Y.NW], 180), // T_wb ↔ T_nw
   stairs('S_gw', [61, 77, 0], [66, 68.5, Y.WB], 300), // the W quarter ↔ T_wb: "the stairs by 32's post" [P]
   stairs('S_n', [90.5, 40, 0], [90.5, 31, Y.N], 270), // blk_n: the N court ↔ T_n ("the big stairs" [DE])
