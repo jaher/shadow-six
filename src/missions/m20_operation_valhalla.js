@@ -256,7 +256,14 @@ const gatehouse = (id, label, x, z, rot, o = {}) => {
 
 /** §5.1 the curtain, the gates, the retaining levels (listed before the terraces: a later raise wins). */
 const CURTAIN = [
-  curtain('cw_sw', [[33, 91], [52.3, 110.3]]),
+  // (user 2026-11-14: cw_sw meets gh_sw tilted (45 deg) and its end face sat
+  // half out of the gatehouse — probe-junction.mjs: 3.33 m of the 5 m end face
+  // outside the gate rect, worst corner 1.14 m past the face plane — while the
+  // aligned cw_s sits 0.15 m inside uniformly. gateSeat seats the end 1.5 m
+  // deeper (trimEnds), so the whole end face lands inside the gate rect like
+  // the east side; the parapet/merlons already stop ~0.2-0.3 m short of the end,
+  // so nothing extra stands on the gatehouse deck.)
+  curtain('cw_sw', [[33, 91], [52.3, 110.3]], Y.BAT, { gateSeat: 1.5 }),
   // (user 2026-11-14: no merlons on the walls flanking the main entrance — the side
   // faces' crenellation comes off; the outer face and the arch keep theirs, gh_se untouched.)
   // (user 2026-11-14: the full-depth side parapets crossed the over-the-wall corridor

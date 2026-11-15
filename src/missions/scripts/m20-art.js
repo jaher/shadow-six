@@ -73,13 +73,18 @@ function bodiesOf(m) {
   return (p) => gates.some(({ s, c, n }) => { const dx = p[0] - s.x, dz = p[1] - s.z, u = dx * c + dz * n, v = -dx * n + dz * c; return Math.abs(u) < s.w / 2 - 0.15 && Math.abs(v) < s.d / 2 + 2.5; })
     || levels.some((poly) => inPoly(p, poly));
 }
-/** Pull the two ends of a polyline back along their segments until they leave `inside` (0.05 m steps). */
-function trimEnds(points, inside) {
+/** Pull the two ends of a polyline back along their segments until they leave `inside` (0.05 m steps).
+ * `seat`: extra penetration past the rect for an end that was trimmed (a tilted wall's end face is diagonal
+ * to the gate face, so stopping its centreline at the rect leaves both corners out — the seat buries the
+ * whole end face; an aligned wall's end face is parallel to the face and needs none). Only ends with t > 0
+ * (actually inside a body) get it; t may go negative, extrapolating the end past its raw point. */
+function trimEnds(points, inside, seat = 0) {
   const pts = points.map((q) => q.slice());
   for (const [i, j] of [[0, 1], [pts.length - 1, pts.length - 2]]) {
     const a = pts[i], b = pts[j], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
     let t = 0;
     while (t < L * 0.9 && inside([a[0] + ((b[0] - a[0]) * t) / L, a[1] + ((b[1] - a[1]) * t) / L])) t += 0.05;
+    if (t > 0) t -= seat;
     pts[i] = [a[0] + ((b[0] - a[0]) * t) / L, a[1] + ((b[1] - a[1]) * t) / L];
   }
   return pts;
@@ -196,7 +201,7 @@ function* curtains(w, m) {
     // z-fights there. Lift the whole crag wall 1 cm: its walk lands at 13.01,
     // 1 cm off the prism top, 4 mm above the terrace gutter (13.006) and 5 mm
     // below the lowest flag slab (13.015) — the only slot that clears all three.)
-    const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside), {
+    const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside, s.gateSeat ?? 0), {
       seed: s.id, width: s.width ?? 5, h: (s.h ?? 7) + (crag ? 0.01 : 0), inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
       base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet,
       gaps: crag ? [[15, 79, 2.2]] : [], name: `curtain:${s.id}`,

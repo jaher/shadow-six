@@ -361,22 +361,26 @@ export function buildTowers(m, G) {
 export function gateCrown(G, o) {
   const F = localFrame(o.x, o.z, o.rot ?? 0), W2 = (o.w ?? 12) / 2, D2 = (o.d ?? 8) / 2, Y = o.walkY ?? 7, P2 = (o.passage ?? 4.5) / 2;
   // the fighting gallery (hourd) hung out over the arch's outer face: oak brackets, a boarded front with loops
-  const g0 = Y + 2.05, g1 = Y + 3.9;
+  // (user 2026-11-14: re-roof the gallery — the penthouse roof is gone (double roof) and the gallery stood open.
+  // The gallery front topped at 10.9 while the saddle eave is 10.2, so no roof starting at/below the eave could
+  // cover it. Lower the whole gallery 1.4 m (deck 7.65, front top 9.5) so the saddle slope, extended outward at
+  // its own pitch, passes over the front with ~0.1 m to spare and becomes the gallery's one clean roof. The
+  // gallery keeps its proportions — 1.85 m boarded front, brackets, loops, posts — it just hangs lower.)
+  const g0 = Y + 0.65, g1 = Y + 2.5;
   for (let u = -P2 - 0.4; u <= P2 + 0.41; u += 0.9) segBox(G, 'timber', F, u - 0.1, u + 0.1, D2 + 0.2, D2 + 1.25, g0 - 0.65, g0, 0.7);
   segBox(G, 'planks', F, -P2 - 0.6, P2 + 0.6, D2 + 0.25, D2 + 1.3, g0 - 0.05, g0 + 0.06, 0.8);
   segBox(G, 'boards', F, -P2 - 0.6, P2 + 0.6, D2 + 1.18, D2 + 1.3, g0, g1, 0.85);
   for (const s of [-1, 1]) segBox(G, 'boards', F, s * (P2 + 0.6) - 0.06, s * (P2 + 0.6) + 0.06, D2 + 0.25, D2 + 1.3, g0, g1, 0.8);
   for (let u = -P2; u <= P2 + 0.01; u += 1.1) segBox(G, 'iron', F, u - 0.05, u + 0.05, D2 + 1.3, D2 + 1.33, g0 + 0.7, g0 + 1.4, 0.15);
   for (let u = -P2 - 0.5; u <= P2 + 0.51; u += (2 * P2 + 1) / 4) segBox(G, 'timber', F, u - 0.07, u + 0.07, D2 + 1.18, D2 + 1.32, g0, g1, 0.6);
-  // (user 2026-11-14: NO penthouse roof here. It was a second slate plane over the
-  // chamber — w 3.8..5.65, y 12.2..10.8 — overlapping the saddle roof's outer slope
-  // in plan (w 3.8..4.25) with a 1.70 m vertical gap between the planes, so the gate
-  // read as a double roof at yaw 93 (probe-roof.mjs: 2 slate planes, 27.33 + 14.62 m^2).
-  // The saddle roof below is the one clean roof over the chamber (ridge 12.6, eaves
-  // 10.2); the gallery keeps its brackets, boarded front and loops and becomes an open
-  // fighting platform — the chamber stays fully covered, no hole, and the ashlar wall
-  // still closes the gallery against the chamber roof below the eaves. Shared builder:
-  // the same plane is gone at gh_se too.)
+  // (user 2026-11-14: NO penthouse roof here — it was a second slate plane over the
+  // chamber that read as a double roof at yaw 93 (probe-roof.mjs). The saddle roof
+  // below is the one clean roof over the chamber AND, now extended, over the gallery:
+  // the gallery was lowered 1.4 m so the saddle's outer slope continues at its own
+  // pitch past the eave to w 5.35, over the lowered front (top 9.5, roof 9.61 there).
+  // The chamber stays fully covered, no hole, and the ashlar wall still closes the
+  // gallery against the chamber roof below the eaves. Shared builder: the same plane
+  // is extended at gh_se too.)
   // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face).
   // (user 2026-11-14: its top (12.25) poked 1.6-1.9 m through the saddle roof and read as a slab crossing it.
   // Lower it to the eave height Y+3.2 = 10.2: below the roof surface over the whole crossing — the roof is
@@ -397,18 +401,22 @@ export function gateCrown(G, o) {
     const flip = (F.t[0] * F.n[1] - F.t[1] * F.n[0]) < 0;
     const q = (mat, a, b, c, dd, tn = 1) => (flip ? G.quad(mat, a, b, c, dd, tn) : G.quad(mat, dd, c, b, a, tn));
     const t = (mat, a, b, c, tn = 1) => (flip ? G.tri(mat, a, b, c, tn) : G.tri(mat, c, b, a, tn));
-    const ua = -P2 - 0.55, ub = P2 + 0.55, we = D2 + 0.25, yE = Y + 3.2, yR = Y + 5.6;
+    const ua = -P2 - 0.7, ub = P2 + 0.7, we = D2 + 0.25, yE = Y + 3.2, yR = Y + 5.6;
+    // (the outer slope continues past the eave at its own pitch to cover the lowered gallery:
+    // weOut 5.35 (just past the gallery front at 5.3), yEOut on the same pitch as the inner slope,
+    // so the whole outer slope — ridge to gallery eave — is ONE plane, not a second roof.)
+    const weOut = D2 + 1.35, yEOut = yR - ((yR - yE) * weOut) / we;
     // (the saddle roof's slate courses are mapped in the roof's own frame — u along the ridge, v down the slope — so
     // the courses run parallel to the ridge, stepping down it. The box projection maps (x, z) on a slope whose ridge
     // sits 15°/45° off the world axes, which tilted the courses diagonally across the roof. v is the true slope
     // distance, so the tile size stays square; u/v are in metres, divided by the tile in Geo.build like the projection.)
     const quv = (a, b, c, dd, uva, uvb, uvc, uvd, tn = 1) => (flip ? G.quadUV('slate', a, b, c, dd, [uva, uvb, uvc, uvd], tn) : G.quadUV('slate', dd, c, b, a, [uvd, uvc, uvb, uva], tn));
-    const slopeLen = Math.hypot(we, yR - yE);
-    quv(P(ua, 0, yR), P(ub, 0, yR), P(ub, we, yE), P(ua, we, yE), [ua, 0], [ub, 0], [ub, slopeLen], [ua, slopeLen]);
+    const slopeLen = Math.hypot(we, yR - yE), slopeLenOut = Math.hypot(weOut, yR - yEOut);
+    quv(P(ua, 0, yR), P(ub, 0, yR), P(ub, weOut, yEOut), P(ua, weOut, yEOut), [ua, 0], [ub, 0], [ub, slopeLenOut], [ua, slopeLenOut]);
     quv(P(ub, 0, yR), P(ua, 0, yR), P(ua, -we, yE), P(ub, -we, yE), [ub, 0], [ua, 0], [ua, -slopeLen], [ub, -slopeLen]);
     for (const [uu, sg] of [[ua + 0.2, -1], [ub - 0.2, 1]]) {
-      if (sg > 0) t('boards', P(uu, -we + 0.3, yE), P(uu, we - 0.3, yE), P(uu, 0, yR - 0.15), 0.8);
-      else t('boards', P(uu, we - 0.3, yE), P(uu, -we + 0.3, yE), P(uu, 0, yR - 0.15), 0.8);
+      if (sg > 0) t('boards', P(uu, -we + 0.3, yE), P(uu, weOut - 0.3, yEOut), P(uu, 0, yR - 0.15), 0.8);
+      else t('boards', P(uu, weOut - 0.3, yEOut), P(uu, -we + 0.3, yE), P(uu, 0, yR - 0.15), 0.8);
     }
     segBox(G, 'lead', F, ua, ub, -0.12, 0.12, yR - 0.05, yR + 0.12, 0.85);
     const [fx, fz] = F.at(0, 0);
