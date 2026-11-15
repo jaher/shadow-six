@@ -455,6 +455,10 @@ export function flagTop(G, poly, y, o = {}) {
     v += rh;
   }
   // drain grates in the channel at intervals, moss in the channel and the corners
+  // (o.dressing === false: bare channel — no grates, no moss rings. The gutter band and the flag
+  // courses above are unchanged. Per-terrace opt-out only: t_n + t_ne, user 2026-11-15 — the moss
+  // and grate blotches by the S_ne3 stair read as black dirt on camera.)
+  if (o.dressing === false) return G;
   for (let i = 0; i < p.length; i++) {
     const a = p[i], b = p[(i + 1) % p.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (L < 3) continue;

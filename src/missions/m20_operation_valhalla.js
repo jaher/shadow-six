@@ -242,8 +242,8 @@ const FURNITURE = [
 // ---------------------------------------------------------------- structures (dossier §5)
 const rock = (id, x, z, r, h = 2.5) => ({ id, type: 'rocks', variant: 'rock_limestone_frost', x, z, rot: 0, w: 2 * r, d: 2 * r, h, block: 2 });
 const tree = (x, z, k) => ({ id: `pine_${k}`, type: 'pine', variant: 'pine_frost', ...(k % 3 === 2 ? { species: 'fir' } : {}), x, z, r: 0.45, h: 11 + (k % 4), seed: 2000 + k });
-const level = (id, variant, points, y, holes = []) => ({ id, type: 'cliff', variant, mat: 'stone', points, h: y, block: 2,
-  walkways: plateauWalkways(points, holes, y) });
+const level = (id, variant, points, y, holes = [], o = {}) => ({ id, type: 'cliff', variant, mat: 'stone', points, h: y, block: 2,
+  walkways: plateauWalkways(points, holes, y), ...o });
 /** A curtain stretch: 5 m of limestone, its whole top a wall walk at y 7 (dossier §4.3 BAT). */
 const curtain = (id, points, h = Y.BAT, o = {}) => ({ id, type: 'castle_wall', variant: 'curtain_limestone_crenellated', points, width: 5, h, mat: 'stone',
   walkways: [{ points, width: 5, y: Y.BAT }], ...o });
@@ -306,11 +306,14 @@ const CURTAIN = [
 /** §4.3 the raised levels (prisms drawn by scripts/m20.js); the turret after T_hq (its deck wins). */
 const LEVELS = [
   // blk_ne and the castle church stand on it (the church's walls, buttresses, choir and apse: its own footprint)
+  // (dressing: false on t_n + t_ne — user 2026-11-15: the moss rings and drain grates read as black
+  // blotches on camera by the S_ne3 stair; bare gutter channel on these two decks only, every other
+  // terrace keeps its dressing. The flag is plumbed through m20-art.js into buildTerrace/flagTop.)
   level('t_ne', 'terrace_limestone', T_NE, Y.NE, [{ poly: rectPoly(119, 42, 10, 6, deg(42.7)) },
-    ...churchFootprint({ x: CHURCH.x, z: CHURCH.z, rot: deg(CHURCH.rot), w: CHURCH.w, church: CHURCH.plan }).filter((f) => f.id !== 'steps').map((f) => ({ poly: f.poly }))]),
+    ...churchFootprint({ x: CHURCH.x, z: CHURCH.z, rot: deg(CHURCH.rot), w: CHURCH.w, church: CHURCH.plan }).filter((f) => f.id !== 'steps').map((f) => ({ poly: f.poly }))], { dressing: false }),
   level('t_wb', 'terrace_limestone', T_WB, Y.WB),
   level('t_nw', 'terrace_limestone', T_NW, Y.NW),
-  level('t_n', 'range_roof_rampart', T_N, Y.N),
+  level('t_n', 'range_roof_rampart', T_N, Y.N, [], { dressing: false }),
   level('t_sw', 'bastion_limestone', T_SW, Y.SW),
   level('t_hq', 'terrace_limestone', T_HQ, Y.HQ),
   // parapets and the forecourt balustrade (1.4 m stone, one cell): edge cover for the terraces [P "keep to the centre"]
