@@ -328,7 +328,12 @@ export function buildCurtain(points, o = {}) {
 
 /** Corbelled round bartizan: a stone cone under the floor at y, a shaft to the eaves, a slate cone and a finial. */
 export function bartizan(G, x, z, y, r = 1.4, seg = 14) {
-  G.cyl('dressed', x, y - 2.4, z, 0.25, r, 2.4, seg, 0.95);
+  // (user 2026-11-14, floor z-fight check: the cone's top cap at y was hidden
+  // inside the disc above (radius r+0.08, y-0.05..y+0.13) but still coplanar
+  // with the deck/walk at 7.0 — 1.68 m2 vs the flags, 2.44 m2 vs the cw_s walk
+  // at gh_sw (probe-floors.mjs). The cap is enclosed by the disc and can never
+  // be seen; drop the cone's caps, as the shaft below already does.)
+  G.cyl('dressed', x, y - 2.4, z, 0.25, r, 2.4, seg, 0.95, { caps: false });
   G.cyl('dressed', x, y - 0.05, z, r + 0.08, r + 0.08, 0.18, seg, 1.05);
   G.cyl('ashlar', x, y + 0.1, z, r, r, 2.6, seg, 1.0, { caps: false });
   for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2 + 0.4; G.box('iron', x + Math.cos(a) * (r + 0.01), y + 1.4, z + Math.sin(a) * (r + 0.01), 0.04, 0.9, 0.16, a + Math.PI / 2, 0.1); }
@@ -581,7 +586,12 @@ export function corbelParapet(G, F, u0, u1, w, dir, y, R = Math.random, merlons 
   const wi = w - dir * 0.4, wo = w + dir * 0.32, lo = Math.min(wi, wo), hi = Math.max(wi, wo);
   for (let u = u0 + 0.4; u < u1 - 0.2; u += 1.0) segBox(G, 'dressed', F, u - 0.15, u + 0.15, Math.min(w, w + dir * 0.32), Math.max(w, w + dir * 0.32), y - 0.7, y - 0.05, 0.95);
   segBox(G, 'ashlar', F, u0, u1, lo, hi, y - 0.08, y + 1.0, 0.98);
-  segBox(G, 'dressed', F, u0, u1, lo - 0.05, hi + 0.05, y + 1.0, y + 1.1, 1.05);
+  // (user 2026-11-14, floor z-fight check: the coping top at y+1.1 (8.1) was
+  // coplanar with the flanking curtains' parapet tops — 0.13 m2 at gh_sw,
+  // 0.14 m2 at gh_se (probe-floors.mjs). Raise the coping top 5 mm, the
+  // windows fix's nudge precedent (mullion 4.4 -> 4.405); the merlons above
+  // (from y+1.1) sink 5 mm into the coping, hidden, and stay seated.)
+  segBox(G, 'dressed', F, u0, u1, lo - 0.05, hi + 0.05, y + 1.0, y + 1.105, 1.05);
   if (merlons) for (let u = u0 + 0.15; u + 1.2 < u1 + 0.01; u += 1.95) {
     segBox(G, 'ashlar', F, u, u + 1.2, lo, hi, y + 1.1, y + 1.9, 0.94 + R() * 0.1);
     segBox(G, 'dressed', F, u - 0.03, u + 1.23, lo - 0.04, hi + 0.04, y + 1.9, y + 2.0, 1.04);
@@ -618,7 +628,7 @@ export function buildTwinGatehouse(o) {
     for (const [w0, w1, y0, y1] of [[-D2, LEAF_W[0], -1.6, Y - 0.02], [LEAF_W[1], D2, -1.6, Y - 0.02], [LEAF_W[0], LEAF_W[1], LEAF_TOP, Y - 0.02], [LEAF_W[0], LEAF_W[1], -1.6, 0]]) {
       segBox(G, 'ashlar', F, Math.min(uf, ur), Math.max(uf, ur), w0, w1, y0, y1, 1);
     }
-    segBox(G, 'flags', F, ua, ub, -D2, D2, Y - 0.02, Y, 1);
+    segBox(G, 'flags', F, ua, ub, -D2, D2, Y - 0.02, Y + 0.01, 1);
     segBox(G, 'rubble', F, ua, ub, D2 - 0.02, D2 + 0.02, -1.6, 2.2, 0.95, { taperOut: 0.9 });
     segBox(G, 'dressed', F, ua, ub, D2 - 0.04, D2 + 0.16, 2.15, 2.4, 1.02);
     segBox(G, 'dressed', F, ua, ub, -D2 - 0.12, D2 + 0.12, Y - 1.5, Y - 1.3, 1.02);       // string course (both faces)
@@ -642,7 +652,14 @@ export function buildTwinGatehouse(o) {
     wallLantern(G, F, s * (P2 + 0.75), D2, 3.6);
   }
   archHead(G, F, 0, P2, -D2, D2, spring, rise, Y - 0.02);
-  segBox(G, 'flags', F, -P2, P2, -D2, D2, Y - 0.02, Y, 1);
+  // (user 2026-11-14, floor z-fight check: the deck flags top was exactly y=7.0,
+  // coplanar with the flanking curtains' walk tops over the overlap where the
+  // walls run onto the deck — 6.11 m2 at gh_sw after the cw_sw seat, 1.67 m2 at
+  // gh_se (probe-floors.mjs). Lift the deck 1 cm, the climb fix's precedent
+  // (crag wall +1 cm, m20-art.js): the flags slab thickens upward, its bottom
+  // stays seated on the tower bodies at Y-0.02, the walk stays passable — the
+  // corridor probe's soldier volume starts at 7.05, the deck tops at 7.01.)
+  segBox(G, 'flags', F, -P2, P2, -D2, D2, Y - 0.02, Y + 0.01, 1);
   corbelParapet(G, F, -P2, P2, D2, 1, Y, R);
   portcullis(G, F, 0, P2, D2 - 1.1, (u) => archY(u, P2, spring, rise) - 0.35, Y - 1.2);
   segBox(G, 'dressed', F, -0.7, 0.7, D2 + 0.02, D2 + 0.14, Y - 1.25, Y - 0.35, 1.08);                     // escutcheon panel

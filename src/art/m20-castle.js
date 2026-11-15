@@ -372,7 +372,11 @@ export function gateCrown(G, o) {
   segBox(G, 'boards', F, -P2 - 0.6, P2 + 0.6, D2 + 1.18, D2 + 1.3, g0, g1, 0.85);
   for (const s of [-1, 1]) segBox(G, 'boards', F, s * (P2 + 0.6) - 0.06, s * (P2 + 0.6) + 0.06, D2 + 0.25, D2 + 1.3, g0, g1, 0.8);
   for (let u = -P2; u <= P2 + 0.01; u += 1.1) segBox(G, 'iron', F, u - 0.05, u + 0.05, D2 + 1.3, D2 + 1.33, g0 + 0.7, g0 + 1.4, 0.15);
-  for (let u = -P2 - 0.5; u <= P2 + 0.51; u += (2 * P2 + 1) / 4) segBox(G, 'timber', F, u - 0.07, u + 0.07, D2 + 1.18, D2 + 1.32, g0, g1, 0.6);
+  // Timber posts up the front. (user 2026-11-14, floor z-fight check: the posts'
+  // tops at g1 (9.5) were coplanar with the boards front's top — 0.09 m2
+  // (probe-floors.mjs). Shorten the posts 5 mm, the windows fix's nudge
+  // precedent; the front still tops them, the loops are untouched.)
+  for (let u = -P2 - 0.5; u <= P2 + 0.51; u += (2 * P2 + 1) / 4) segBox(G, 'timber', F, u - 0.07, u + 0.07, D2 + 1.18, D2 + 1.32, g0, g1 - 0.005, 0.6);
   // (user 2026-11-14: NO penthouse roof here — it was a second slate plane over the
   // chamber that read as a double roof at yaw 93 (probe-roof.mjs). The saddle roof
   // below is the one clean roof over the chamber AND, now extended, over the gallery:
