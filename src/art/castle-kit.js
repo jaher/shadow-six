@@ -272,12 +272,31 @@ export function buildCurtain(points, o = {}) {
     segBox(G, 'ashlar', F, e0, e1, -half, half, base, h, 1);
     segBox(G, 'rubble', F, e0, e1, half - 0.02, half + 0.02, base, 2.4, 0.95, { taperOut: tal });
     segBox(G, 'dressed', F, e0, e1, half - 0.05, half + 0.18, 2.35, 2.6, 1.02);
-    // string course under the corbels, then the corbel table and the projecting parapet
-    segBox(G, 'dressed', F, e0, e1, half - 0.05, half + 0.12, h - 1.45, h - 1.25, 1.0);
+    // string course under the corbels, then the corbel table and the projecting parapet.
+    // (splitParapet, cw_s only: these three courses are single long boxes, and dropInside drops a whole
+    // face when its centroid falls in a D-tower cut — on cw_s seg 0 both parapet-top triangles' centroids
+    // sit in the two tower cuts, so the whole parapet collapses and 10 merlons float ~1.1 m. Split into
+    // per-merlon bays, centred on the merlon grid: a bay drops only when its own centre is in a cut,
+    // exactly where its merlon drops too, so every surviving merlon keeps its support. Same planes,
+    // same heights — only the segmentation changes.)
+    const spans = (() => {
+      if (!o.splitParapet) return [[e0, e1]];
+      const out = []; let prev = e0;
+      for (let u = e0 + 0.6; u + mL < e1 - 0.3; u += mL + mG) {
+        const a = u - (mL + mG) / 2 + mL / 2, b = a + (mL + mG);
+        if (a - prev > 0.05) out.push([prev, a]);
+        out.push([a, b]); prev = b;
+      }
+      if (e1 - prev > 0.05) out.push([prev, e1]);
+      return out;
+    })();
+    for (const [a, b] of spans) segBox(G, 'dressed', F, a, b, half - 0.05, half + 0.12, h - 1.45, h - 1.25, 1.0);
     if (o.parapet !== false) {
       for (let u = e0 + 0.45; u < e1 - 0.2; u += 1.1) segBox(G, 'dressed', F, u - 0.17, u + 0.17, half - 0.1, half + 0.32, h - 0.75, h - 0.05, 0.96, { taperOut: -0.25 });
-      segBox(G, 'ashlar', F, e0, e1, half - 0.35, half + 0.32, h - 0.08, pTop, 0.98);
-      segBox(G, 'dressed', F, e0, e1, half - 0.42, half + 0.38, pTop, pTop + 0.1, 1.05);
+      for (const [a, b] of spans) {
+        segBox(G, 'ashlar', F, a, b, half - 0.35, half + 0.32, h - 0.08, pTop, 0.98);
+        segBox(G, 'dressed', F, a, b, half - 0.42, half + 0.38, pTop, pTop + 0.1, 1.05);
+      }
       // merlons with a coping stone; crenels left open (gaps: no merlons, e.g. over a climb spot)
       for (let u = e0 + 0.6; u + mL < e1 - 0.3; u += mL + mG) {
         const [cx, cz] = F.at(u + mL / 2, half);
@@ -556,13 +575,14 @@ export function wallLantern(G, F, u, w, y) {
   G.cyl('iron', x, y + 0.32, z, 0.2, 0.02, 0.18, 6, 0.5);
 }
 
-/** Crenellated parapet on corbels along local u0..u1 at the face w (outward sign `dir`), walk level y. */
-export function corbelParapet(G, F, u0, u1, w, dir, y, R = Math.random) {
+/** Crenellated parapet on corbels along local u0..u1 at the face w (outward sign `dir`), walk level y.
+ * merlons=false keeps the parapet wall and coping but drops the merlon blocks (gh_sw side faces, user 2026-11-14). */
+export function corbelParapet(G, F, u0, u1, w, dir, y, R = Math.random, merlons = true) {
   const wi = w - dir * 0.4, wo = w + dir * 0.32, lo = Math.min(wi, wo), hi = Math.max(wi, wo);
   for (let u = u0 + 0.4; u < u1 - 0.2; u += 1.0) segBox(G, 'dressed', F, u - 0.15, u + 0.15, Math.min(w, w + dir * 0.32), Math.max(w, w + dir * 0.32), y - 0.7, y - 0.05, 0.95);
   segBox(G, 'ashlar', F, u0, u1, lo, hi, y - 0.08, y + 1.0, 0.98);
   segBox(G, 'dressed', F, u0, u1, lo - 0.05, hi + 0.05, y + 1.0, y + 1.1, 1.05);
-  for (let u = u0 + 0.15; u + 1.2 < u1 + 0.01; u += 1.95) {
+  if (merlons) for (let u = u0 + 0.15; u + 1.2 < u1 + 0.01; u += 1.95) {
     segBox(G, 'ashlar', F, u, u + 1.2, lo, hi, y + 1.1, y + 1.9, 0.94 + R() * 0.1);
     segBox(G, 'dressed', F, u - 0.03, u + 1.23, lo - 0.04, hi + 0.04, y + 1.9, y + 2.0, 1.04);
   }
@@ -572,11 +592,14 @@ export function corbelParapet(G, F, u0, u1, w, dir, y, R = Math.random) {
  * Twin-tower gatehouse (SW / SE gates): two square towers with battered bases, walkable crenellated tops at walkY,
  * corbelled slate-coned tourelles on the outer corners, a pointed arch with a raised portcullis and open oak leaves,
  * an escutcheon panel, lanterns. Local frame: u along `rot` (the wall), w outward (+, the bridge side).
- * o: {x, z, rot, w=12, d=8, walkY=7, passage=4.5, seed}
+ * o: {x, z, rot, w=12, d=8, walkY=7, passage=4.5, seed, sideMerlons=true}
+ * (sideMerlons=false drops the merlons on the two side faces only — the outer face
+ * and the arch keep theirs; gh_sw only, user 2026-11-14.)
  */
 export function buildTwinGatehouse(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), F = localFrame(o.x, o.z, o.rot ?? 0), R = G.R;
   const W2 = (o.w ?? 12) / 2, D2 = (o.d ?? 8) / 2, Y = o.walkY ?? 7, P2 = (o.passage ?? 4.5) / 2;
+  const sideMerlons = o.sideMerlons ?? true;
   const spring = 3.4, rise = 2.4;
   // the open leaves stand in rebates cut into the passage walls (LEAF_W across, RB deep, up to LEAF_TOP), flush with the
   // stone: the whole passage width is the way through (M20: a Panzer III, 2.9 m, through the 4.5 m SW gate — leaves
@@ -596,7 +619,7 @@ export function buildTwinGatehouse(o) {
     corbelParapet(G, F, ua, ub, D2, 1, Y, R);                                            // outer face
     // the outer side face (perpendicular): a local frame turned 90°
     const Fs = { ...F, t: F.n.map((v) => v), n: F.t.map((v) => v * s), at: (u, w) => F.at(uo + s * w, u) };
-    corbelParapet(G, Fs, -D2, D2, 0, 1, Y, R);
+    corbelParapet(G, Fs, -D2, D2, 0, 1, Y, R, sideMerlons);
     bartizan(G, ...F.at(uo + s * 0.15, D2 + 0.15), Y, 1.25);
     // cross loops on the outer face, a mullioned window on the inner face
     const um = (ua + ub) / 2;

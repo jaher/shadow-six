@@ -235,8 +235,8 @@ const tree = (x, z, k) => ({ id: `pine_${k}`, type: 'pine', variant: 'pine_frost
 const level = (id, variant, points, y, holes = []) => ({ id, type: 'cliff', variant, mat: 'stone', points, h: y, block: 2,
   walkways: plateauWalkways(points, holes, y) });
 /** A curtain stretch: 5 m of limestone, its whole top a wall walk at y 7 (dossier §4.3 BAT). */
-const curtain = (id, points, h = Y.BAT) => ({ id, type: 'castle_wall', variant: 'curtain_limestone_crenellated', points, width: 5, h, mat: 'stone',
-  walkways: [{ points, width: 5, y: Y.BAT }] });
+const curtain = (id, points, h = Y.BAT, o = {}) => ({ id, type: 'castle_wall', variant: 'curtain_limestone_crenellated', points, width: 5, h, mat: 'stone',
+  walkways: [{ points, width: 5, y: Y.BAT }], ...o });
 /** Art: a thin wood-stove plume from the hut's modelled stovepipe (fx 'smoke' anchor) — only a few huts smoke, so the
  *  quarter stays readable (a plume per hut pooled into one smoke bank). */
 // a hut's stovepipe (the model's 'smoke' anchor): always lit, faint (render/fx.js chimney activity)
@@ -247,18 +247,22 @@ const bags = (id, x, z, rot, w) => ({ id, type: 'sandbags', x, z, rot: deg(rot),
 const POLE_WIRES = { 2: 'pole_0', 0: 'pole_1', 3: 'pole_4', 4: 'pole_5' }; // art pass: the two roadside lines carry wires
 const pole = (x, z, k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z, r: 0.2, h: 7, wireTo: POLE_WIRES[k] ?? null });
 /** A gatehouse (two roofed towers, an open arch between them) with its tower tops on the wall walk. */
-const gatehouse = (id, label, x, z, rot) => {
+const gatehouse = (id, label, x, z, rot, o = {}) => {
   const r = deg(rot), c = Math.cos(r), s = Math.sin(r);
   const at = (lx, lz) => [+(x + lx * c - lz * s).toFixed(2), +(z + lx * s + lz * c).toFixed(2)];
   return { id, type: 'castle_gate', variant: 'gatehouse_twin_tower_slate', label, x, z, rot: r, w: 12, d: 8, h: 10, mat: 'stone',
-    walkways: [-4, 4].map((lx) => ({ points: [at(lx, -3.5), at(lx, 3.5)], width: 3.5, y: Y.BAT })) };
+    walkways: [-4, 4].map((lx) => ({ points: [at(lx, -3.5), at(lx, 3.5)], width: 3.5, y: Y.BAT })), ...o };
 };
 
 /** §5.1 the curtain, the gates, the retaining levels (listed before the terraces: a later raise wins). */
 const CURTAIN = [
   curtain('cw_sw', [[33, 91], [52.3, 110.3]]),
-  gatehouse('gh_sw', 'South-west gate', 57, 114, 15),
-  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]]),
+  // (user 2026-11-14: no merlons on the walls flanking the main entrance — the side
+  // faces' crenellation comes off; the outer face and the arch keep theirs, gh_se untouched.)
+  gatehouse('gh_sw', 'South-west gate', 57, 114, 15, { sideMerlons: false }),
+  // (user 2026-11-14: splitParapet — cw_s seg 0's parapet collapsed under dropInside and 10 merlons
+  // floated ~1.1 m; the per-merlon bays keep every surviving merlon on its support. No other wall sets it.)
+  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true }),
   { ...gatehouse('gh_se', 'South-east gate', 116, 114, -45),
     alignFree: 'the corner gate between cw_s (−38°) and cw_e1 (−35°), square to its bridge and road (45°)' },
   // the timber bridges over the moat, on each gate's axis

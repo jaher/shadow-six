@@ -198,7 +198,7 @@ function* curtains(w, m) {
     // below the lowest flag slab (13.015) — the only slot that clears all three.)
     const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside), {
       seed: s.id, width: s.width ?? 5, h: (s.h ?? 7) + (crag ? 0.01 : 0), inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
-      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag,
+      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet,
       gaps: crag ? [[15, 79, 2.2]] : [], name: `curtain:${s.id}`,
     });
     if (!crag) {
@@ -256,7 +256,7 @@ function* gates(w, m) {
       // the tunnel between the gameplay towers (±w/3, w/3 wide); the W tower is T_wb's masonry (y 4)
       const t = s.w / 2 - s.w / 3;
       n += swapVisual(w, s.id, buildInnerGate({ x: s.x, z: s.z, rot: s.rot, d: s.d, tunnel: [-t, t], tower: [t + 0.1, s.w / 2], towerTop: s.h + 1.5, hallTop: s.h - 0.8, seed: s.id })) ? 1 : 0;
-    } else if (/twin_tower/.test(s.variant || '')) n += swapVisual(w, s.id, buildTwinGatehouse({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7, seed: s.id, name: `gate:${s.id}` })) ? 1 : 0;
+    } else if (/twin_tower/.test(s.variant || '')) n += swapVisual(w, s.id, buildTwinGatehouse({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7, seed: s.id, name: `gate:${s.id}`, sideMerlons: s.sideMerlons })) ? 1 : 0;
   }
   return n;
 }

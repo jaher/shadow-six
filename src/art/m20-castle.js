@@ -375,8 +375,12 @@ export function gateCrown(G, o) {
     const q = (a, b, c, dd) => (flip ? G.quad('slate', a, b, c, dd) : G.quad('slate', dd, c, b, a));
     q(P(-P2 - 0.9, D2 - 0.2, g1 + 1.3), P(P2 + 0.9, D2 - 0.2, g1 + 1.3), P(P2 + 0.9, D2 + 1.65, g1 - 0.1), P(-P2 - 0.9, D2 + 1.65, g1 - 0.1));
   }
-  // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face)
-  segBox(G, 'ashlar', F, -P2 - 0.02, P2 + 0.02, D2 - 0.55, D2, Y + 1.0, g1 + 1.35, 1);
+  // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face).
+  // (user 2026-11-14: its top (12.25) poked 1.6-1.9 m through the saddle roof and read as a slab crossing it.
+  // Lower it to the eave height Y+3.2 = 10.2: below the roof surface over the whole crossing — the roof is
+  // 10.34 at the wall's outer edge (w 4.0) and 10.65 at its inner edge (w 3.45) — so the roof sits on top of
+  // the wall. The wall stays: it still closes the gallery roof against the chamber roof below the eaves.)
+  segBox(G, 'ashlar', F, -P2 - 0.02, P2 + 0.02, D2 - 0.55, D2, Y + 1.0, Y + 3.2, 1);
   // (user 2026-11-14: no crenellations here — the merlons crowned the wall that
   // cuts through the gate chamber's saddle roof, so they read as merlons sitting
   // on a roof. The wall itself stays: it closes the gallery roof against the
