@@ -256,7 +256,7 @@ function* gates(w, m) {
       // the tunnel between the gameplay towers (±w/3, w/3 wide); the W tower is T_wb's masonry (y 4)
       const t = s.w / 2 - s.w / 3;
       n += swapVisual(w, s.id, buildInnerGate({ x: s.x, z: s.z, rot: s.rot, d: s.d, tunnel: [-t, t], tower: [t + 0.1, s.w / 2], towerTop: s.h + 1.5, hallTop: s.h - 0.8, seed: s.id })) ? 1 : 0;
-    } else if (/twin_tower/.test(s.variant || '')) n += swapVisual(w, s.id, buildTwinGatehouse({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7, seed: s.id, name: `gate:${s.id}`, sideMerlons: s.sideMerlons })) ? 1 : 0;
+    } else if (/twin_tower/.test(s.variant || '')) n += swapVisual(w, s.id, buildTwinGatehouse({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7, seed: s.id, name: `gate:${s.id}`, sideMerlons: s.sideMerlons, sideParapet: s.sideParapet })) ? 1 : 0;
   }
   return n;
 }

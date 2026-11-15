@@ -592,14 +592,20 @@ export function corbelParapet(G, F, u0, u1, w, dir, y, R = Math.random, merlons 
  * Twin-tower gatehouse (SW / SE gates): two square towers with battered bases, walkable crenellated tops at walkY,
  * corbelled slate-coned tourelles on the outer corners, a pointed arch with a raised portcullis and open oak leaves,
  * an escutcheon panel, lanterns. Local frame: u along `rot` (the wall), w outward (+, the bridge side).
- * o: {x, z, rot, w=12, d=8, walkY=7, passage=4.5, seed, sideMerlons=true}
+ * o: {x, z, rot, w=12, d=8, walkY=7, passage=4.5, seed, sideMerlons=true, sideParapet}
  * (sideMerlons=false drops the merlons on the two side faces only — the outer face
  * and the arch keep theirs; gh_sw only, user 2026-11-14.)
+ * (sideParapet={west:[u0,u1], east:[u0,u1]} shortens each side-face parapet to the
+ * given Fs-u range (= F-w range along the face); default [-D2, D2]. gh_sw only,
+ * user 2026-11-14: the full-depth side parapets crossed the over-the-wall
+ * corridor where the wall walk enters/exits the gatehouse, so each stops at the
+ * corridor's edge — the west one keeps the outer stub, the east one the inner stub.)
  */
 export function buildTwinGatehouse(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), F = localFrame(o.x, o.z, o.rot ?? 0), R = G.R;
   const W2 = (o.w ?? 12) / 2, D2 = (o.d ?? 8) / 2, Y = o.walkY ?? 7, P2 = (o.passage ?? 4.5) / 2;
   const sideMerlons = o.sideMerlons ?? true;
+  const sideParapet = o.sideParapet ?? {};
   const spring = 3.4, rise = 2.4;
   // the open leaves stand in rebates cut into the passage walls (LEAF_W across, RB deep, up to LEAF_TOP), flush with the
   // stone: the whole passage width is the way through (M20: a Panzer III, 2.9 m, through the 4.5 m SW gate — leaves
@@ -619,7 +625,8 @@ export function buildTwinGatehouse(o) {
     corbelParapet(G, F, ua, ub, D2, 1, Y, R);                                            // outer face
     // the outer side face (perpendicular): a local frame turned 90°
     const Fs = { ...F, t: F.n.map((v) => v), n: F.t.map((v) => v * s), at: (u, w) => F.at(uo + s * w, u) };
-    corbelParapet(G, Fs, -D2, D2, 0, 1, Y, R, sideMerlons);
+    const sp = sideParapet[s < 0 ? 'west' : 'east'] ?? [-D2, D2];
+    corbelParapet(G, Fs, sp[0], sp[1], 0, 1, Y, R, sideMerlons);
     bartizan(G, ...F.at(uo + s * 0.15, D2 + 0.15), Y, 1.25);
     // cross loops on the outer face, a mullioned window on the inner face
     const um = (ua + ub) / 2;

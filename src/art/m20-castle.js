@@ -368,13 +368,15 @@ export function gateCrown(G, o) {
   for (const s of [-1, 1]) segBox(G, 'boards', F, s * (P2 + 0.6) - 0.06, s * (P2 + 0.6) + 0.06, D2 + 0.25, D2 + 1.3, g0, g1, 0.8);
   for (let u = -P2; u <= P2 + 0.01; u += 1.1) segBox(G, 'iron', F, u - 0.05, u + 0.05, D2 + 1.3, D2 + 1.33, g0 + 0.7, g0 + 1.4, 0.15);
   for (let u = -P2 - 0.5; u <= P2 + 0.51; u += (2 * P2 + 1) / 4) segBox(G, 'timber', F, u - 0.07, u + 0.07, D2 + 1.18, D2 + 1.32, g0, g1, 0.6);
-  // its penthouse roof, falling outwards
-  {
-    const P = (u, w, y) => { const [x, z] = F.at(u, w); return [x, y, z]; };
-    const flip = (F.t[0] * F.n[1] - F.t[1] * F.n[0]) < 0;
-    const q = (a, b, c, dd) => (flip ? G.quad('slate', a, b, c, dd) : G.quad('slate', dd, c, b, a));
-    q(P(-P2 - 0.9, D2 - 0.2, g1 + 1.3), P(P2 + 0.9, D2 - 0.2, g1 + 1.3), P(P2 + 0.9, D2 + 1.65, g1 - 0.1), P(-P2 - 0.9, D2 + 1.65, g1 - 0.1));
-  }
+  // (user 2026-11-14: NO penthouse roof here. It was a second slate plane over the
+  // chamber — w 3.8..5.65, y 12.2..10.8 — overlapping the saddle roof's outer slope
+  // in plan (w 3.8..4.25) with a 1.70 m vertical gap between the planes, so the gate
+  // read as a double roof at yaw 93 (probe-roof.mjs: 2 slate planes, 27.33 + 14.62 m^2).
+  // The saddle roof below is the one clean roof over the chamber (ridge 12.6, eaves
+  // 10.2); the gallery keeps its brackets, boarded front and loops and becomes an open
+  // fighting platform — the chamber stays fully covered, no hole, and the ashlar wall
+  // still closes the gallery against the chamber roof below the eaves. Shared builder:
+  // the same plane is gone at gh_se too.)
   // the gate's upper wall rising over the arch to carry it (between the towers' tops, on the arch's outer face).
   // (user 2026-11-14: its top (12.25) poked 1.6-1.9 m through the saddle roof and read as a slab crossing it.
   // Lower it to the eave height Y+3.2 = 10.2: below the roof surface over the whole crossing — the roof is

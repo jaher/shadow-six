@@ -259,7 +259,13 @@ const CURTAIN = [
   curtain('cw_sw', [[33, 91], [52.3, 110.3]]),
   // (user 2026-11-14: no merlons on the walls flanking the main entrance — the side
   // faces' crenellation comes off; the outer face and the arch keep theirs, gh_se untouched.)
-  gatehouse('gh_sw', 'South-west gate', 57, 114, 15, { sideMerlons: false }),
+  // (user 2026-11-14: the full-depth side parapets crossed the over-the-wall corridor
+  // where the wall walk enters/exits the gatehouse (probe-corridor.mjs: 12 blocked
+  // samples, parapet top y 8.0). Each side parapet is shortened to end at the
+  // corridor's edge — Fs-u ranges = F-w along the face, from the walkway strips
+  // (width 5) crossing the faces: west keeps the outer stub w 0.24..4, east keeps
+  // the inner stub w -4..-0.28. No doorway cut; merlons stay outer-face only.)
+  gatehouse('gh_sw', 'South-west gate', 57, 114, 15, { sideMerlons: false, sideParapet: { west: [0.24, 4], east: [-4, -0.28] } }),
   // (user 2026-11-14: splitParapet — cw_s seg 0's parapet collapsed under dropInside and 10 merlons
   // floated ~1.1 m; the per-merlon bays keep every surviving merlon on its support. No other wall sets it.)
   curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true }),
