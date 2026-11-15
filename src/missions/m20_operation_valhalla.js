@@ -49,13 +49,17 @@ export const T_HQ = [[4, 62], [26.5, 62], [26.5, 52], [38, 52], [38, 78], [4, 78
 export const T_SW = [[22, 78], [38, 78], [38, 91], [22, 91]];
 export const T_NW = [[38, 32], [56, 32], [56, 72], [38, 72]];
 /** The N range roof / rampart (y 10), its SE corner cut for the Sniper's line (§14 E6). */
-export const T_N = [[38, 14], [108, 14], [108, 20], [109.97, 20], [105.77, 26], [108, 26], [104, 32], [38, 32]];
+export const T_N = [[38, 14], [108, 14], [108, 20], [109.27, 20], [109.57, 20.57], [105.77, 26], [108, 26], [104, 32], [38, 32]];
 // (user 2026-11-15: S_ne3 "intersects in a strange way with the top" — the flight meets the x=108 edge at 35°,
 // so its NW top corners penetrated the terrace up to 0.66 m while the SE side stopped 0.71 m short, and the top
 // cheek coping stood 0.45 m proud of the paving. The SE edge is re-cut so the deck meets the stair: the segment
 // (109.97,20)->(105.77,26) is parallel to the stair's top edge and 0.10 m beyond it, so the whole top edge lands
 // uniformly short of the deck; the deck gains a small landing shoulder east of x=108 and loses the triangle the
 // stair used to penetrate. Stair itself unchanged.)
+// (user 2026-11-15: the re-cut left a sharp 55° corner at (109.97,20) — chamfered 0.7 m on each leg to
+// (109.27,20)/(109.57,20.57), so the spike becomes two 117.5° corners with a 0.65 m face. The diagonal's line
+// is unchanged, only 0.7 m shorter at its NE end, clear of the stair's top edge (chamfer ends 1.6 m short of
+// the nearest coping corner), so the 0.06 m coping clearance stands.)
 /** The W bastion terrace (y 4) plus the inner gatehouse's W tower top. */
 export const T_WB = [[56, 42], [69.2, 42], [69.2, 70], [64, 70], [64, 62], [56, 62]];
 /** The NE terrace (y 4), clipped S of the rampart (z ≥ 32). */
