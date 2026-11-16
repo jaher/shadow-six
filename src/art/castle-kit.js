@@ -313,7 +313,14 @@ export function buildCurtain(points, o = {}) {
       }
     }
     // inner coping kerb, arrow slits and drain spouts on the outer face
-    segBox(G, 'dressed', F, e0, e1, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
+    // (o.kerbEndFlush: end the kerb flush at the segment end instead of
+    // overlapping 1.5 m past the joint — cw_s only, user 2026-11-15: seg 1's
+    // kerb end jutted across seg 2's walk centreline at the (99,128) joint, a
+    // 0.12 m lip blocking the over-wall corridor (probe-corridor.mjs, 2 of the
+    // gh_se 13). The kerb still runs the full segment; only the joint overlap
+    // is cut. The core/parapet keep their overlap, so the joint stays solid.)
+    const k1 = o.kerbEndFlush ? Math.min(e1, F.L) : e1;
+    segBox(G, 'dressed', F, e0, k1, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
     // (o.parapetKerb: a low dressed kerb along the parapet-side foot of the
     // walk, mirroring the inner kerb — cw_e2 by S_ne3, user 2026-11-15: the
     // walk paving ran flush into the merlon bases with no visible junction.
@@ -795,15 +802,32 @@ export function hipRoof(G, F, u0, u1, w0, w1, y, rh, mat = 'slate', oh = 0.35) {
 export function buildStairTower(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), F = localFrame(o.x, o.z, o.rot ?? 0);
   const W2 = o.w / 2, D2 = o.d / 2, y0 = o.y0 ?? 0, H = y0 + o.h, doorW = o.doorSide ?? D2;
-  segBox(G, 'ashlar', F, -W2, W2, -D2, D2, y0 - 0.3, H, 1);
-  segBox(G, 'rubble', F, -W2 - 0.12, W2 + 0.12, -D2 - 0.12, D2 + 0.12, y0 - 0.3, y0 + 0.5, 0.92);
-  segBox(G, 'dressed', F, -W2 - 0.08, W2 + 0.08, -D2 - 0.08, D2 + 0.08, H - 0.3, H, 1.05);
+  // (o.shaft: [u0, u1] — an open stairwell shaft through the tower, full depth and full height, for a stair
+  // flight that climbs inside it (M20 blk_n, user 2026-11-15: the tower IS a stair tower, and no line outside it
+  // clears the tank, its way out, P57, the AT gun's wire, the jerrycans and the T_wb terrace). The body, plinth
+  // and dressed course are built as two piers either side of the shaft; the hip roof still spans the whole
+  // footprint — it sits above H, the flight stays below H inside the shaft, so it does not block it. The door
+  // is omitted (its panel would block the shaft mouth; the shaft opening is the entrance) and any slit window
+  // whose u falls inside the shaft is skipped. Without o.shaft the tower is exactly as before.)
+  const sh = o.shaft;
+  const uBoxes = (mat, w0, w1, yA, yB, uv) => {
+    if (!sh) { segBox(G, mat, F, -W2 + w0, W2 + w1, -D2, D2, yA, yB, uv); return; }
+    const [s0, s1] = sh;
+    if (s0 > -W2 + w0) segBox(G, mat, F, -W2 + w0, s0, -D2, D2, yA, yB, uv);
+    if (s1 < W2 + w1) segBox(G, mat, F, s1, W2 + w1, -D2, D2, yA, yB, uv);
+  };
+  uBoxes('ashlar', 0, 0, y0 - 0.3, H, 1);
+  uBoxes('rubble', -0.12, 0.12, y0 - 0.3, y0 + 0.5, 0.92);
+  uBoxes('dressed', -0.08, 0.08, H - 0.3, H, 1.05);
   hipRoof(G, F, -W2, W2, -D2, D2, H, Math.min(o.w, o.d) * 0.55, 'slate', 0.3);
   const s = Math.sign(doorW) || 1, wf = s * D2;
-  segBox(G, 'planks', F, (o.doorU ?? 0) - 0.55, (o.doorU ?? 0) + 0.55, wf - 0.02 * s, wf + 0.01 * s, y0, y0 + 2.1, 0.7);
-  archHead(G, { ...F, at: (u, w) => F.at(u, w * s), n: F.n.map((v) => v * s) }, o.doorU ?? 0, 0.6, D2 - 0.1, D2 + 0.08, y0 + 2.1, 0.35, y0 + 2.75);
+  if (!sh) {
+    segBox(G, 'planks', F, (o.doorU ?? 0) - 0.55, (o.doorU ?? 0) + 0.55, wf - 0.02 * s, wf + 0.01 * s, y0, y0 + 2.1, 0.7);
+    archHead(G, { ...F, at: (u, w) => F.at(u, w * s), n: F.n.map((v) => v * s) }, o.doorU ?? 0, 0.6, D2 - 0.1, D2 + 0.08, y0 + 2.1, 0.35, y0 + 2.75);
+  }
   for (let k = 0; k < Math.floor((H - y0 - 2) / 2.6); k++) {
     const u = -W2 + 1.2 + k * ((2 * W2 - 2.4) / Math.max(1, Math.floor((H - y0 - 2) / 2.6) - 1 || 1)), yy = y0 + 3.2 + k * 2.6;
+    if (sh && u > sh[0] - 0.25 && u < sh[1] + 0.25) continue; // a slit inside the shaft mouth is not a window
     segBox(G, 'iron', F, u - 0.12, u + 0.12, wf - 0.01 * s, wf + 0.01 * s, yy, yy + 0.9, 0.12);
     segBox(G, 'dressed', F, u - 0.25, u + 0.25, Math.min(wf, wf + 0.08 * s), Math.max(wf, wf + 0.08 * s), yy - 0.12, yy, 1.05);
   }

@@ -19,7 +19,7 @@
 
 /** Intended joins: [item, other (an item id, a wall id or a path id), reason]. Nothing else may touch. */
 export const LAYOUT_JOINS = [
-  ['blk_n', 'stairs S_n', 'the N stair tower houses the N range\'s stair: S_n climbs inside it'],
+  ['blk_n', 'stairs S_n', 'the N stair tower houses the N range\'s stair in a cut shaft: S_n climbs inside it (user 2026-11-15; no line outside the tower clears the tank, its way out, P57, the AT gun\'s wire, the jerrycans and the T_wb terrace)'],
   ['h_w2', 'cw_sw', 'the smithy is built against the SW curtain: its W gable stands on the curtain\'s inner face (no verge over it)'],
   ['h_s3', 'h_tur', 'the steward\'s house and its round stair turret, built into its E gable: one building'],
 ];

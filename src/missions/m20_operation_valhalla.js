@@ -46,7 +46,7 @@ export const Y = { WB: 4, NE: 4, NW: 7, BAT: 7, SW: 10, N: 10, HQ: 13, ROOF: 20,
 // ---------------------------------------------------------------- levels (dossier §4.3, true metres)
 /** The HQ terrace (y 13): the dossier's rect minus the château's footprint. */
 export const T_HQ = [[4, 62], [26.5, 62], [26.5, 52], [38, 52], [38, 78], [4, 78]];
-export const T_SW = [[22, 78], [38, 78], [38, 91], [22, 91]];
+export const T_SW = [[22, 78], [38, 78], [38, 91], [34.90, 91], [34.90, 89.04], [32.94, 91], [22, 91]]; // (user 2026-11-15: S_sw's top corners bury into this edge — the flight meets it at 45°, so the centreline top 0.04 m short still leaves the top three steps' NE corners up to 0.87 m inside with a 0.65 m coping stub. Same fix class as S_ne3's deck re-cut: the S edge notches back along a diagonal parallel to the stair's top edge, 0.10 m beyond it (x+z=123.94 vs the top edge 124.08), with a short N-S jog back to the edge. The bite runs E to x=34.90 — the step-12 coping's near-end corners reach x≈34.76, past the 34.60 first tried (probe-all-stairs-top.mjs found 8 verts at x=34.73 still inside). The bite is 1.92 m2; the cw_sw wall's end face (x+z=124) stays 0.04 m clear of the diagonal, below the paving.)
 export const T_NW = [[38, 32], [56, 32], [56, 72], [38, 72]];
 /** The N range roof / rampart (y 10), its SE corner cut for the Sniper's line (§14 E6). */
 export const T_N = [[38, 14], [108, 14], [108, 20], [109.27, 20], [109.57, 20.57], [105.77, 26], [108, 26], [104, 32], [38, 32]];
@@ -285,8 +285,13 @@ const CURTAIN = [
   gatehouse('gh_sw', 'South-west gate', 57, 114, 15, { sideMerlons: false, sideParapet: { west: [0.24, 4], east: [-4, -0.28] } }),
   // (user 2026-11-14: splitParapet — cw_s seg 0's parapet collapsed under dropInside and 10 merlons
   // floated ~1.1 m; the per-merlon bays keep every surviving merlon on its support. No other wall sets it.)
-  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true }),
-  { ...gatehouse('gh_se', 'South-east gate', 116, 114, -45),
+  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true, kerbEndFlush: true }), // (kerbEndFlush, user 2026-11-15: seg 1's inner kerb ran 1.5 m past the (99,128) joint and jutted across seg 2's walk centreline — a 0.12 m lip, 2 blocked corridor samples. The kerb now ends flush at the joint; see buildCurtain.)
+  // (user 2026-11-15: gh_se gets gh_sw's data-level treatment — the shared-builder fixes already cover it, but the two
+  // gh_sw-only fixes were never applied here, and the corridor is blocked 13/134 (probe-corridor.mjs). sideMerlons:false
+  // drops the 8 side merlons; the side parapets shorten to stubs at the corridor's edge, same ranges as gh_sw — the path
+  // crosses the west face at w ≈ -0.2 and the east face at w ≈ +0.15, so west keeps the outer stub w 0.24..4 and east keeps
+  // the inner stub w -4..-0.28. The parapet base alone blocks the soldier volume, so merlons off without the stubs would not clear it.)
+  { ...gatehouse('gh_se', 'South-east gate', 116, 114, -45, { sideMerlons: false, sideParapet: { west: [0.24, 4], east: [-4, -0.28] } }),
     alignFree: 'the corner gate between cw_s (−38°) and cw_e1 (−35°), square to its bridge and road (45°)' },
   // the timber bridges over the moat, on each gate's axis
   { id: 'br_sw', type: 'bridge', variant: 'bridge_timber_moat_lanterns', x: 55.06, z: 121.25, rot: deg(105), w: 9, d: 4.5, h: 0.5 },
@@ -344,7 +349,7 @@ const BUILDINGS = [
   HQ,
   { id: 'hq_wing', type: 'house', variant: 'chateau_wing', x: 32.25, z: 42, rot: 0, w: 11.5, d: 20, h: 8, mat: 'stone', roof: 'roofSlate', baseY: Y.HQ },
   { id: 'n_range', type: 'house', variant: 'castle_range_block', x: 71, z: 23, rot: 0, w: 66, d: 18, h: Y.N, mat: 'stone' }, // T_n is its roof
-  { id: 'blk_n', type: 'house', variant: 'stair_tower', x: 90, z: 35.5, rot: 0, w: 8, d: 5, h: Y.N, mat: 'stone', roof: 'roofSlate' },
+  { id: 'blk_n', type: 'house', variant: 'stair_tower', x: 90, z: 35.5, rot: 0, w: 8, d: 5, h: Y.N, mat: 'stone', roof: 'roofSlate', shaft: [-1.0, 2.0] }, // (shaft, user 2026-11-15: the tower is a stair tower — S_n climbs inside it through a cut stairwell shaft, u -1.0..2.0 (x 89.0..92.0), open S and N full-height. Routing the flight outside the tower proved impossible: every due-north line in the N court hits the tank, its way out, P57, the AT gun's wire, the jerrycans or the T_wb terrace — four tried placements (x=84, 74, 68, 77) each failed a different probe or test. See buildStairTower.)
   { id: 'blk_ne', type: 'house', variant: 'stair_block', label: 'Stair block', x: 119, z: 42, rot: deg(42.7), w: 10, d: 6, h: 3.5, mat: 'stone',
     roof: 'roofSlate', baseY: Y.NE, enterable: true, door: deg(90) },
   { id: 'bk_e', type: 'barracks', variant: 'house_half_timber_turret', label: 'Range barracks', x: 126, z: 62.5, rot: 0, w: 12, d: 11, h: 12,
@@ -486,13 +491,13 @@ const LADDERS = [
   // then tops out flush with the paving and ends 3 cm short of the deck edge — the tread runs 2 cm past the data
   // top — so there is no overlap with the paving and no penetration of the level face.)
   stairs('S_sw', [37.25, 95.25, Y.BAT], [33.04, 91.04, Y.SW], 225), // T_sw → the SW battlements
-  stairs('S_nw2', [41, 66, Y.NW], [36.5, 63, Y.HQ], 215), // T_nw → T_hq ("the stairs in front of the flak" [NL])
+  stairs('S_nw2', [46.06, 63, Y.NW], [38.10, 63, Y.HQ], 180), // T_nw → T_hq ("the stairs in front of the flak" [NL]) (user 2026-11-15: the old top sat 1.5 m inside T_hq with a 1.80 m gap and a 48° pitch on 0.180 m treads. Re-seated due W so the top edge is parallel to the T_hq E edge: top at the edge, 0.10 m short, at its paving; the foot moves E along z=63 so the run is 7.96 — pitch 37.0°, tread 0.265, the S_n3 family.)
   stairs('S_n3', [47.5, 36, Y.NW], [47.5, 32.10, Y.N], 270), // T_nw ↔ T_n (user 2026-11-15: the left-side stair of the inner gate, mirror of S_ne3 — its top sat 1.5 m inside T_n with the cheek copings 0.65 m proud across the full width, and stopAt cut it 1.20 m short. Top at the T_n S edge, 0.10 m short, at its paving; the foot moves 2.0 m S along the same line because top-at-the-edge on the old foot is a 57.7 deg ladder (run 1.90, tread 0.127). Run 3.90, pitch 37.6 deg, tread 0.260 — the S_ne3 family.)
-  stairs('S_nw1', [58.5, 50, Y.WB], [54.5, 50, Y.NW], 180), // T_wb ↔ T_nw
-  stairs('S_gw', [61, 77, 0], [66, 68.5, Y.WB], 300), // the W quarter ↔ T_wb: "the stairs by 32's post" [P]
-  stairs('S_n', [90.5, 40, 0], [90.5, 31, Y.N], 270), // blk_n: the N court ↔ T_n ("the big stairs" [DE])
-  stairs('S_ne1', [98.5, 42, 0], [103, 42, Y.NE], 0), // the N court ↔ T_ne (the Driver's way to the tank)
-  stairs('S_e', [113.5, 58, 0], [113.5, 50, Y.NE], 270), // the E road court ↔ T_ne
+  stairs('S_nw1', [60.08, 50, Y.WB], [56.10, 50, Y.NW], 180), // T_wb ↔ T_nw (user 2026-11-15: the old top sat 1.5 m inside T_nw, 1.00 m short. Top at the T_nw E edge, 0.10 m short, at its paving; the foot moves E so the run is 3.98 — pitch 37.0°, tread 0.265, the S_n3 family.)
+  stairs('S_gw', [62, 67.41, 0], [62, 62.10, Y.WB], 270), // the W quarter ↔ T_wb: "the stairs by 32's post" [P] (user 2026-11-15: re-routed — the old top sat inside the inner gatehouse footprint, so the flight climbed to a wall, not an open edge. The T_wb edge facing the W quarter (z=70) only runs x 64..69.2, under the gatehouse; at x=62 the terrace ends at z=62, facing the gatehouse forecourt pocket (x 56..64, z 62..70). The flight now stands in that pocket and climbs N to that edge, top 0.10 m short of z=62 at its paving; the foot is 2 m W of the gatehouse face and 11 m from 32's post. Pitch 37.0°, tread 0.266.)
+  stairs('S_n', [90.5, 42.60, 0], [90.5, 32.10, Y.N], 270), // blk_n: the N court ↔ T_n ("the big stairs" [DE]) (user 2026-11-15: climbs inside the stair tower through its cut shaft (blk_n shaft [-1.0, 2.0]) — the tower is a stair tower, and routing the flight outside it proved impossible (tank, its way out, P57, the AT gun's wire, the jerrycans, the T_wb terrace each blocked a tried line: x=84, 74, 68, 77). The flight starts outside, S of the tower, enters the shaft at y 4.38 through its open S face and emerges onto T_n; the foot sits 1.10 m N of the V2a trailer's SW corner (the layout audit bands every stair 1.5 m past its foot, so z=45.37 overlapped the trailer by 2.52 m² and z=44.70 still by 1.36 m²). Top at the T_n S edge, 0.10 m short, at its paving; run 10.50 — pitch 43.6°, tread 0.210. Steeper than the S_n3 family's 37° because the foot is boxed in: v2a bars it going S, and the wire test's pathfinder smoothing trips on the intermediate feet (z=42.90–43.80 each fail a different commando→e67/e33 leg by 1.2–1.7 m — the wire itself blocks nothing on T_n; the T_n-only path is identical with and without it). Still a real stair, not the old 48° on 0.180 m treads, and no longer 5 m hidden in solid masonry.)
+  stairs('S_ne1', [97.40, 42, 0], [101.90, 42, Y.NE], 0), // the N court ↔ T_ne (the Driver's way to the tank) (user 2026-11-15: the old top sat 1.0 m inside T_ne, 0.80 m short. Top at the T_ne W edge, 0.10 m short on the approach side, at its paving; the whole flight shifts W 1.10 m with the run kept at 4.50 — pitch 41.6°, tread 0.225 — because a 37° foot would land 0.09 m from crates_n2; at this foot it stays 0.7 m clear.)
+  stairs('S_e', [113.5, 58, 0], [113.5, 51.10, Y.NE], 270), // the E road court ↔ T_ne (user 2026-11-15: the old top sat 1.0 m inside T_ne, 0.40 m short, with the last cheek coping 0.25 m proud of the paving. Top at the T_ne S edge, 0.10 m short, at its paving; the foot stays, so the run is 6.90 — pitch 30.1°, tread 0.345 — and the coping ends flush.)
   stairs('S_ne2', [125, 46.5, Y.NE], [127.62, 43.59, Y.BAT], 315), // T_ne ↔ the NE battlements (by blk_ne): top at the cw_e2 band edge, at the walk
   stairs('S_ne3', [111, 25, Y.BAT], [108.04, 22.93, Y.N], 215), // the NE battlements ↔ T_n: top at the T_n edge, at its paving
   // the wall walk over the two gate arches and the water gate (the passages below stay at ground level)

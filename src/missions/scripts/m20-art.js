@@ -203,7 +203,7 @@ function* curtains(w, m) {
     // below the lowest flag slab (13.015) — the only slot that clears all three.)
     const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside, s.gateSeat ?? 0), {
       seed: s.id, width: s.width ?? 5, h: (s.h ?? 7) + (crag ? 0.01 : 0), inside: crag ? [s.points[0][0], 60] : CASTLE_INSIDE,
-      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet, parapetOut: s.parapetOut, parapetKerb: s.parapetKerb,
+      base: crag ? 0 : -1.6, talus: crag ? 0.6 : 1.1, bartizans: !crag, splitParapet: s.splitParapet, parapetOut: s.parapetOut, parapetKerb: s.parapetKerb, kerbEndFlush: s.kerbEndFlush,
       gaps: crag ? [[15, 79, 2.2]] : [], name: `curtain:${s.id}`,
     });
     if (!crag) {
@@ -277,7 +277,7 @@ function* towers(w, m) {
     if (dress) { v = dress({ ...s, y0: 0, seed: s.seed ?? s.id }); v.position.y += y0; } // art pass 2 set dressing (art/m20-dressing.js)
     else if (s.id === 'turret') v = buildRoundTower({ x: s.x, z: s.z, r: s.w / 2, y0: 13, deckY: s.deckY ?? s.h, door: Math.PI / 2, seed: s.id });
     else if (/castle_range/.test(s.variant || '')) v = buildRange({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, roofed: false, hidden: rangeHidden(m, s), seed: s.id }); // T_n is its roof
-    else if (/stair_(tower|block)/.test(s.variant || '')) v = buildStairTower({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, y0, seed: s.id });
+    else if (/stair_(tower|block)/.test(s.variant || '')) v = buildStairTower({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, y0, shaft: s.shaft, seed: s.id });
     else if (s.variant === 'bartizan_round_decor') v = new Geo(s.id).build('bartizan'); // the curtain draws the S-corner bartizan
     else if (s.variant === 'chateau_wing') v = buildWing({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, y0, faces: ['S', 'E'], seed: s.id });
     else if (s.variant === 'outhouse') v = buildOuthouse({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, seed: s.id });
