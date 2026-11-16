@@ -262,6 +262,59 @@ export function segBox(G, mat, F, u0, u1, w0, w1, y0, y1, tone = 1, { taperOut =
   if (cross > 0) G.hexa(mat, [...r0, ...r1], tone); else G.hexa(mat, [r0[3], r0[2], r0[1], r0[0], r1[3], r1[2], r1[1], r1[0]], tone);
 }
 
+// 2D line intersection: line P + s*d meets line Q + t*e. Null if parallel.
+function lineIntersect2(P, d, Q, e) {
+  const den = d[0] * e[1] - d[1] * e[0];
+  if (Math.abs(den) < 1e-9) return null;
+  const s = ((Q[0] - P[0]) * e[1] - (Q[1] - P[1]) * e[0]) / den;
+  return [P[0] + d[0] * s, P[1] + d[1] * s];
+}
+
+/**
+ * Mitred kerb plan polygon for one curtain segment: a strip at w0..w1 whose
+ * ends are cut along the mitre line at each interior joint instead of square
+ * (u 0..L). The mitre line at a joint joins the crossings of the two strips'
+ * long edges — equivalently, through the centrelines' crossing C, direction
+ * tA - tB (incoming minus outgoing direction) — so the two kerbs meet along
+ * it with no overlap and no gap. A square cut at a turn makes the inside
+ * kerbs cross (an X on the walk: (139,50) inner×inner 0.157 m², seg-1 kerb
+ * 1.44 m across seg-0's walk, probe-x2, user 2026-11-16) and the outside
+ * kerbs gap; flush ends (a3bc7778) removed the 1.5 m stubs but not the
+ * crossing. At a free end, or a near-collinear joint (|sin turn| < 0.02),
+ * the end is square. Returns null when the mitre is degenerate — callers
+ * fall back to the square-cut segBox.
+ */
+export function mitredKerbPoly(F, Fprev, Fnext, w0, w1) {
+  const wc = (w0 + w1) / 2;
+  const face = (Fn, start) => {
+    const tA = start ? Fn.t : F.t, tB = start ? F.t : Fn.t;
+    if (Math.abs(tA[0] * tB[1] - tA[1] * tB[0]) < 0.02) return null;
+    const C = lineIntersect2(start ? Fn.at(0, wc) : F.at(0, wc), tA, start ? F.at(0, wc) : Fn.at(0, wc), tB);
+    if (!C) return null;
+    let mx = tA[0] - tB[0], my = tA[1] - tB[1];
+    const ml = Math.hypot(mx, my) || 1; mx /= ml; my /= ml;
+    const p0 = lineIntersect2(C, [mx, my], F.at(0, w0), F.t);
+    const p1 = lineIntersect2(C, [mx, my], F.at(0, w1), F.t);
+    if (!p0 || !p1) return null;
+    return [p0, p1];
+  };
+  const s = Fprev ? face(Fprev, true) : null;
+  const e = Fnext ? face(Fnext, false) : null;
+  const poly = [s ? s[0] : F.at(0, w0), s ? s[1] : F.at(0, w1), e ? e[1] : F.at(F.L, w1), e ? e[0] : F.at(F.L, w0)];
+  // validity: finite, non-degenerate area, and no vertex pushed far past the
+  // square end — the mitre legitimately extends the OUTSIDE kerb past the
+  // joint by up to |w|·tan(turn/2) (~1.3 m for the parapet kerb at a 55°
+  // turn), so the bound is generous (2.5 m); an extreme mitre still falls
+  // back to the square cut.
+  if (!poly.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
+  let a2 = 0;
+  for (let i = 0; i < 4; i++) { const p = poly[i], q = poly[(i + 1) % 4]; a2 += p[0] * q[1] - q[0] * p[1]; }
+  if (Math.abs(a2) / 2 < 0.5 * (w1 - w0) * F.L) return null;
+  const o = F.at(0, 0);
+  if (poly.some((p) => { const u = (p[0] - o[0]) * F.t[0] + (p[1] - o[1]) * F.t[1]; return u < -2.5 || u > F.L + 2.5; })) return null;
+  return poly;
+}
+
 /**
  * Crenellated curtain wall along a polyline. o: {width=5, h=7, inside=[x,z] (castle centre), base=-1.5, talus=1.0,
  * parapet=true, merlon=[1.4, 0.8], gaps=[[x, z, r]] (no merlons there), bartizans=true, seed}.
@@ -273,6 +326,8 @@ export function buildCurtain(points, o = {}) {
   const half = W / 2, pTop = h + 1.1, mTop = h + 1.95, [mL, mG] = o.merlon || [1.45, 0.75];
   for (let k = 0; k + 1 < points.length; k++) {
     const F = segFrame(points[k], points[k + 1], o.inside);
+    const Fprev = k > 0 ? segFrame(points[k - 1], points[k], o.inside) : null;
+    const Fnext = k + 2 < points.length ? segFrame(points[k + 1], points[k + 2], o.inside) : null;
     const e0 = k > 0 ? -half * 0.6 : 0, e1 = F.L + (k + 2 < points.length ? half * 0.6 : 0); // overlap at joints
     // core + battered talus (outer face) + cordon roll at the talus top
     segBox(G, 'ashlar', F, e0, e1, -half, half, base, h, 1);
@@ -319,14 +374,17 @@ export function buildCurtain(points, o = {}) {
       }
     }
     // inner coping kerb, arrow slits and drain spouts on the outer face
-    // (the kerb runs flush, u 0..L, at BOTH ends — the 1.5 m joint overlap
-    // ran straight past every turn and crossed the next segment's walk
-    // diagonally, a pale 0.12 m slab across the corridor (probe-slabs.mjs,
-    // user 2026-11-15: (99,128) start stub 0.52 m² to w -0.09, (139,97) both
-    // stubs to w -0.02, (139,50) both to w -0.20; the old kerbEndFlush only
-    // cut the END, so cw_s's start stub still crossed). The core/parapet
-    // keep their overlap, so the joint stays solid.)
-    segBox(G, 'dressed', F, 0, F.L, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
+    // (mitred at the joints — see mitredKerbPoly. The kerb used to run 1.5 m
+    // past every joint (a pale 0.12 m slab across the corridor, probe-slabs.mjs,
+    // user 2026-11-15); a3bc7778 cut it flush, u 0..L, but a square cut at a
+    // turn still makes the inside kerbs cross — an X on the walk at (139,50):
+    // inner×inner 0.157 m², seg-1 kerb 1.44 m across seg-0's walk (probe-x2,
+    // user 2026-11-16) — and the outside kerbs gap. The mitre meets the
+    // neighbour's kerb along the joint bisector: no overlap, no gap. The
+    // core/parapet keep their overlap, so the joint stays solid.)
+    const innerPoly = mitredKerbPoly(F, Fprev, Fnext, -half - 0.05, -half + 0.3);
+    if (innerPoly) G.prism('dressed', innerPoly, h, h + 0.12, 1.0);
+    else segBox(G, 'dressed', F, 0, F.L, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
     // (o.parapetKerb: a low dressed kerb along the parapet-side foot of the
     // walk, mirroring the inner kerb — cw_e2 by S_ne3, user 2026-11-15: the
     // walk paving ran flush into the merlon bases with no visible junction.
@@ -334,8 +392,14 @@ export function buildCurtain(points, o = {}) {
     // the parapet base (half-0.35+pOut), its inner face at w=+2.20 mirrors
     // the inner kerb's at -2.20. 0.12 m high, same as the inner kerb. The
     // merlon row does not move: faces stay at w=2.50, clear width 4.70 m;
-    // walkable width between the two kerbs is 4.40 m.)
-    if (o.parapetKerb) segBox(G, 'dressed', F, 0, F.L, half - 0.35 + pOut - 0.28, half - 0.35 + pOut, h, h + 0.12, 1.0); // (flush at both joints, like the inner kerb — its 1.5 m overlap doubled the strip at the (134,46) joint, probe-slabs.mjs)
+    // walkable width between the two kerbs is 4.40 m. Mitred at the joints
+    // like the inner kerb — its 1.5 m overlap doubled the strip at the
+    // (134,46) joint, probe-slabs.mjs.)
+    if (o.parapetKerb) {
+      const pPoly = mitredKerbPoly(F, Fprev, Fnext, half - 0.35 + pOut - 0.28, half - 0.35 + pOut);
+      if (pPoly) G.prism('dressed', pPoly, h, h + 0.12, 1.0);
+      else segBox(G, 'dressed', F, 0, F.L, half - 0.35 + pOut - 0.28, half - 0.35 + pOut, h, h + 0.12, 1.0);
+    }
     for (let u = 3 + R() * 2; u < F.L - 2; u += 6 + R() * 2) {
       segBox(G, 'iron', F, u - 0.09, u + 0.09, half + 0.0, half + 0.02, 3.2, 4.6, 0.1);
       segBox(G, 'dressed', F, u - 0.3, u + 0.3, half - 0.02, half + 0.05, 3.05, 3.2, 1.0);
@@ -344,7 +408,7 @@ export function buildCurtain(points, o = {}) {
     for (let u = 4 + R() * 3; u < F.L - 2; u += 9 + R() * 3) segBox(G, 'dressed', F, u - 0.12, u + 0.12, half + 0.3, half + 0.85, h - 0.35, h - 0.15, 0.9);
     // corbelled round bartizan hung on each interior angle (outside the walk)
     if (o.bartizans !== false && k + 2 < points.length) {
-      const F2 = segFrame(points[k + 1], points[k + 2], o.inside);
+      const F2 = Fnext;
       const nx = F.n[0] + F2.n[0], nz = F.n[1] + F2.n[1], nl = Math.hypot(nx, nz) || 1;
       const turn = Math.abs(F.t[0] * F2.t[1] - F.t[1] * F2.t[0]);
       if (turn > 0.2) bartizan(G, points[k + 1][0] + (nx / nl) * (half + 0.6), points[k + 1][1] + (nz / nl) * (half + 0.6), h, 1.45);
