@@ -483,6 +483,15 @@ function* castle(w, m) { // eslint-disable-line require-yield
   // (each run with a point of its own level on its inner side: the outward face is the drop)
   const edges = [
     ['t_n', [[38.25, 32], [91.6, 32]], [70, 20]],
+    // (user 2026-11-15: the back wall — the N range roof's N edge and the NE terrace's N edge were bare, no parapet,
+    // while every other terrace edge carries one; the courtyard stands open to the rocks along the back. The N edge
+    // of T_n runs the whole back (x 38.25-108, the crag at its W end, cw_e2 at its E); the NE terrace's N edge
+    // (x 102-112, by the east boulders rk_e1/e2/e3) continues the line. No stair crosses either edge (S_n3, S_n land
+    // on T_n's S edge; S_ne1/2 on T_ne's W/E), so stairGaps leaves no gap; the Green Beret's J3 crawl runs at z>=14.8,
+    // clear of the N-edge parapet; the Sniper's e66 shot comes from the S. T_wb's N edge is deliberately left bare —
+    // the Sniper takes e66 over it — and T_nw's N edge is the foot of T_n's S face, not a back wall.)
+    ['t_n', [[38.25, 14], [108, 14]], [70, 20]],
+    ['t_ne', [[102, 32], [112, 32]], [112, 42]],
     ['t_nw', [[38.3, 72], [56, 72]], [47, 60]], ['t_nw', [[56, 72], [56, 42.4]], [47, 60]],
     ['t_wb', [[56.4, 62], [64, 62]], [60, 55]], ['t_wb', [[64, 62], [64, 70]], [66.5, 66]], // (its S edge E of 64 is the inner gate's own crown)
     ['t_wb', [[69.2, 69.6], [69.2, 42.4]], [62, 55]], // (its S end short of the inner gate's face: no coplanar ends)
