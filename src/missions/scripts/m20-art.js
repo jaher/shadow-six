@@ -217,9 +217,14 @@ function* curtains(w, m) {
   return n;
 }
 
-/** Plan rects of the solid bodies the terraces abut (the château, its wing, the N range): no doubled faces. */
+/** Plan rects of the solid bodies the terraces abut (the château, its wing, the N range): no doubled faces.
+ * Only bodies whose walls genuinely run from the ground (baseY at/below grade: the N range, baseY 0) skip a terrace
+ * face — the château and its wing sit ON the HQ terrace (baseY 13), so their walls start at the terrace top and
+ * skipping the face below them leaves the terrace's whole N side open from the ground to y=13 (user 2026-11-15:
+ * "under the building with windows it looks void and you can see through the boulders" — the flat grey strip under
+ * the HQ is the bare ground seen through those missing faces, into the hollow terrace shell). */
 function bodyRects(m) {
-  return (m.structures || []).filter((s) => ['hq', 'hq_wing', 'n_range'].includes(s.id)).map((s) => [s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2]);
+  return (m.structures || []).filter((s) => ['hq', 'hq_wing', 'n_range'].includes(s.id) && (s.baseY ?? 0) <= 0.5).map((s) => [s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2]);
 }
 
 /** Where the mission's ladders, stairs and climbs cross a parapet strip (their middle inside it): [[x, z], …]. */
@@ -458,6 +463,16 @@ function* castle(w, m) { // eslint-disable-line require-yield
   w.scene.add(works);
   const G = new Geo('m20:castle');
   buildTowers(m, G);
+  // (user 2026-11-15, round 2: "under the building with windows it looks void and you can see through
+  // the boulders" — the wing (hq_wing, baseY 13) floats over bare ground north of the HQ terrace: the
+  // terrace's N faces now close its S side (see bodyRects), the crag closes its N side, but its E side
+  // stood open above the NW terrace (t_nw tops at y=7, its W face ends there) — a 20 m x 6 m slot at
+  // x=38, z 32-52, y 7-13, straight onto the bare ground under the wing, with the boulders behind it.
+  // These two foundation walls close it: the E wall stands on t_nw's W face up to the wing's E wall,
+  // the N return runs under the wing's N wall into the crag, closing the wedge where the crag batters
+  // away at height. Ashlar, flush with the terrace face below and the wing's walls above.)
+  G.box('ashlar', 38, 9.75, 42, 0.5, 6.5, 20, 0, 0.97);
+  G.box('ashlar', 36, 9.75, 32, 4, 6.5, 0.5, 0, 0.97);
   const S = (id) => (m.structures || []).find((s) => s.id === id);
   for (const id of ['gh_sw', 'gh_se']) { const s = S(id); if (s) gateCrown(G, { x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7 }); }
   const br = S('br_sw');
