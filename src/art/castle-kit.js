@@ -319,14 +319,14 @@ export function buildCurtain(points, o = {}) {
       }
     }
     // inner coping kerb, arrow slits and drain spouts on the outer face
-    // (o.kerbEndFlush: end the kerb flush at the segment end instead of
-    // overlapping 1.5 m past the joint — cw_s only, user 2026-11-15: seg 1's
-    // kerb end jutted across seg 2's walk centreline at the (99,128) joint, a
-    // 0.12 m lip blocking the over-wall corridor (probe-corridor.mjs, 2 of the
-    // gh_se 13). The kerb still runs the full segment; only the joint overlap
-    // is cut. The core/parapet keep their overlap, so the joint stays solid.)
-    const k1 = o.kerbEndFlush ? Math.min(e1, F.L) : e1;
-    segBox(G, 'dressed', F, e0, k1, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
+    // (the kerb runs flush, u 0..L, at BOTH ends — the 1.5 m joint overlap
+    // ran straight past every turn and crossed the next segment's walk
+    // diagonally, a pale 0.12 m slab across the corridor (probe-slabs.mjs,
+    // user 2026-11-15: (99,128) start stub 0.52 m² to w -0.09, (139,97) both
+    // stubs to w -0.02, (139,50) both to w -0.20; the old kerbEndFlush only
+    // cut the END, so cw_s's start stub still crossed). The core/parapet
+    // keep their overlap, so the joint stays solid.)
+    segBox(G, 'dressed', F, 0, F.L, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
     // (o.parapetKerb: a low dressed kerb along the parapet-side foot of the
     // walk, mirroring the inner kerb — cw_e2 by S_ne3, user 2026-11-15: the
     // walk paving ran flush into the merlon bases with no visible junction.
@@ -335,7 +335,7 @@ export function buildCurtain(points, o = {}) {
     // the inner kerb's at -2.20. 0.12 m high, same as the inner kerb. The
     // merlon row does not move: faces stay at w=2.50, clear width 4.70 m;
     // walkable width between the two kerbs is 4.40 m.)
-    if (o.parapetKerb) segBox(G, 'dressed', F, e0, e1, half - 0.35 + pOut - 0.28, half - 0.35 + pOut, h, h + 0.12, 1.0);
+    if (o.parapetKerb) segBox(G, 'dressed', F, 0, F.L, half - 0.35 + pOut - 0.28, half - 0.35 + pOut, h, h + 0.12, 1.0); // (flush at both joints, like the inner kerb — its 1.5 m overlap doubled the strip at the (134,46) joint, probe-slabs.mjs)
     for (let u = 3 + R() * 2; u < F.L - 2; u += 6 + R() * 2) {
       segBox(G, 'iron', F, u - 0.09, u + 0.09, half + 0.0, half + 0.02, 3.2, 4.6, 0.1);
       segBox(G, 'dressed', F, u - 0.3, u + 0.3, half - 0.02, half + 0.05, 3.05, 3.2, 1.0);

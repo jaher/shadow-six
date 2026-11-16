@@ -285,7 +285,7 @@ const CURTAIN = [
   gatehouse('gh_sw', 'South-west gate', 57, 114, 15, { sideMerlons: false, sideParapet: { west: [0.24, 4], east: [-4, -0.28] } }),
   // (user 2026-11-14: splitParapet — cw_s seg 0's parapet collapsed under dropInside and 10 merlons
   // floated ~1.1 m; the per-merlon bays keep every surviving merlon on its support. No other wall sets it.)
-  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true, kerbEndFlush: true }), // (kerbEndFlush, user 2026-11-15: seg 1's inner kerb ran 1.5 m past the (99,128) joint and jutted across seg 2's walk centreline — a 0.12 m lip, 2 blocked corridor samples. The kerb now ends flush at the joint; see buildCurtain.)
+  curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]], Y.BAT, { splitParapet: true }), // (kerb flush at every joint now, buildCurtain 2026-11-15: the old per-wall kerbEndFlush only cut the END stub — the (99,128) start stub still crossed seg 0's walk to w -0.09, probe-slabs.mjs)
   // (user 2026-11-15: gh_se gets gh_sw's data-level treatment — the shared-builder fixes already cover it, but the two
   // gh_sw-only fixes were never applied here, and the corridor is blocked 13/134 (probe-corridor.mjs). sideMerlons:false
   // drops the 8 side merlons; the side parapets shorten to stubs at the corridor's edge, same ranges as gh_sw — the path
