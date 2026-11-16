@@ -137,7 +137,13 @@ export class Geo {
   prism(mat, poly, y0, y1, tone = 1, { top = true, sides = true, sideMat = null } = {}) {
     poly = ccw(poly);
     const n = poly.length;
-    if (top) for (let i = 1; i + 1 < n; i++) this.tri(mat, [poly[0][0], y1, poly[0][1]], [poly[i + 1][0], y1, poly[i + 1][1]], [poly[i][0], y1, poly[i][1]], tone);
+    // (top cap: triangulated, not a fan — a fan is only correct for convex outlines, and a concave terrace
+    // (T_wb's gatehouse-forecourt notch, T_sw's re-cut deck) fans its cap across the notch, a triangle of
+    // pavement floating over the stairs below. Same triangulation as flatPoly, same winding.)
+    if (top && n >= 3) {
+      const tris = THREE.ShapeUtils.triangulateShape(poly.map((q) => new THREE.Vector2(q[0], q[1])), []);
+      for (const [a, b, c] of tris) this.tri(mat, [poly[a][0], y1, poly[a][1]], [poly[c][0], y1, poly[c][1]], [poly[b][0], y1, poly[b][1]], tone);
+    }
     if (sides) for (let i = 0; i < n; i++) {
       const p = poly[i], q = poly[(i + 1) % n];
       this.quad(sideMat || mat, [p[0], y0, p[1]], [p[0], y1, p[1]], [q[0], y1, q[1]], [q[0], y0, q[1]], tone);
