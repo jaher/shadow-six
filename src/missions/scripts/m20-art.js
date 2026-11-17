@@ -229,13 +229,33 @@ function bodyRects(m) {
 
 /** Where the mission's ladders, stairs and climbs cross a parapet strip (their middle inside it): [[x, z], …]. */
 function waysOver(m, poly) {
-  const ways = [...(m.ladders || []).map((l) => [[l.x, l.z], [l.top[0], l.top[1]]]), ...(m.climbLinks || []).map((c) => [[c.a[0], c.a[1]], [c.b[0], c.b[1]]])];
-  const inside = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+  const ways = [...(m.ladders || []).map((l) => ({ p: [l.x, l.z], q: [l.top[0], l.top[1]], stairs: l.kind === 'stairs' })), ...(m.climbLinks || []).map((c) => ({ p: [c.a[0], c.a[1]], q: [c.b[0], c.b[1]], stairs: false }))];
   const out = [];
-  for (const [p, q] of ways) {
+  for (const { p, q, stairs } of ways) {
+    // a stair's centreline can stop just short of the strip while its width crosses it (S_sw, user 2026-11-17:
+    // centreline top 0.04 m short, tread edge 0.64 m inside) — sample the tread edges too, so the crossing is
+    // found and centred on the flight; ladders and climbs keep the centreline (their width is the line itself)
+    const lines = [[p, q]];
+    if (stairs) {
+      const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz) || 1, nx = (-dz / L) * 0.9, nz = (dx / L) * 0.9;
+      lines.push([[p[0] + nx, p[1] + nz], [q[0] + nx, q[1] + nz]], [[p[0] - nx, p[1] - nz], [q[0] - nx, q[1] - nz]]);
+    }
     let sx = 0, sz = 0, n = 0;
-    for (let k = 0; k <= 80; k++) { const t = k / 80, x = p[0] + (q[0] - p[0]) * t, z = p[1] + (q[1] - p[1]) * t; if (inside(x, z)) { sx += x; sz += z; n++; } }
+    for (const [a, b] of lines) for (let k = 0; k <= 80; k++) { const t = k / 80, x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t; if (inPoly([x, z], poly)) { sx += x; sz += z; n++; } }
     if (n) out.push([sx / n, sz / n]);
+  }
+  return out;
+}
+
+/** Where a stair flight's swept width (treads ±0.9, cheeks/coping ±1.24) crosses a parapet strip: the inside
+ * samples per stair, one group per crossing — buildParapet cuts the whole parapet through there (o.through). */
+function stairsOver(m, poly) {
+  const out = [];
+  for (const l of (m.ladders || []).filter((x) => x.kind === 'stairs')) {
+    const a = [l.x, l.z], b = [l.top[0], l.top[1]];
+    const F = segFrame(a, b, null), pts = [];
+    for (let u = 0; u <= F.L; u += 0.1) for (let w = -1.24; w <= 1.24; w += 0.1) { const [x, z] = F.at(u, w); if (inPoly([x, z], poly)) pts.push([+x.toFixed(2), +z.toFixed(2)]); }
+    if (pts.length) out.push(pts);
   }
   return out;
 }
@@ -249,7 +269,7 @@ function* levels(w, m) {
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt screen (t_par_hq_b*) BALUSTRADE_H, a solid
     // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
-    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points) }); }
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points) }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m), dressing: s.dressing });
     if (swapVisual(w, s.id, v)) n++;
   }

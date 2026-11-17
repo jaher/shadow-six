@@ -592,6 +592,14 @@ export function flagTop(G, poly, y, o = {}) {
  */
 /** Half the embrasure (m) a crenellated parapet keeps clear where a way crosses it (buildParapet o.gaps). */
 export const GAP_HALF = 0.6;
+/** Clearance (m) either side of a stair's measured crossing in a through-cut (buildParapet o.through). */
+export const THROUGH_MARGIN = 0.15;
+/** Subtract cut ranges from spans: [[a,b],...] minus [[c0,c1],...] → pieces (drops slivers ≤ 0.01 m). */
+const cutSpans = (spans, cuts) => {
+  let out = spans.filter(([a, b]) => b - a > 0.01);
+  for (const [c0, c1] of cuts) out = out.flatMap(([a, b]) => [[a, Math.min(b, c0)], [Math.max(a, c1), b]]).filter(([x, y]) => y - x > 0.01);
+  return out;
+};
 export function buildParapet(poly, y, yTop, o = {}) {
   const G = o.G || new Geo(o.seed ?? poly.flat().join(','));
   const p = ccw(poly);
@@ -608,16 +616,25 @@ export function buildParapet(poly, y, yTop, o = {}) {
     for (let u = 0.25; u < F.L - 0.1; u += 0.32) G.cyl('dressed', ...(() => { const [x, z] = F.at(u, off); return [x, y + 0.22, z]; })(), 0.1, 0.07, H - 0.42, 6, 0.98, { caps: false });
     for (let u = 0; u <= F.L + 0.01; u += Math.max(2.5, F.L / Math.max(1, Math.round(F.L / 3)))) segBox(G, 'ashlar', F, Math.max(0, u - 0.25), Math.min(F.L, u + 0.25), w0 - 0.08, w1 + 0.08, y, y + H + 0.08, 1.0);
   } else {
-    segBox(G, 'ashlar', F, 0, F.L, w0, w1, y - 0.1, y + H * 0.7, 1.0);
+    // (o.through: world-point groups where a STAIR lands through the strip onto the deck behind it — the flight's
+    // top is buried in the base wall (S_sw, user 2026-11-17: 114 stair verts in the wall band, the merlon at
+    // u 11.5-12.7 standing over the landing), so the embrasure cuts the WHOLE parapet — base wall, coping and
+    // merlons — across the flight's measured crossing + THROUGH_MARGIN. Plain o.gaps stay merlon-only: L_in's
+    // ladder leans on its parapet and the man climbs over the base wall onto the terrace, so that wall stands.)
+    const through = (o.through || []).map((pts) => {
+      const us = pts.map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
+      return [Math.min(...us) - THROUGH_MARGIN, Math.max(...us) + THROUGH_MARGIN];
+    }).filter(([c0, c1]) => c1 > 0 && c0 < F.L).map(([c0, c1]) => [Math.max(0, c0), Math.min(F.L, c1)]);
+    for (const [p0, p1] of cutSpans([[0, F.L]], through)) segBox(G, 'ashlar', F, p0, p1, w0, w1, y - 0.1, y + H * 0.7, 1.0);
     // (o.gaps: world points where a way crosses the strip — a ladder's head, a climb, a stair — an embrasure there,
     // GAP_HALF either side clear of merlons: the ladder had leant on one and the man stepped through it, M20's L_in)
     const gu = (o.gaps || []).map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
     for (let u = 0.1; u < F.L - 0.6; u += 1.9) {
-      let pieces = [[u, Math.min(F.L, u + 1.2)]];
+      let pieces = cutSpans([[u, Math.min(F.L, u + 1.2)]], through);
       for (const g of gu) pieces = pieces.flatMap(([p0, p1]) => [[p0, Math.min(p1, g - GAP_HALF)], [Math.max(p0, g + GAP_HALF), p1]]);
       for (const [p0, p1] of pieces) if (p1 - p0 >= 0.3) segBox(G, 'ashlar', F, p0, p1, w0, w1, y + H * 0.7, y + H + 0.45, 0.97);
     }
-    segBox(G, 'dressed', F, 0, F.L, w0 - 0.05, w1 + 0.05, y + H * 0.7, y + H * 0.7 + 0.08, 1.05);
+    for (const [p0, p1] of cutSpans([[0, F.L]], through)) segBox(G, 'dressed', F, p0, p1, w0 - 0.05, w1 + 0.05, y + H * 0.7, y + H * 0.7 + 0.08, 1.05);
   }
   return o.G ? G : G.build(o.name || 'parapet', { ground: y });
 }
