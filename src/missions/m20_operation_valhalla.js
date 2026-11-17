@@ -310,7 +310,15 @@ const CURTAIN = [
     // with no visible junction — a low dressed kerb along the parapet foot,
     // mirroring the inner kerb, stops the paving at a deliberate line. The
     // merlon row does not move; walkable width between kerbs is 4.40 m.)
-    { parapetOut: 0.33, parapetKerb: true }),
+    // (user 2026-11-16: S_ne2 lands on this walk against the continuous inner
+    // kerb — its top tread stops 0.04 m short of the walk's inner face with a
+    // 0.12 m kerb lip across the step-off, the same 0.12 m that blocked the
+    // corridor at the (99,128) joint. kerbGaps opens the kerb where the stair
+    // lands, as stairGaps opens the parapet: seg 2, u 4.99..7.67 — S_ne2's
+    // centreline crosses the kerb line (w -2.375) at u 6.33 (probe-sne2-kerb.mjs),
+    // gap = coping half-width 1.24 + 0.10 m margin a side; the flight crosses
+    // the kerb at 90 deg, so the along-wall extent is the coping width itself.)
+    { parapetOut: 0.33, parapetKerb: true, kerbGaps: [[2, 4.99, 7.67]] }),
   { id: 'cw_w', type: 'castle_wall', variant: 'curtain_limestone_crag', points: [[4, 78.5], [22, 79.5]], width: 4, h: Y.HQ, mat: 'stone' },
   { id: 'bartizan_s', type: 'watchtower', variant: 'bartizan_round_decor', x: 99, z: 130.8, w: 1.2, d: 1.2, h: 8.5, deckY: 0.1 },
   // the inner gatehouse between the S courts and the N court (its W tower top belongs to T_wb)

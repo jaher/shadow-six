@@ -382,9 +382,30 @@ export function buildCurtain(points, o = {}) {
     // user 2026-11-16) — and the outside kerbs gap. The mitre meets the
     // neighbour's kerb along the joint bisector: no overlap, no gap. The
     // core/parapet keep their overlap, so the joint stays solid.)
+    // (o.kerbGaps: [[seg, u0, u1], ...] — interruptions in the inner kerb where a
+    // stair lands on the walk (cw_e2 seg 2 by S_ne2, user 2026-11-16: the flight's
+    // top tread stops 0.04 m short of the walk's inner face against the continuous
+    // inner kerb, a 0.12 m lip across the step-off — the same 0.12 m that blocked
+    // the corridor at the (99,128) joint and was cut flush there. The parapet is
+    // opened at stair landings by stairGaps; the kerb was not, so the walker
+    // stepped up over it. The gap spans the flight's coping (2.48 m) + 0.10 m a
+    // side, centred on the flight's crossing of the kerb line. Mitred ends are
+    // kept; the gap cuts are square. The parapet kerb (outer side) is untouched —
+    // no stair lands against it.)
+    const kg = (o.kerbGaps || []).filter(([sk]) => sk === k).map(([, a, b]) => [Math.max(0, a), Math.min(F.L, b)]).filter(([a, b]) => b > a).sort((p, q) => p[0] - q[0]);
+    const kSpans = []; let kCur = 0;
+    for (const [a, b] of kg) { if (a > kCur) kSpans.push([kCur, a]); kCur = Math.max(kCur, b); }
+    if (kCur < F.L) kSpans.push([kCur, F.L]);
     const innerPoly = mitredKerbPoly(F, Fprev, Fnext, -half - 0.05, -half + 0.3);
-    if (innerPoly) G.prism('dressed', innerPoly, h, h + 0.12, 1.0);
-    else segBox(G, 'dressed', F, 0, F.L, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
+    if (innerPoly) {
+      for (const [a, b] of kSpans) {
+        const poly = (a <= 0 && b >= F.L) ? innerPoly
+          : a <= 0 ? [innerPoly[0], innerPoly[1], F.at(b, -half + 0.3), F.at(b, -half - 0.05)]
+          : b >= F.L ? [F.at(a, -half - 0.05), F.at(a, -half + 0.3), innerPoly[2], innerPoly[3]]
+          : [F.at(a, -half - 0.05), F.at(a, -half + 0.3), F.at(b, -half + 0.3), F.at(b, -half - 0.05)];
+        G.prism('dressed', poly, h, h + 0.12, 1.0);
+      }
+    } else for (const [a, b] of kSpans) segBox(G, 'dressed', F, a, b, -half - 0.05, -half + 0.3, h, h + 0.12, 1.0);
     // (o.parapetKerb: a low dressed kerb along the parapet-side foot of the
     // walk, mirroring the inner kerb — cw_e2 by S_ne3, user 2026-11-15: the
     // walk paving ran flush into the merlon bases with no visible junction.
