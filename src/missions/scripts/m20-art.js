@@ -472,7 +472,18 @@ function* castle(w, m) { // eslint-disable-line require-yield
   // the N return runs under the wing's N wall into the crag, closing the wedge where the crag batters
   // away at height. Ashlar, flush with the terrace face below and the wing's walls above.)
   G.box('ashlar', 38, 9.75, 42, 0.5, 6.5, 20, 0, 0.97);
-  G.box('ashlar', 36, 9.75, 32, 4, 6.5, 0.5, 0, 0.97);
+  G.box('ashlar', 32.25, 9.75, 32, 11.5, 6.5, 0.5, 0, 0.97);
+  // (user 2026-11-16, round 3: the gap continues along the back contour from those two walls — the
+  // crag batters away from the buildings' N walls at height, leaving a slot under each N wall that
+  // reads as see-through from ground level (probe-back-seethrough.mjs / probe-wedge-map.mjs).
+  // The wing's N wedge at z=32 opens y 10..13 west of the return above (exit x 32.4..33.5 at
+  // y 10-11, widening to 20.6..33.5 at y 12): the return now runs W from x=34 to x=26.5, its W
+  // end buried 0.5 m in the crag's E face. The HQ's N slot at z=38 opens y 10..13 across the
+  // full width (exit x 4.6..25.0 at y 10-12.5; y 6..9 at its W end only): a second foundation
+  // wall runs the whole N side, its W end flush with the keep's W plinth at (4.5, 38), its E
+  // end buried 0.5 m in the wing's W face. Same construction throughout: ashlar, 0.5 m thick,
+  // y 6.5..13, flush with the walls above.)
+  G.box('ashlar', 15.75, 9.75, 38, 22.5, 6.5, 0.5, 0, 0.97);
   const S = (id) => (m.structures || []).find((s) => s.id === id);
   for (const id of ['gh_sw', 'gh_se']) { const s = S(id); if (s) gateCrown(G, { x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, walkY: 7 }); }
   const br = S('br_sw');
