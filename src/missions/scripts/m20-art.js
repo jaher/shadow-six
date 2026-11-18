@@ -284,7 +284,7 @@ function* levels(w, m) {
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt screen (t_par_hq_b*) BALUSTRADE_H, a solid
     // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
-    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: [...stairsOver(m, s.points), ...(s.id === 't_par_sw_s' ? exitOver(m, s.points) : [])] }); }
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points), merlonThrough: s.id === 't_par_sw_s' ? exitOver(m, s.points) : [] }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m), dressing: s.dressing });
     if (swapVisual(w, s.id, v)) n++;
   }

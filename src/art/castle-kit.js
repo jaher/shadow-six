@@ -621,7 +621,15 @@ export function buildParapet(poly, y, yTop, o = {}) {
     // u 11.5-12.7 standing over the landing), so the embrasure cuts the WHOLE parapet — base wall, coping and
     // merlons — across the flight's measured crossing + THROUGH_MARGIN. Plain o.gaps stay merlon-only: L_in's
     // ladder leans on its parapet and the man climbs over the base wall onto the terrace, so that wall stands.)
+    // (o.merlonThrough: like o.through but merlons ONLY — the base wall and coping continue across it. S_sw,
+    // user 2026-11-17: the wall continues across the stair exit without a merlon — the man climbs over the
+    // base wall, as at L_in, so the exit stays passable; the flight's own crossing stays a full cut so the
+    // stair's masonry never meets the wall.)
     const through = (o.through || []).map((pts) => {
+      const us = pts.map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
+      return [Math.min(...us) - THROUGH_MARGIN, Math.max(...us) + THROUGH_MARGIN];
+    }).filter(([c0, c1]) => c1 > 0 && c0 < F.L).map(([c0, c1]) => [Math.max(0, c0), Math.min(F.L, c1)]);
+    const merlonThrough = (o.merlonThrough || []).map((pts) => {
       const us = pts.map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
       return [Math.min(...us) - THROUGH_MARGIN, Math.max(...us) + THROUGH_MARGIN];
     }).filter(([c0, c1]) => c1 > 0 && c0 < F.L).map(([c0, c1]) => [Math.max(0, c0), Math.min(F.L, c1)]);
@@ -630,7 +638,7 @@ export function buildParapet(poly, y, yTop, o = {}) {
     // GAP_HALF either side clear of merlons: the ladder had leant on one and the man stepped through it, M20's L_in)
     const gu = (o.gaps || []).map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
     for (let u = 0.1; u < F.L - 0.6; u += 1.9) {
-      let pieces = cutSpans([[u, Math.min(F.L, u + 1.2)]], through);
+      let pieces = cutSpans([[u, Math.min(F.L, u + 1.2)]], [...through, ...merlonThrough]);
       for (const g of gu) pieces = pieces.flatMap(([p0, p1]) => [[p0, Math.min(p1, g - GAP_HALF)], [Math.max(p0, g + GAP_HALF), p1]]);
       for (const [p0, p1] of pieces) if (p1 - p0 >= 0.3) segBox(G, 'ashlar', F, p0, p1, w0, w1, y + H * 0.7, y + H + 0.45, 0.97);
     }
