@@ -398,7 +398,9 @@ export function gateCrown(G, o) {
   // pale slab should not cross the roof) — the wall now ends flat in ashlar.)
   // the gate chamber's roof over the arch, between the towers' tops (the walk crosses the arch beneath it on its
   // plank): oak corner posts on the towers' inner edges, wall plates, a slate saddle roof, boarded gables
-  for (const s of [-1, 1]) for (const ww of [-D2 + 0.35, D2 - 0.35]) segBox(G, 'timber', F, s * (P2 + 0.15) - 0.13, s * (P2 + 0.15) + 0.13, ww - 0.13, ww + 0.13, Y + 0.95, Y + 3.15, 0.7);
+  // (user 2026-11-17: the posts' feet at Y+0.95 floated 0.94 m above the towers' deck (flags top Y+0.01) — they
+  // stand on the deck now, from Y; the foot face at Y sits 0.01 inside the flags slab, buried, no coplanar face.)
+  for (const s of [-1, 1]) for (const ww of [-D2 + 0.35, D2 - 0.35]) segBox(G, 'timber', F, s * (P2 + 0.15) - 0.13, s * (P2 + 0.15) + 0.13, ww - 0.13, ww + 0.13, Y, Y + 3.15, 0.7);
   for (const ww of [-D2 + 0.35, D2 - 0.35]) segBox(G, 'timber', F, -P2 - 0.35, P2 + 0.35, ww - 0.15, ww + 0.15, Y + 3.0, Y + 3.25, 0.7);
   {
     const P = (u, w, y) => { const [x, z] = F.at(u, w); return [x, y, z]; };
