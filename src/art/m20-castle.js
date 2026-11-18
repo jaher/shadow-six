@@ -217,10 +217,13 @@ export function roundTower(G, o) {
   G.cyl('dressed', x, y0 + Math.min(3.6, top - y0 - 2) - 0.05, z, r + 0.1, r + 0.1, 0.22, seg, 1.03, { caps: false });
   G.cyl('ashlar', x, y0, z, r, r, top - y0 - 0.9, seg, 1, { caps: false });
   for (const f of [0.42, 0.7]) G.cyl('dressed', x, y0 + (top - y0) * f, z, r + 0.09, r + 0.09, 0.2, seg, 1.04, { caps: false });
-  // cross loops in staggered tiers, facing outwards (the castle side has none)
+  // cross loops in staggered tiers, facing outwards (the castle side has none) — one tier centred in each of the
+  // three shaft sections the string courses cut (user 2026-11-17: the old even spacing sat every tier ~2 m low,
+  // the top tier right on the upper course)
+  const H = top - y0, footTop = y0 + Math.min(3.6, H - 2) + 0.17, ring1 = y0 + 0.42 * H, ring2 = y0 + 0.70 * H;
+  const tierY = [(footTop + ring1) / 2, (ring1 + 0.2 + ring2) / 2, (ring2 + 0.2 + top - 0.9) / 2];
   for (let tier = 0; tier < 3; tier++) {
-    const yy = y0 + 3.2 + tier * ((top - y0 - 5) / 3);
-    for (let k = -1; k <= 1; k++) loopRound(G, x, z, r, face + k * 0.85 + (tier % 2) * 0.42, yy + 0.7, 1.3, o.legacyLoops);
+    for (let k = -1; k <= 1; k++) loopRound(G, x, z, r, face + k * 0.85 + (tier % 2) * 0.42, tierY[tier], 1.3, o.legacyLoops);
   }
   // machicolations: paired corbels, the gallery wall on them, little square windows, a timber eave
   const nC = Math.max(12, Math.round((TAU * r) / 0.85));
@@ -254,7 +257,11 @@ export function dTower(G, F, u, r, o = {}) {
   segBox(G, 'ashlar', F, u - r, u + r, back, back + 0.5, 9.0, top + 1.75, 0.95);
   G.cyl('dressed', cx, top - 0.12, cz, r + 0.5, r + 0.5, 0.14, seg, 1.02, { a0, arc });
   for (const f of [0.45, 0.72]) G.cyl('dressed', cx, y0 + (top - y0) * f, cz, r + 0.08, r + 0.08, 0.2, seg, 1.04, { caps: false, a0, arc });
-  for (let tier = 0; tier < 2; tier++) for (let k = -1; k <= 1; k++) loopRound(G, cx, cz, r, face + k * 0.75 + tier * 0.37, y0 + 3.6 + tier * 3.4);
+  // cross loops, one tier centred in each of the two lower shaft sections the string courses cut
+  // (user 2026-11-17: the old y0+3.6 / y0+7.0 sat both tiers low in their sections)
+  const Hd = top - y0, dRing1 = y0 + 0.45 * Hd, dRing2 = y0 + 0.72 * Hd;
+  const dTierY = [(y0 + 3.4 + dRing1) / 2, (dRing1 + 0.2 + dRing2) / 2];
+  for (let tier = 0; tier < 2; tier++) for (let k = -1; k <= 1; k++) loopRound(G, cx, cz, r, face + k * 0.75 + tier * 0.37, dTierY[tier]);
   const nC = Math.round((Math.PI * r) / 0.85);
   for (let k = 0; k <= nC; k++) {
     const a = a0 + (k / nC) * arc;

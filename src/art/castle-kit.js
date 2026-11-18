@@ -771,10 +771,11 @@ export function buildTwinGatehouse(o) {
     const sp = sideParapet[s < 0 ? 'west' : 'east'] ?? [-D2, D2];
     corbelParapet(G, Fs, sp[0], sp[1], 0, 1, Y, R, sideMerlons);
     bartizan(G, ...F.at(uo + s * 0.15, D2 + 0.15), Y, 1.25);
-    // cross loops on the outer face, a mullioned window on the inner face
+    // cross loops on the outer face, a mullioned window on the inner face — the cross sits centred in the
+    // section between the dressed band (2.15-2.4) and the string course (Y-1.5..Y-1.3) (user 2026-11-17)
     const um = (ua + ub) / 2;
-    segBox(G, 'iron', F, um - 0.08, um + 0.08, D2, D2 + 0.02, 3.4, 5.0, 0.1);
-    segBox(G, 'iron', F, um - 0.4, um + 0.4, D2, D2 + 0.02, 4.1, 4.25, 0.1);
+    segBox(G, 'iron', F, um - 0.08, um + 0.08, D2, D2 + 0.02, 3.15, 4.75, 0.1);
+    segBox(G, 'iron', F, um - 0.4, um + 0.4, D2, D2 + 0.02, 3.85, 4.0, 0.1);
     segBox(G, 'iron', F, um - 0.45, um + 0.45, -D2 - 0.02, -D2, 3.2, 4.4, 0.15);
     // (windows z-fight fix: mullion top 5 mm above the iron light's top — the two top faces were coplanar at 4.4)
     segBox(G, 'dressed', F, um - 0.06, um + 0.06, -D2 - 0.06, -D2, 3.2, 4.405, 1.05);
@@ -825,10 +826,12 @@ export function buildRoundTower(o) {
     const a0 = (k / 10) * Math.PI * 2;
     G.ring('ashlar', x, Y + 1.1, z, r - 0.05, r + 0.35, 0.8, 4, 0.95 + R() * 0.08, { a0, arc: (Math.PI * 2) / 10 * 0.55 });
   }
-  // cross loops round the shaft, a door at the base
+  // cross loops round the shaft — one tier centred in each of the three sections the string courses cut
+  // (user 2026-11-17: the old even spacing sat every tier off-centre in its section)
+  const Ht = Y - y0, tY = [y0 + 0.45 + 0.19 * Ht, y0 + 0.55 * Ht + 0.1, y0 + 0.86 * Ht - 0.45];
   for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2 + 0.3, yy = y0 + 2.5 + (k % 3) * (Y - y0 - 4) / 3;
-    G.box('iron', x + Math.cos(a) * (r + 0.01), yy + 0.7, z + Math.sin(a) * (r + 0.01), 0.04, 1.4, 0.16, a + Math.PI / 2, 0.1);
+    const a = (k / 6) * Math.PI * 2 + 0.3;
+    G.box('iron', x + Math.cos(a) * (r + 0.01), tY[k % 3], z + Math.sin(a) * (r + 0.01), 0.04, 1.4, 0.16, a + Math.PI / 2, 0.1);
   }
   if (o.door != null) {
     const a = o.door, F = localFrame(x + Math.cos(a) * r, z + Math.sin(a) * r, a + Math.PI / 2);
