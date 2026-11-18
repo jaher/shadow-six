@@ -93,7 +93,7 @@ function leadedLights(list) {
     for (let k = 0; k <= N; k++) {
       const u = -a + (2 * a * k) / N, top = L.head === 'round' ? spring + Math.sqrt(Math.max(0, a * a - u * u)) : archY(u, a, spring, rise);
       for (const y of [L.y, top]) {
-        const p = fP(L.Ff, L.u + u, -0.06, y);
+        const p = fP(L.Ff, L.u + u, 0.015, y); // the glass 1.5 cm proud of the wall (was -0.06, buried)
         pos.push(...p); uv.push((u + a) / 0.5, (y - L.y) / 0.5);
       }
     }
@@ -131,7 +131,9 @@ function lancet(G, Ff, u, y, w, h, lights, head = 'pointed') {
     const u0 = -a + (2 * a * k) / N, u1 = -a + (2 * a * (k + 1)) / N;
     const t0 = head === 'round' ? spring + Math.sqrt(Math.max(0, a * a - u0 * u0)) : archY(u0, a, spring, rise);
     const t1 = head === 'round' ? spring + Math.sqrt(Math.max(0, a * a - u1 * u1)) : archY(u1, a, spring, rise);
-    fan(G, 'iron', [fP(Ff, u + u0, -0.08, y), fP(Ff, u + u1, -0.08, y), fP(Ff, u + u1, -0.08, t1), fP(Ff, u + u0, -0.08, t0)], fN(Ff), 0.1);
+    // the reveal (dark), the dressed jambs and head, sill; the light listed — the reveal sits 1 cm proud of the
+    // wall face (it was at w=-0.08, buried inside the solid body, so every church window read as brick)
+    fan(G, 'iron', [fP(Ff, u + u0, 0.01, y), fP(Ff, u + u1, 0.01, y), fP(Ff, u + u1, 0.01, t1), fP(Ff, u + u0, 0.01, t0)], fN(Ff), 0.1);
     const o0 = head === 'round' ? spring + Math.sqrt(Math.max(0, (a + 0.2) ** 2 - (u0 * (a + 0.2) / a) ** 2)) : archY(u0 * (a + 0.2) / a, a + 0.2, spring, rise + 0.2);
     const o1 = head === 'round' ? spring + Math.sqrt(Math.max(0, (a + 0.2) ** 2 - (u1 * (a + 0.2) / a) ** 2)) : archY(u1 * (a + 0.2) / a, a + 0.2, spring, rise + 0.2);
     fan(G, 'dressed', [fP(Ff, u + u0, 0.05, t0), fP(Ff, u + u1, 0.05, t1), fP(Ff, u + (u1 * (a + 0.2)) / a, 0.05, o1), fP(Ff, u + (u0 * (a + 0.2)) / a, 0.05, o0)], fN(Ff), k % 2 ? 1.06 : 0.97);
@@ -207,8 +209,8 @@ export function buildChurch(o) {
     // the eaves' corbel table
     for (let u = Ff.len[0] + 0.3; u < Ff.len[1] - 0.2; u += 0.75) segBox(G, 'dressed', Ff, u - 0.1, u + 0.1, 0, 0.22, P.naveEave - 0.35, P.naveEave - 0.05, 0.98);
   }
-  // a small S door (the priest's door) between the first pair of buttresses
-  segBox(G, 'planks', NF.S, P.buttressU[0] + 0.55, P.buttressU[0] + 1.45, -0.12, -0.06, 0.6, 2.6, 0.6);
+  // a small S door (the priest's door) between the first pair of buttresses — leaf straddling the face (was -0.12..-0.06, buried)
+  segBox(G, 'planks', NF.S, P.buttressU[0] + 0.55, P.buttressU[0] + 1.45, -0.02, 0.02, 0.6, 2.6, 0.6);
   // (no W gable: the tower stands against it — only its shoulders either side show, below; the E gable over the choir)
   saddle(G, F, n0, n1, -NH, NH, P.naveEave, P.naveRidge, 'slate', { oh: 0.35, ohU0: 0.02, gableMat: 'ashlar', cap: 'lead', gables: false });
   fan(G, 'ashlar', [fP(NF.E, -NH, 0, P.naveEave), fP(NF.E, NH, 0, P.naveEave), fP(NF.E, 0, 0, P.naveRidge - 0.05)], fN(NF.E), 0.97);
@@ -266,7 +268,7 @@ export function buildChurch(o) {
       for (const s of [-1, 1]) {
         const uc = mid + s * 0.62;
         lancet(G, Ff, uc, bel, 0.78, 1.5, [], 'round');
-        for (let yy = bel + 0.2; yy < bel + 1.5; yy += 0.28) segBox(G, 'timber', Ff, uc - 0.38, uc + 0.38, -0.2, -0.14, yy, yy + 0.08, 0.5);
+        for (let yy = bel + 0.2; yy < bel + 1.5; yy += 0.28) segBox(G, 'timber', Ff, uc - 0.38, uc + 0.38, 0.01, 0.04, yy, yy + 0.08, 0.5); // louvres proud of the wall (were -0.2..-0.14, buried)
       }
       // (windows z-fight fix: the middle column is 5 mm shorter — its top cap was exactly coplanar with the
       // belfry lancets' jamb tops at bel+1.5, overlapping them on both sides)
@@ -281,7 +283,7 @@ export function buildChurch(o) {
     const Ff = TF.W, seg2 = 16;
     for (let k = 0; k < seg2; k++) {
       const a0 = (k / seg2) * TAU, a1 = ((k + 1) / seg2) * TAU;
-      fan(G, 'iron', [fP(Ff, 0, -0.04, 7.0), fP(Ff, Math.cos(a0) * 0.45, -0.04, 7.0 + Math.sin(a0) * 0.45), fP(Ff, Math.cos(a1) * 0.45, -0.04, 7.0 + Math.sin(a1) * 0.45)], fN(Ff), 0.12);
+      fan(G, 'iron', [fP(Ff, 0, 0.01, 7.0), fP(Ff, Math.cos(a0) * 0.45, 0.01, 7.0 + Math.sin(a0) * 0.45), fP(Ff, Math.cos(a1) * 0.45, 0.01, 7.0 + Math.sin(a1) * 0.45)], fN(Ff), 0.12); // oculus disc proud (was -0.04, buried)
       fan(G, 'dressed', [fP(Ff, Math.cos(a0) * 0.45, 0.06, 7.0 + Math.sin(a0) * 0.45), fP(Ff, Math.cos(a0) * 0.68, 0.06, 7.0 + Math.sin(a0) * 0.68), fP(Ff, Math.cos(a1) * 0.68, 0.06, 7.0 + Math.sin(a1) * 0.68), fP(Ff, Math.cos(a1) * 0.45, 0.06, 7.0 + Math.sin(a1) * 0.45)], fN(Ff), 1.03);
     }
   }

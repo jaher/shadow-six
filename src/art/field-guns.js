@@ -61,13 +61,17 @@ export function buildFlakTowed(o) {
 /** Round masonry Flak emplacement on a rampart (flak variant flak38_quad_round_emplacement): ring wall + gun. */
 export function buildFlakEmplacement(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), r = o.r ?? 2.2, y = o.y0 ?? 0, x = o.x, z = o.z, h = o.h ?? 1;
-  G.cyl('ashlar', x, y - 0.1, z, r + 0.45, r + 0.45, h + 0.1, 20, 1, { caps: false });
-  G.cyl('ashlar', x, y - 0.1, z, r, r, h + 0.1, 20, 0.8, { caps: false });
-  for (let k = 0; k < 20; k++) {                                                      // coping ring (top of the wall)
-    const a0 = (k / 20) * Math.PI * 2, a1 = ((k + 1) / 20) * Math.PI * 2, P = (a, rr) => [x + Math.cos(a) * rr, y + h + 0.08, z + Math.sin(a) * rr];
-    G.quad('dressed', P(a0, r - 0.05), P(a1, r - 0.05), P(a1, r + 0.5), P(a0, r + 0.5), 1.05);
-  }
-  G.cyl('flags', x, y, z, r, r, 0.03, 20, 0.9);
+  // the ring wall as a solid annular band (Geo.ring: outer face, inner face facing the centre, top, underside,
+  // end faces on a partial arc) with a 40 deg entrance gap facing S, the terrace approach — the old pair of open
+  // cylinders had no inward face at all, so from inside you saw straight through the wall to the terrace
+  const GAP = 0.7, a0 = Math.PI / 2 + GAP / 2, arc = Math.PI * 2 - GAP; // gap centred on +z (S)
+  G.ring('ashlar', x, y - 0.1, z, r, r + 0.45, h + 0.1, 20, 1, { a0, arc });
+  // coping ring, same gap — the band overlaps the wall top by 2 cm so the seam is hidden, not coplanar
+  G.ring('dressed', x, y + h - 0.02, z, r - 0.05, r + 0.5, 0.1, 20, 1.05, { a0, arc });
+  // a proper circular floor face inside (flatPoly disc, wound up) in place of the 3 cm cylinder
+  const disc = [];
+  for (let k = 0; k < 20; k++) { const a = (k / 20) * Math.PI * 2; disc.push([x + Math.cos(a) * r, z + Math.sin(a) * r]); }
+  flatPoly(G, 'flags', disc, y + 0.03, 0.9);
   flakvierling(G, x, y + 0.03, z, (o.rot ?? 0) + (o.aim ?? -1.0), 0.75);
   const F = localFrame(x, z, o.rot ?? 0);
   for (const u of [-1.3, -0.9]) segBox(G, 'paint', F, u - 0.18, u + 0.18, 1.2, 1.55, y + 0.03, y + 0.3, 0.75);

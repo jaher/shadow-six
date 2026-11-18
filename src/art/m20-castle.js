@@ -590,9 +590,11 @@ export function portal(G, Ff, u, y, o2 = {}) {
   for (let k = 0; k < 10; k++) {
     const u0 = -a + (2 * a * k) / 10, u1 = -a + (2 * a * (k + 1)) / 10;
     const top = Math.min(archY(u0, a, spring, rise), archY(u1, a, spring, rise));
-    segBox(G, 'planks', Ff, u + u0, u + u1, -0.25, -0.18, y, top, 0.62 + (k % 2) * 0.06);
+    // the door leaves, recessed 7 cm behind the jamb faces (were w -0.25..-0.18, buried inside the solid body,
+    // so every portal read as a bricked-up arch); the straps ride 3 cm proud of the leaves
+    segBox(G, 'planks', Ff, u + u0, u + u1, -0.02, 0.05, y, top, 0.62 + (k % 2) * 0.06);
   }
-  for (let yy = y + 0.6; yy < y + h - 0.6; yy += 0.75) segBox(G, 'iron', Ff, u - a, u + a, -0.18, -0.15, yy, yy + 0.07, 0.25);
+  for (let yy = y + 0.6; yy < y + h - 0.6; yy += 0.75) segBox(G, 'iron', Ff, u - a, u + a, 0.04, 0.08, yy, yy + 0.07, 0.25);
   // the jambs and the voussoir ring (dressed), a hood-mould over it
   for (const s of [-1, 1]) segBox(G, 'dressed', Ff, u + s * a - (s > 0 ? 0 : 0.32), u + s * a + (s > 0 ? 0.32 : 0), -0.25, 0.12, y, spring, 1.05);
   const N = 14;
@@ -716,14 +718,20 @@ export function buildKeep(o) {
     G.box('dressed', cx, top + 0.09, cz, 1.2, 0.18, 1.2, 0, 1.0);
     for (const ox of [-0.25, 0.25]) G.box('rubble', cx + ox, top + 0.42, cz, 0.28, 0.5, 0.28, 0, 0.7); // clay pots
   }
-  // the garderobe on the donjon's W face, corbelled out over the moat, its chute down the plinth
+  // the garderobe on the donjon's W face, corbelled out over the moat, its chute down the plinth — the box's back
+  // is embedded 0.3 m in the donjon body (it was flush at w=0, reading as detached), and the chute follows the
+  // wall's steps in two segments so it runs alongside the wall instead of floating 0.45 m off it above y=12.6
   {
     const W = wallF('W', x0), u = (z0 + zh) / 2 + 2, yb = y0 + 8.0;
     for (const du of [-0.6, 0, 0.6]) segBox(G, 'dressed', W, u + du - 0.15, u + du + 0.15, 0, 0.9, yb - 1.0, yb, 0.95, { taperOut: -0.6 });
-    segBox(G, 'ashlar', W, u - 0.9, u + 0.9, 0, 1.1, yb, yb + 2.4, 0.97);
-    hipRoof(G, W, u - 0.9, u + 0.9, 0, 1.1, yb + 2.4, 0.7, 'slate', 0.15);
+    segBox(G, 'ashlar', W, u - 0.9, u + 0.9, -0.3, 1.1, yb, yb + 2.4, 0.97);
+    hipRoof(G, W, u - 0.9, u + 0.9, -0.3, 1.1, yb + 2.4, 0.7, 'slate', 0.15);
     segBox(G, 'iron', W, u - 0.25, u + 0.25, 1.1, 1.12, yb + 0.9, yb + 1.6, 0.14);
-    segBox(G, 'rubble', W, u - 0.5, u + 0.5, 0.45, 0.95, BED_Y + 0.2, yb - 1.0, 0.7);
+    // lower: against the battered plinth (face 0.95->0.5); upper: flush to the ashlar (0.5) and the body face (0),
+    // reaching 0.3 m into the box so the chute and the box are one continuous column (the old single chute stopped
+    // at yb-1.0, a full metre below the box, and floated 0.45 m off the body face for its top 7.4 m)
+    segBox(G, 'rubble', W, u - 0.5, u + 0.5, 0.45, 0.95, BED_Y + 0.2, 12.8, 0.7);
+    segBox(G, 'rubble', W, u - 0.5, u + 0.5, -0.02, 0.5, 12.6, yb + 0.3, 0.7);
   }
   // ---- the E block: its roof terrace (the roof ledge: flags, parapets with crenels where the ladders cross); its E
   // face meets the wing (z < 52) and the turret (z 54.5-59.5): nothing proud of it at body height
