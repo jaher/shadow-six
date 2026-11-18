@@ -92,6 +92,13 @@ export const PARAPETS = [
   ['t_par_hq_s', [[22, 77.5], [37.4, 77.5], [37.4, 78], [22, 78]], Y.HQ],
   ['t_par_sw_e', [[37.4, 78], [38, 78], [38, 91], [37.4, 91]], Y.SW],
   ['t_par_sw_s', [[22, 90.4], [38, 90.4], [38, 91], [22, 91]], Y.SW],
+  // (user 2026-11-17: the merlon at u 9.6-10.8 in t_par_sw_s stood in the middle of S_sw's exit, past the
+  // top tread — shifting it along the strip is impossible (neighbours both sides), so it moves OFF the strip
+  // onto the triangular deck's N-S jog as a short parapet return: buildParapet lays one 1.2 m merlon centred
+  // on the jog (31.72, 91.69), clear of the walk band; the exit through-cut below removes it from the strip.
+  // Flush inside the deck (west face on the jog edge, x 31.50) so its 0.44 m width still covers the 0.5 m
+  // grid's cell centre (31.75, 91.75) — a straddling return read as deck level in the grid, not parapet.)
+  ['t_par_sw_jog', [[31.5, 91], [31.5, 92.38], [31.94, 92.38], [31.94, 91]], Y.SW],
   // (user 2026-11-14: the SW bastion's moat-facing west face was bare — a flat top edge with no merlons — while the
   // terrace's south parapet beside it carries a full row. The west edge never had a strip: the S and E edges do.)
   ['t_par_sw_w', [[22, 78], [22.6, 78], [22.6, 91], [22, 91]], Y.SW],
