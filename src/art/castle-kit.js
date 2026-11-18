@@ -830,7 +830,10 @@ export function buildRoundTower(o) {
   // parapet: a solid ring (the deck stays open to the sky — a full coping disc used to roof the sentry), coping, merlons
   G.ring('ashlar', x, Y, z, r - 0.05, r + 0.35, 1.0, seg, 1);
   G.ring('dressed', x, Y + 1.0, z, r - 0.1, r + 0.42, 0.1, seg, 1.05);
-  for (let k = 0; k < 10; k++) {
+  // (user 2026-11-18: no merlons under a cone roof — the cone narrows from r+0.6 at Y+1.0, so at the merlon
+  // tops (Y+1.9) its radius (r+0.6)*(1-0.9/2.2r) is smaller than the merlon ring's r+0.35 for every r, and the
+  // merlons poke ~0.28 m through the cone (h_tur). The parapet ring and coping stay; the cone sits on them.)
+  if (o.roof !== 'cone') for (let k = 0; k < 10; k++) {
     const a0 = (k / 10) * Math.PI * 2;
     G.ring('ashlar', x, Y + 1.1, z, r - 0.05, r + 0.35, 0.8, 4, 0.95 + R() * 0.08, { a0, arc: (Math.PI * 2) / 10 * 0.55 });
   }
