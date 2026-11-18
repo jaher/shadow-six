@@ -9,7 +9,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, assert } from './lib.mjs';
 import { TalkingPortraits, ROLE_TO_CHAR, themeFor, KEY_LINES, nextLine, ownVoiceGate, OWN_VOICE_CD } from '../../src/ui/talking-portraits.js';
-import { registerPortraitPhoto, portraitPhotoURL, getPortraitURL } from '../../src/art/portraits.js';
+import { registerPortraitPhoto, portraitPhotoURL, getPortraitURL, onPortraitPhotos } from '../../src/art/portraits.js';
 import { LINES } from '../../src/audio/voice-lines.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../assets');
@@ -103,6 +103,35 @@ test('portraits: theater grade, photo registry, no-DOM fallback', async () => {
   const tp = new TalkingPortraits({ events: null });
   assert.equal(await tp.load([{ id: 1, role: 'spy' }]), false);
   assert.equal(tp.ok, false);
+});
+
+test('portraits: photo registration notifies subscribers (top-bar refresh)', () => {
+  const seen = [];
+  const unsub = onPortraitPhotos((role, url) => seen.push([role, url]));
+  registerPortraitPhoto('driver', 'assets/portraits/driver/idle_256.jpg');
+  assert.deepEqual(seen, [['driver', 'assets/portraits/driver/idle_256.jpg']]);
+  registerPortraitPhoto('driver', null); // unregistration is silent
+  assert.deepEqual(seen, [['driver', 'assets/portraits/driver/idle_256.jpg']]);
+  unsub();
+  registerPortraitPhoto('driver', 'assets/portraits/driver/idle_256.jpg');
+  assert.deepEqual(seen, [['driver', 'assets/portraits/driver/idle_256.jpg']]);
+  registerPortraitPhoto('driver', null);
+});
+
+test('portraits: probe retries after a failed fetch (no poisoned cache)', async () => {
+  let calls = 0;
+  const fakeFetch = async () => {
+    calls++;
+    if (calls === 1) return { ok: false, status: 503 };
+    return { ok: true, json: async () => man };
+  };
+  assert.equal(await TalkingPortraits.probe({ base: 'test-retry/', fetch: fakeFetch }), null);
+  assert.equal(calls, 1);
+  const got = await TalkingPortraits.probe({ base: 'test-retry/', fetch: fakeFetch });
+  assert.equal(calls, 2);
+  assert.ok(got && got.version === man.version);
+  assert.equal(portraitPhotoURL('greenberet'), 'test-retry/green_beret/idle_256.jpg');
+  for (const r of ROLES) registerPortraitPhoto(r, null);
 });
 
 test('portraits: own-voice line rotation starts at "yes_sir", never repeats back to back, covers every line', () => {
