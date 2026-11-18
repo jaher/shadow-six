@@ -1,13 +1,14 @@
 /**
  * Top bar (design-spec §6.1–6.3): portraits packed from the left at a 65 ref-px pitch (frame 62×44, face 40×40,
- * recessed 9×37 health slot with a 6×34 rgb(104,0,0) fill draining from the top, skull at HP 0, greyscale when
- * unselected, state glyphs), warning flashes (§6.2), the talking-portrait slot + speaker card (§6.3) and the
- * right-hand icons: "?", movie camera (tracking), eye (cone tool) and the siren lamp (the stance toggle lives at the
- * bottom, left of the hand: stance-button.js).
+ * recessed 9×37 health slot with a 6×34 rgb(104,0,0) fill draining from the top, skull at HP 0, softened grey
+ * when unselected (full colour for the selected man, brass frame), state glyphs), warning flashes (§6.2), the
+ * talking-portrait slot + speaker card (§6.3) and the right-hand icons: "?", movie camera (tracking), eye (cone
+ * tool) and the siren lamp (the stance toggle lives at the bottom, left of the hand: stance-button.js).
  * @module ui/topbar
  */
 
-import { getPortraitURL } from '../art/portraits.js';
+import { getPortraitURL, portraitPhotoURL, onPortraitPhotos } from '../art/portraits.js';
+import { TalkingPortraits } from './talking-portraits.js';
 import { perception } from '../ai/perception.js';
 import { CONFIG } from '../config.js';
 import { el, fromHTML, tip } from './dom.js';
@@ -114,8 +115,35 @@ export class TopBar {
       const key = order.indexOf(c.role);
       el('span', 'key', p, key >= 0 ? String(key + 1) : String((world?.rules?.guests && BCD_GUEST_KEY[c.role]) || 7));
       p.addEventListener('click', (e) => this.hud.selectFromPortrait(c, e));
-      this.cards.set(c, { p, img, fill, skull, glyph, slot, mouth, ring, secs, sig: '', glyphKey: '' });
+      // `procedural`: built from the drawn stub because no photo still was registered yet — the refresh below
+      // swaps in the photo when the manifest lands (a failed first probe no longer leaves the stub forever).
+      this.cards.set(c, { p, img, fill, skull, glyph, slot, mouth, ring, secs, sig: '', glyphKey: '', procedural: !portraitPhotoURL(c.role) });
     }
+    // A portrait built from the stub gets its photo when the stills register (late manifest, or a retry after a
+    // failed first probe at boot): refresh only stub-built cards, never an img the talking-portrait attach has
+    // already pointed at a poster / downed still (those are URLs, and the refresh would clobber the state).
+    this._photoUnsub?.();
+    this._photoUnsub = onPortraitPhotos((role) => this._refreshPortraitPhoto(role));
+    if ([...this.cards.values()].some((r) => r.procedural)) {
+      TalkingPortraits.probe({ base: this.hud.portraitsBase }); // no-op when resolved, shared promise when in flight, re-fetch when the first one failed
+    }
+  }
+
+  /** Swap a stub-built portrait for its registered photo still (no-op when none, or already the poster). */
+  _refreshPortraitPhoto(role) {
+    const url = portraitPhotoURL(role);
+    if (!url) return;
+    for (const [c, r] of this.cards) {
+      if (c.role !== role || !r.procedural || !r.img) continue;
+      if (r.img.getAttribute('src') !== url) r.img.src = url;
+      r.procedural = false;
+    }
+  }
+
+  /** Release the photo-registration subscription (HUD.dispose). */
+  dispose() {
+    this._photoUnsub?.();
+    this._photoUnsub = null;
   }
 
   portraitSlot(unitId) {

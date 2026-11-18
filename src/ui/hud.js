@@ -580,6 +580,7 @@ export class HUD {
   dispose() {
     this.portraits?.dispose();
     this.portraits = null;
+    this.topbar?.dispose();
     for (const off of this._subs) off?.();
     this._subs.length = 0;
     window.removeEventListener('resize', this._onResize);

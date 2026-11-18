@@ -62,9 +62,9 @@
   cursor: pointer;
 }
 .hud-portrait .face { position: relative; width: calc(40 * var(--r)); height: calc(40 * var(--r)); overflow: hidden; background: #111; flex: 0 0 auto; }
-.hud-portrait .face img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(0.8) contrast(1.05); transition: filter 0.15s; }
+.hud-portrait .face img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(0.45) brightness(0.92) contrast(1.02); transition: filter 0.15s; }
 .hud-portrait.selected .face img { filter: none; } /* selected men in full colour (primary indicator) */
-.hud-portrait:hover { box-shadow: inset 0 0 0 calc(1 * var(--r)) var(--brass-hi); }
+.hud-portrait.selected, .hud-portrait:hover { box-shadow: inset 0 0 0 calc(1 * var(--r)) var(--brass-hi); }
 .hud-portrait .skull { position: absolute; inset: 0; display: none; background: #1b1712; }
 .hud-portrait .skull svg { width: 100%; height: 100%; }
 .hud-portrait .skull .ico, .hud-portrait .glyph .ico { width: 100%; height: 100%; display: block; object-fit: contain; }

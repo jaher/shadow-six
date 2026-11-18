@@ -68,6 +68,19 @@ export function drawPortrait(ctx, role, opts = {}) {
 
 const _cache = new Map();
 const _photos = new Map(); // role -> photo still URL (talking-portrait poster frames, docs/talking-portraits.md)
+const _photoListeners = new Set(); // fn(role, url): a photo still was registered (ui/topbar.js refreshes stub-built portraits)
+
+/**
+ * Subscribe to photo-still registration: `fn(role, url)` runs whenever a character's photo still is
+ * registered (ui/talking-portraits.js probe(), including a retry after a failed first fetch). The top bar
+ * uses it to swap in the photo for any portrait that was built from the procedural stub before the
+ * manifest arrived. Returns an unsubscribe function.
+ * @param {(role: string, url: string) => void} fn
+ */
+export function onPortraitPhotos(fn) {
+  _photoListeners.add(fn);
+  return () => _photoListeners.delete(fn);
+}
 
 /**
  * Register a photo still for `role` (ui/talking-portraits.js does this from assets/portraits/manifest.json).
@@ -76,8 +89,10 @@ const _photos = new Map(); // role -> photo still URL (talking-portrait poster f
  * @param {string|null} url image URL (null unregisters)
  */
 export function registerPortraitPhoto(role, url) {
-  if (url) _photos.set(role, url);
-  else _photos.delete(role);
+  if (url) {
+    _photos.set(role, url);
+    for (const fn of _photoListeners) fn(role, url);
+  } else _photos.delete(role);
 }
 
 /** Registered photo still for `role`, or null. */

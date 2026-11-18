@@ -206,6 +206,9 @@ export class TalkingPortraits {
   /**
    * Fetch (once per base URL) the clip manifest and register every character's photo still with art/portraits.js,
    * so the briefing / knapsack / top bar show the photo even before (or without) the clips.  Resolves null on failure.
+   * A failed fetch is NOT cached: the entry is dropped so the next probe() retries (one transient failure at boot —
+   * a service-worker install, a Pages hiccup — used to poison the whole session: the top bar kept the procedural
+   * stub for every mission, and load() kept returning false on the same dead promise).
    */
   static probe({ base = 'assets/portraits/', fetch: f, size = 256 } = {}) {
     const b = base.endsWith('/') ? base : base + '/';
@@ -214,11 +217,11 @@ export class TalkingPortraits {
       TalkingPortraits._man.set(b, (async () => {
         try {
           const r = await get(b + 'manifest.json');
-          if (!r.ok) return null;
+          if (!r.ok) { TalkingPortraits._man.delete(b); return null; }
           const man = await r.json();
           for (const e of Object.values(man.characters || {})) if (e.game_id && e.poster) registerPortraitPhoto(e.game_id, b + e.poster.replace('{size}', String(size)));
           return man;
-        } catch { return null; }
+        } catch { TalkingPortraits._man.delete(b); return null; }
       })());
     }
     return TalkingPortraits._man.get(b);
