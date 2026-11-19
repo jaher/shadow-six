@@ -19,6 +19,10 @@
  *    continue them, a dome's bead), the analytic normal where the file is flat-shaded, the artist's own where it is
  *    smooth; a decimated LOD's cone gets its normals smoothed (art/round-roofs.js; user 2026-11-09 "Some round roofs
  *    look polygonal when seen from above")
+ *  - coplanar faces (z-fighting: user 2026-11-18 "Make sure there is no z-fighting in the geometry"): sills flush with
+ *    their window recess, plinth tops under sole plates, lintel undersides in brick soffits, doubled painted boards →
+ *    the smaller face of each overlapping coplanar pair sits 6 mm proud (art/coplanar-split.js); the assets in
+ *    COPLANAR_SPLIT (those tools/art/zfight.mjs found fighting: the LIGHTS OUT colliery's kit buildings)
  *  - coplanar parts (user 2026-11-18 "Make sure there is no z-fighting in the geometry"; tools/art/zfight.mjs): faces of
  *    two parts of one asset exported in the same plane, or a part's top flush with the ground, flickered → the part
  *    that shows draws a depth step nearer (its own polygonOffset material, as the ground decals do; ZFIGHT_NEAR)
@@ -29,6 +33,17 @@ import * as THREE from 'three';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { openChimneyFlues } from './chimney-flues.js';
 import { roundRoofs } from './round-roofs.js';
+import { separateCoplanar } from './coplanar-split.js';
+
+/**
+ * Assets whose coplanar overlapping faces are separated at load (tools/art/zfight.mjs findings); `crossings`: also the
+ * near-coplanar crossings (hut_brick_be's eave pier tops, 4 cm out of / 9.5 cm into the pitched sheet roof: the costlier
+ * pass, only where needed; `reach`: how far through the other face a crossing may go).
+ */
+export const COPLANAR_SPLIT = new Map([
+  ['hut_brick_be', { crossings: true, reach: 0.12, fixed: /corrugated/ }], ['station_rail_goods', {}], ['shed_tarred_be', {}], ['lock_control_shack', {}],
+  ['garage_brick', {}], ['barracks_c', {}], ['guard_hut_b', {}], ['water_tower_legs_ms', {}],
+]);
 
 const C = { net: null, netNor: null };
 
@@ -232,6 +247,7 @@ export function applyAssetFixups(root, name, lod, base = 'assets/', meta = null)
   if (fixPalmFrond(root)) out.push('palm-frond-cutout'); // every desert asset with frond shades/thatch
   if (/^uboat_pen/.test(name) && fixUboatConcrete(root)) out.push('uboat-triplanar');
   if (roundRoofs(root, lod)) out.push('round-roofs'); // every cone / dome of every asset (its own LOD's tolerance)
+  if (COPLANAR_SPLIT.has(name) && separateCoplanar(root, { crossings: false, ...COPLANAR_SPLIT.get(name) }).moved) out.push('coplanar-split'); // last: on the final faces
   if (fixCoplanarParts(root, name)) out.push('coplanar-near');
   return out;
 }

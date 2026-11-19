@@ -26,7 +26,7 @@ export const COMMANDO_ROLES = Object.freeze(['greenberet', 'sniper', 'diver', 's
 export const BCD_ONLY = Object.freeze({
   soldierTypes: ['gestapo', 'lieutenant', 'zookeeper', 'snitch', 'pow', 'lion', 'ostrich', 'chicken'],
   roles: ['grethe', 'tonino'],
-  interactables: ['seaMine', 'pushable', 'lift', 'drawbridge', 'drawbridgeSwitch', 'winch', 'knapsack', 'penGate'],
+  interactables: ['seaMine', 'pushable', 'lift', 'drawbridge', 'drawbridgeSwitch', 'winch', 'knapsack', 'penGate', 'documents'],
 });
 
 /** §4.1 per-type behaviour flag defaults (per-spawn `flags` override). */

@@ -3,12 +3,16 @@
  * `interactables[]` places it, and each checks its `world.rules.*` flag, so BEL never sees them.
  *   seaMine          MINASUB: a boat hull within 1.5 m sets it off (bomb blast, everyone aboard dies); swimmers
  *                    pass; any bullet / grenade detonates it from a distance
- *   pushable         VAGEMPUJ wagon on a rail polyline (`rail`) / DEPOSEMP fuel tank (free); GB and Driver push
+ *   pushable         VAGEMPUJ wagon on a rail polyline (`rail`; `variant: 'spoil'` draws a side-tipping colliery
+ *                    wagon) / DEPOSEMP fuel tank (free); GB and Driver push
  *                    (use): 0.8 / 0.6 m/s, level-1 noise (6 m); moving cover (dynamic LOS occluder); the tank
  *                    blows up (1.5× barrel) on an explosion or 3 bullets
  *   lift             ASCENSOR: `use` at either stop carries up to 4 men to the other stop in 6 s (creaks); each stop
  *                    has its own height (`a: [x, z, y]`, `aY` / `bY`, else the ground there): two levels at different
- *                    heights (a cliff top and the beach, a pithead and its gallery) are two places on the map
+ *                    heights (a cliff top and the beach, a pithead and its gallery) are two places on the map;
+ *                    `winchOnly` (worked only from its winch: use at a stop is refused), `enclosed` (a high-sided
+ *                    skip: carries its riders along a → b, unseen, in `travel` s; men lying in it at a stop are
+ *                    unseen too)
  *   drawbridge       PUENTE: a span (`rect` {x, z, w, d, rot}) that is a walkable deck when lowered and closes the
  *                    channel to boats; raised, walkers cannot cross (a patrol whose route crosses waits at its edge:
  *                    ai/bcd-brain BRIDGE) and boats pass
@@ -127,7 +131,7 @@ export class SeaMine extends Interactable {
 export class Pushable extends Interactable {
   constructor(o) {
     const tank = o.variant === 'tank';
-    super({ ...o, interactKind: 'pushable', label: tank ? 'Fuel tank' : 'Wagon', destructible: tank, dynamic: true });
+    super({ ...o, interactKind: 'pushable', label: o.label ?? (tank ? 'Fuel tank' : 'Wagon'), destructible: tank || !!o.bombable, dynamic: true });
     this.variant = tank ? 'tank' : 'wagon';
     this.size = o.size || (tank ? [3, 1.6] : [5, 2.4]);
     this.rail = o.rail ? o.rail.map((p) => ({ x: p.x ?? p[0], z: p.z ?? p[1] })) : null;
@@ -227,6 +231,9 @@ export class Pushable extends Interactable {
   serialize() { return { ...super.serialize(), goal: this.goal, bulletHits: this.bulletHits }; }
 }
 
+/** What perception reads for a man riding an enclosed cage (`insideStructure` with no owner: nobody sees him). */
+const IN_CAGE = Object.freeze({ owner: 0, cage: true });
+
 export class Lift extends Interactable {
   constructor(o) {
     super({ ...o, interactKind: 'lift', label: o.label ?? 'Lift' });
@@ -234,64 +241,147 @@ export class Lift extends Interactable {
     this.stops = [P(o.a ?? [o.x, o.z], o.aY), P(o.b, o.bY)];
     this.at = o.at ?? 0; // index of the stop the cage is at
     this.ride = null;
+    // `winchOnly`: the cage moves only when its winch (or a bridge switch) sends it: `use` at a stop is refused with
+    // `winchMsg` (an incline's skip, worked from the winding house). `enclosed`: a high-sided cage (a spoil skip) — its
+    // riders crouch below the sides, nobody sees them while it travels, and it carries them along the line a → b (the
+    // cage and the men in it are drawn on the way, not teleported at the end). `travel` s per trip, `creak` m of noise,
+    // `capacity` men, `boardR` m round a stop that counts as aboard. `locked`: a reason the winch refuses (scripts).
+    this.winchOnly = !!o.winchOnly;
+    this.enclosed = !!o.enclosed;
+    this.travel = o.travel ?? null;
+    this.creak = o.creak ?? 8;
+    this.capacity = o.capacity ?? null;
+    this.boardR = o.boardR ?? 1.5;
+    this.locked = null;
   }
   onAdded(world) {
     super.onAdded?.(world);
     // a stop with no authored height stands on the ground there (riders arrive on the cliff top, the gallery floor)
     const g = world?.grid;
     for (const s of this.stops) if (s.y == null) s.y = g?.surfaceY ? g.surfaceY(s.x, s.z) : g?.elevAt ? g.elevAt(s.x, s.z) : 0;
+    this._placeCage(this.at, 0);
   }
   canUse(c) {
     if (!this.world?.rules?.lifts) return "Can't use that.";
+    if (this.winchOnly) return this.params.winchMsg ?? 'It is worked from the winch.';
     return this.ride ? 'The lift is moving.' : true;
   }
-  /** Call the cage to the user's stop, or ride it (everyone within 1.5 m of the stop, up to 4). */
+  /** Seconds per trip (`travel`, else CONFIG.bcd.lift.travel). */
+  get tripTime() { return this.travel ?? CONFIG.bcd.lift.travel; }
+  /** Call the cage to the user's stop, or ride it (everyone within `boardR` of the stop, up to the capacity). */
   interact(c) {
-    if (this.ride) return false; // (a puppet's order reaches here without canUse)
+    if (this.ride || this.winchOnly) return false; // (a puppet's order reaches here without canUse)
     const near = (s) => Math.hypot(c.x - s.x, c.z - s.z);
     const from = near(this.stops[0]) <= near(this.stops[1]) ? 0 : 1;
-    return this._start(from, this.at === from ? CONFIG.bcd.lift.travel : CONFIG.bcd.lift.travel * 2);
+    return this._start(from, this.at === from ? this.tripTime : this.tripTime * 2);
   }
   /** Worked from a winch / switch away from the stops: the cage goes from where it is to the other stop with whoever stands in it. */
   send() {
-    if (this.ride || !this.world?.rules?.lifts) return false;
-    return this._start(this.at, CONFIG.bcd.lift.travel);
+    if (this.ride || !this.world?.rules?.lifts || this.locked) return false;
+    return this._start(this.at, this.tripTime);
+  }
+  /** Who stands at stop `i` to ride: commandos and puppets within `boardR`, up to the capacity. */
+  ridersAt(i) {
+    const w = this.world, s = this.stops[i];
+    return [...w.commandos, ...w.enemies.filter((e) => e.puppetOf)]
+      .filter((u) => u.alive && u.state !== 'inVehicle' && u.state !== 'jailed' && !u.scripted && Math.hypot(u.x - s.x, u.z - s.z) <= this.boardR)
+      .slice(0, this.capacity ?? CONFIG.bcd.lift.capacity);
   }
   _start(from, t) {
-    const w = this.world, s = this.stops[from];
-    const riders = [...w.commandos, ...w.enemies.filter((e) => e.puppetOf)]
-      .filter((u) => u.alive && u.state !== 'inVehicle' && u.state !== 'jailed' && Math.hypot(u.x - s.x, u.z - s.z) <= 1.5)
-      .slice(0, CONFIG.bcd.lift.capacity);
-    this.ride = { t, riders, to: 1 - from };
-    for (const u of riders) u.stop?.();
-    w.emitNoise(this.x, this.z, 8, 'push', this); // creak: level 1
+    const w = this.world;
+    const riders = this.ridersAt(from);
+    // an enclosed cage called from the far stop runs there empty first (nobody rides that leg); the men waiting there
+    // board it when it comes. An open lift keeps its rule: the riders reach the other stop after both legs' time.
+    if (this.enclosed && this.at !== from) this.ride = { t: this.tripTime, T: this.tripTime, riders: [], to: from, from: this.at, call: riders };
+    else this.ride = { t, T: t, riders, to: 1 - from, from, call: null };
+    for (const u of this.ride.riders) u.stop?.();
+    w.emitNoise(this.x, this.z, this.creak, 'push', this); // creak: level 1
     w.events.emit('device', { id: this.tag ?? this.id, sfx: 'lift', x: this.x, z: this.z, on: true });
     return true;
+  }
+  /** Where the cage is `f` (0…1) of the way from stop `from` to the other one. */
+  cageAt(from, f) {
+    const a = this.stops[from], b = this.stops[1 - from];
+    return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f };
+  }
+  /** The cage's model at stop `from` + fraction `f` of the trip (enclosed cages travel; an open lift's cage stays put). */
+  _placeCage(from, f) {
+    const o = this.object3d;
+    if (!o || !this.enclosed) return;
+    const p = this.cageAt(from, f), a = this.stops[0], b = this.stops[1];
+    o.position.set(p.x, p.y, p.z);
+    const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    o.rotation.set(0, -Math.atan2(b.z - a.z, b.x - a.x), Math.atan2(b.y - a.y, run), 'YZX'); // along the line, pitched to its slope
+  }
+  /**
+   * An enclosed cage at rest (a spoil skip at its stop): men lying in it (prone, within `boardR` of the stop, at its
+   * height) are below its sides — nobody sees them; a man who stands up or climbs out is seen again.
+   */
+  _shelter() {
+    const w = this.world;
+    if (!w?.rules?.lifts) return;
+    const s = this.stops[this.at];
+    for (const u of w.commandos) {
+      const low = u.stance === 'crawl' || u.stance === 'crouch' || !!u.isLow;
+      const inSkip = u.alive && low && u.state !== 'inVehicle' && Math.hypot(u.x - s.x, u.z - s.z) <= this.boardR && Math.abs((u.y || 0) - s.y) < 1.5;
+      if (inSkip && !u.insideStructure) u.insideStructure = IN_CAGE;
+      else if (!inSkip && u.insideStructure === IN_CAGE && !u.scripted?.cage) u.insideStructure = null;
+    }
+  }
+  /** Riders of an enclosed cage: carried along with it, below its sides (nobody sees them), until it stops. */
+  _carry(r, f) {
+    const p = this.cageAt(r.from, f);
+    r.riders.forEach((u, k) => {
+      if (!u.alive) { if (u.scripted?.cage) u.scripted = null; if (u.insideStructure === IN_CAGE) u.insideStructure = null; return; }
+      u.scripted = { moving: false, cage: true };
+      u.insideStructure = IN_CAGE;
+      u.x = p.x + ((k % 2) - 0.5) * 0.6; u.z = p.z + (Math.floor(k / 2) - 0.5) * 0.6; u.y = p.y;
+    });
   }
   update(dt) {
     super.update?.(dt);
     if (this._rideLoad) { // a ride saved mid-way: its riders are restored by now
       const d = this._rideLoad;
       this._rideLoad = null;
-      this.ride = { t: d.t, to: d.to, riders: (d.riders || []).map((id) => this.world?.byId(id)).filter(Boolean) };
+      const ids = (l) => (l || []).map((id) => this.world?.byId(id)).filter(Boolean);
+      this.ride = { t: d.t, T: d.T ?? d.t, to: d.to, from: d.from ?? 1 - d.to, riders: ids(d.riders), call: d.call ? ids(d.call) : null };
     }
     const r = this.ride;
-    if (!r || (r.t -= dt) > 0) return;
+    if (!r) { if (this.enclosed) this._shelter(); return; }
+    r.t -= dt;
+    if (this.enclosed && r.t > 0) {
+      const f = Math.max(0, Math.min(1, 1 - r.t / (r.T || 1)));
+      this._placeCage(r.from, f);
+      this._carry(r, f);
+      return;
+    }
+    if (r.t > 0) return;
     const s = this.stops[r.to];
-    r.riders.forEach((u, k) => { if (u.alive) { u.x = s.x + (k % 2) * 0.6; u.z = s.z + Math.floor(k / 2) * 0.6; u.y = s.y; u.stop?.(); } });
+    r.riders.forEach((u, k) => {
+      if (u.scripted?.cage) u.scripted = null;
+      if (u.insideStructure === IN_CAGE) u.insideStructure = null;
+      if (u.alive) { u.x = s.x + (k % 2) * 0.6; u.z = s.z + Math.floor(k / 2) * 0.6; u.y = s.y; u.stop?.(); }
+    });
     this.at = r.to;
     this.ride = null;
+    this._placeCage(this.at, 0);
     this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'lift', x: s.x, z: s.z, on: false });
+    this.world?.events.emit('lift:arrived', { lift: this, at: this.at, riders: r.riders });
+    // called to a far stop: the cage has come; the men waiting there now ride it back (an enclosed cage's call)
+    if (r.call?.length && this.enclosed) this._start(this.at, this.tripTime);
   }
   serialize() {
     const r = this.ride;
-    return { ...super.serialize(), at: this.at, ride: r ? { t: r.t, to: r.to, riders: r.riders.map((u) => u.id) } : null };
+    return { ...super.serialize(), at: this.at, locked: this.locked,
+      ride: r ? { t: r.t, T: r.T, to: r.to, from: r.from, riders: r.riders.map((u) => u.id), call: r.call ? r.call.map((u) => u.id) : null } : null };
   }
   deserialize(d) {
     super.deserialize(d);
     this.at = d.at ?? this.at;
+    this.locked = d.locked ?? null;
     this.ride = null;
     this._rideLoad = d.ride ?? null;
+    this._placeCage(this.at, 0);
   }
 }
 
@@ -376,7 +466,10 @@ export class DrawbridgeSwitch extends Interactable {
   approachFrom(u) { return edgeApproach(this, u, 0.4, 0.3); }
   canUse() {
     const R = this.world?.rules;
-    return (this.interactKind === 'winch' ? R?.lifts : R?.drawbridges) ? true : "Can't use that.";
+    if (!(this.interactKind === 'winch' ? R?.lifts : R?.drawbridges)) return "Can't use that.";
+    // a lift a script has stopped (Lift.locked: the winchman stopped the incline) refuses with its reason
+    const stopped = this.interactKind === 'winch' && (this.world?.interactables || []).find((it) => it instanceof Lift && it.locked && this.targets.includes(it.tag ?? it.id));
+    return stopped ? stopped.locked : true;
   }
   interact() {
     let ok = false;
@@ -439,10 +532,97 @@ function pushableMesh(s) {
   return g;
 }
 
+/** A part: geometry `geo` in material `mat` at (x, y, z) in `g` (rotations optional). */
+function part(g, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true;
+  g.add(m);
+  return m;
+}
+/**
+ * Side-tipping colliery spoil wagon (`variant: 'spoil'`, 4 × 2.2 m by default; the e04 tub tramway): a riveted V
+ * hopper on its trunnions over a short underframe, four spoked wheels, dumb buffers, a heaped load of wet shale.
+ * Authored along +x (faceHeading turns it onto the push heading).
+ */
+let _spoilLoad = null;
+/** Wet shale for the spoil wagons' loads (vertex colours; one material for all of them). */
+function spoilLoadMaterial() {
+  return (_spoilLoad ??= new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.82, metalness: 0, name: 'bcd:spoil-load' }));
+}
+function spoilWagonMesh(s) {
+  const [L, W] = s.size || [4, 2.2], g = new THREE.Group(), inner = new THREE.Group();
+  g.add(inner); g.userData.inner = inner; g.position.set(s.x, 0, s.z);
+  const steel = paintedMaterial('steel', 0x4b4038), iron = dressingMaterial('castIron'), load = paintedMaterial('tarPaper', 0x1d1b1a);
+  part(inner, boxUV(new THREE.BoxGeometry(L * 0.86, 0.22, W * 0.55).toNonIndexed(), 1), iron, 0, 0.62, 0); // underframe
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { // wheels on the narrow-gauge axles
+    part(inner, new THREE.CylinderGeometry(0.31, 0.31, 0.09, 14), iron, sx * L * 0.27, 0.31, sz * W * 0.3, Math.PI / 2);
+    part(inner, new THREE.CylinderGeometry(0.08, 0.08, 0.14, 8), iron, sx * L * 0.27, 0.31, sz * W * 0.34, Math.PI / 2);
+  }
+  for (const sx of [-1, 1]) {
+    part(inner, boxUV(new THREE.BoxGeometry(0.16, 0.22, W * 0.62).toNonIndexed(), 1), iron, sx * L * 0.45, 0.62, 0); // headstocks
+    part(inner, new THREE.CylinderGeometry(0.1, 0.12, 0.22, 10), iron, sx * (L * 0.45 + 0.17), 0.66, 0, 0, 0, Math.PI / 2); // dumb buffer
+    part(inner, boxUV(new THREE.BoxGeometry(0.12, 0.5, 0.18).toNonIndexed(), 1), iron, sx * L * 0.36, 0.95, 0); // trunnion post
+  }
+  // the V hopper: two sloped side plates and two end plates
+  const hw = W * 0.46, hb = W * 0.12, y0 = 0.8, y1 = 2.0, slope = Math.atan2(hw - hb, y1 - y0), side = Math.hypot(hw - hb, y1 - y0);
+  for (const sz of [-1, 1]) part(inner, boxUV(new THREE.BoxGeometry(L * 0.8, side, 0.06).toNonIndexed(), 1), steel, 0, (y0 + y1) / 2, sz * (hw + hb) / 2, sz * slope);
+  for (const sx of [-1, 1]) {
+    const shape = new THREE.Shape([new THREE.Vector2(-hb, y0), new THREE.Vector2(hb, y0), new THREE.Vector2(hw, y1), new THREE.Vector2(-hw, y1)]);
+    const end = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+    part(inner, boxUV(end.toNonIndexed(), 1), steel, sx * L * 0.4 - 0.03, 0, 0, 0, Math.PI / 2);
+  }
+  for (const sz of [-1, 1]) part(inner, boxUV(new THREE.BoxGeometry(L * 0.82, 0.07, 0.07).toNonIndexed(), 1), iron, 0, y1, sz * hw); // top rails
+  // the load: wet shale heaped above the rim in a slumped, lumpy ridge (a heightfield over the hopper's mouth), loose
+  // fragments lying on it; near-black with a few rusty and grey pieces (vertex colours)
+  const nu = 16, nv = 8, lx = L * 0.78, lz = hw * 1.9, lp = [], lc = [], li = [];
+  const surf = (u, v) => {
+    const ridge = Math.max(0, (1 - Math.pow(Math.abs(v) * 2, 1.5)) * (1 - Math.pow(Math.abs(u) * 2, 3)));
+    const n = Math.sin(u * 23.1 + v * 7.7) * Math.cos(v * 19.3 - u * 5.1) * 0.5 + Math.sin(u * 51 + v * 37) * 0.25;
+    return { y: y1 - 0.08 + ridge * (0.4 + 0.12 * n) + 0.04 * n * Math.min(1, ridge * 4), n };
+  };
+  for (let j2 = 0; j2 <= nv; j2++) for (let i2 = 0; i2 <= nu; i2++) {
+    const u = i2 / nu - 0.5, v = j2 / nv - 0.5, { y, n } = surf(u, v), c = 0.08 + 0.035 * n;
+    lp.push(u * lx, y, v * lz); lc.push(c, c * 0.96, c * 0.92);
+  }
+  for (let j2 = 0; j2 < nv; j2++) for (let i2 = 0; i2 < nu; i2++) { const a = j2 * (nu + 1) + i2, b = a + 1, c = a + nu + 1, d = c + 1; li.push(a, c, b, b, c, d); }
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
+  lg.setIndex(li); lg.computeVertexNormals();
+  const shale = spoilLoadMaterial();
+  part(inner, lg, shale, 0, 0, 0);
+  for (let k = 0; k < 14; k++) {
+    const r1 = Math.sin(k * 12.9898) * 43758.5453, r2 = Math.sin(k * 78.233) * 12345.678, fu = r1 - Math.floor(r1), fv = r2 - Math.floor(r2);
+    const u = (fu - 0.5) * 0.8, v = (fv - 0.5) * 0.7, sc = 0.07 + 0.09 * ((k * 7) % 5) / 4, fr = new THREE.IcosahedronGeometry(sc, 0);
+    const tone = k % 7 === 3 ? [0.28, 0.15, 0.1] : k % 5 === 1 ? [0.2, 0.2, 0.19] : [0.09, 0.087, 0.084];
+    fr.setAttribute('color', new THREE.Float32BufferAttribute(new Array(fr.attributes.position.count).fill(tone).flat(), 3));
+    const piece = part(inner, fr, shale, u * lx, surf(u, v).y + sc * 0.3, v * lz, k, k * 2.1, k * 0.7);
+    piece.scale.set(1.3, 0.55, 1);
+  }
+  return faceHeading(g);
+}
+/**
+ * The skip of an enclosed lift (`enclosed: true`; e04's incline): a high-sided steel spoil skip on a wheeled
+ * carriage, authored along +x (Lift._placeCage turns it along the line a → b and pitches it to the incline), its
+ * floor at the stop's height. Riders crouch inside; its 1.2 m sides hide them.
+ */
+function skipMesh(s) {
+  const g = new THREE.Group();
+  const steel = paintedMaterial('steel', 0x3f3a35), iron = dressingMaterial('castIron');
+  part(g, boxUV(new THREE.BoxGeometry(2.9, 0.2, 1.8).toNonIndexed(), 1), iron, 0, 0.25, 0); // carriage
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, new THREE.CylinderGeometry(0.26, 0.26, 0.1, 12), iron, sx * 1.05, 0.26, sz * 0.82, Math.PI / 2);
+  part(g, boxUV(new THREE.BoxGeometry(2.7, 0.08, 1.7).toNonIndexed(), 1), steel, 0, 0.4, 0); // floor
+  for (const sz of [-1, 1]) part(g, boxUV(new THREE.BoxGeometry(2.7, 1.2, 0.07).toNonIndexed(), 1), steel, 0, 1.0, sz * 0.82); // sides
+  for (const sx of [-1, 1]) part(g, boxUV(new THREE.BoxGeometry(0.07, 1.2, 1.7).toNonIndexed(), 1), steel, sx * 1.33, 1.0, 0); // ends
+  for (const sz of [-1, 1]) part(g, boxUV(new THREE.BoxGeometry(2.8, 0.08, 0.1).toNonIndexed(), 1), iron, 0, 1.62, sz * 0.84); // top rails
+  part(g, new THREE.TorusGeometry(0.22, 0.04, 6, 12), iron, 1.5, 0.5, 0, 0, Math.PI / 2); // the rope shackle
+  g.position.set(s.x, 0, s.z);
+  return g;
+}
+
 const MESH = {
   seaMine: seaMineMesh,
-  pushable: pushableMesh,
-  lift: (s) => cage(s.x, s.z),
+  pushable: (s) => (s.variant === 'spoil' ? spoilWagonMesh(s) : pushableMesh(s)),
+  lift: (s) => (s.enclosed ? skipMesh(s) : cage(s.x, s.z)),
   // the span matches its nav rect (w along `rot`, d across): the deck lies across the water, not along it, its
   // boards flush with the banks (walkers' feet stay on top)
   drawbridge: (s) => { const m = box((s.rect?.w ?? 3), 0.3, (s.rect?.d ?? 8), dressingMaterial('planks'), s.rect?.x ?? s.x, s.rect?.z ?? s.z, -0.27); m.rotation.y = -(s.rect?.rot ?? 0); return m; },
@@ -455,6 +635,76 @@ const CLASS = { seaMine: SeaMine, pushable: Pushable, lift: Lift, drawbridge: Dr
 for (const [kind, C] of Object.entries(CLASS)) {
   INTERACTABLE_KINDS[kind] = (spec, opts = {}) => new C({ ...spec, object3d: opts.meshes === false ? null : MESH[kind]?.(spec) ?? null });
 }
+/** Commando roles that may carry papers away (guests carry nothing: bcd-plan §1.8). */
+const PAPER_ROLES = new Set(['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy']);
+/**
+ * Mission papers (`kind: 'documents'`: a bearing archive, a key-table binder): taken with the hand (H) by any commando,
+ * they are an objective's item, not kit — no knapsack slot. `inside: '<structure id>'` puts them in a building with a
+ * walk-in (abilities/bunker-entry.js `entry`: he walks in, takes them, walks out). Taking them emits
+ * 'documents:taken' {item, by}; a script may also hand them to an enemy (`takeBy(enemy)`: the papers leave with him) and
+ * put them down again (`dropAt(x, z)`). The commando who has them carries `documents: [id]`.
+ */
+export class Documents extends Interactable {
+  constructor(o) {
+    super({ ...o, interactKind: 'documents', label: o.label ?? 'Documents' });
+    this.takenBy = null;
+  }
+  onAdded(world) { super.onAdded?.(world); if (this.params.inside == null) stampSolid(this, 0.6, 0.45); }
+  approachFrom(u) { return this.params.inside != null ? { x: this.x, z: this.z } : edgeApproach(this, u, 0.6, 0.45); }
+  canUse(c) {
+    if (this.takenBy || this.removed) return 'Nothing there.';
+    return PAPER_ROLES.has(c?.role) ? true : "Can't take that.";
+  }
+  interact(c) {
+    if (this.takenBy || !c) return false;
+    this.takenBy = c.id;
+    c.documents = [...(c.documents || []), this.tag ?? this.id];
+    this._gone();
+    const w = this.world;
+    w?.events.emit('documents:taken', { item: this, by: c });
+    w?.events.emit('message', { text: `${c.nickname || 'Commando'} has the ${String(this.label || 'documents').toLowerCase()}.`, kind: 'objective', unit: c });
+    return true;
+  }
+  /** An enemy takes the papers (a script: the station chief carrying the archive away). */
+  takeBy(e) {
+    if (this.takenBy || !e) return false;
+    this.takenBy = e.id;
+    this._gone();
+    this.world?.events.emit('documents:taken', { item: this, by: e });
+    return true;
+  }
+  /** Put the papers down again at (x, z) (their carrier fell): back on the ground, to be taken. */
+  dropAt(x, z) {
+    this.takenBy = null;
+    this.x = x; this.z = z;
+    this.params = { ...this.params, inside: null };
+    this.alive = true; this.removed = false;
+    if (this.object3d) { this.object3d.visible = true; this.object3d.position.set(x, 0, z); }
+    stampSolid(this, 0.6, 0.45);
+  }
+  _gone() {
+    if (this.object3d) this.object3d.visible = false;
+    stampSolid(this, 0.6, 0.45, true);
+  }
+  serialize() { return { ...super.serialize(), takenBy: this.takenBy, x: this.x, z: this.z }; }
+  deserialize(d) {
+    super.deserialize(d);
+    this.takenBy = d.takenBy ?? null;
+    if (this.takenBy) this._gone();
+  }
+}
+/** A box file of bearing sheets on a ledger: a small, readable prop (unseen inside a building). */
+function documentsMesh(s) {
+  const g = new THREE.Group();
+  const board = paintedMaterial('weatherboard', 0x6b5236), paper = paintedMaterial('canvas', 0xd8d2bf), cloth = paintedMaterial('canvas', 0x37442e);
+  part(g, boxUV(new THREE.BoxGeometry(0.6, 0.06, 0.45).toNonIndexed(), 1), board, 0, 0.03, 0);
+  part(g, boxUV(new THREE.BoxGeometry(0.42, 0.08, 0.3).toNonIndexed(), 1), cloth, -0.05, 0.1, 0);
+  part(g, boxUV(new THREE.BoxGeometry(0.34, 0.05, 0.26).toNonIndexed(), 1), paper, 0.1, 0.17, 0.02, 0, 0.35, 0);
+  g.position.set(s.x, 0, s.z);
+  return g;
+}
+INTERACTABLE_KINDS.documents = (spec, opts = {}) => new Documents({ ...spec, object3d: opts.meshes === false ? null : documentsMesh(spec) });
+
 /** A pen gate: a door whose leaf fills the gap of its fence run (blocked like the fence while shut, clear while open). */
 export class PenGate extends Interactable {
   constructor(o) { super({ ...o, interactKind: 'door', label: o.label ?? 'Pen gate' }); }

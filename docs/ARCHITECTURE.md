@@ -195,6 +195,9 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `explosion` | `{x, z, radius, kind, source, accident?}` | bombs/grenades/vehicles → fx, audio, world damage, alarm |
 | `fire` / `structure:destroyed` | `{x, z, on, r?}` (r: a burning spill's radius, world/fires.js) / `{id, type, owner}` | fx/interactables → audio, mission, world.fires |
 | `door` / `device` | `{id, open}` / `{id, sfx, x, z, on}` | interactables → audio, AI (door seen used §4.6) |
+| `lift:arrived` | `{lift, at, riders}` | BCD lift (entities/bcd-interactables.js) → mission scripts (e04 incline) |
+| `documents:taken` | `{item, by}` | BCD mission papers (bcd-interactables.js Documents) → mission scripts (e04 archive, o1) |
+| `e04:shaft` | `{stage}` | e04 shaft script (missions/scripts/e04.js) → ui, tests: office, shaft, ring, down |
 | `vehicle:enter`/`vehicle:exit` | `{vehicle, unit}` | vehicles → ui, AI (tainted §3.7) |
 | `vehicle:move` / `vehicle:stop` | `{vehicle, speed}` / `{vehicle}` | vehicles → audio |
 | `vehicle:gear` | `{vehicle, reverse}` | vehicles → audio (a change of gear in a multi-point turn) |

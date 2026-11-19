@@ -113,7 +113,7 @@ export function handTarget(c, t, world) {
   if (t.kind === 'commando' && t.alive && isTransportable(t, world)) return { kind: 'body', ent: t }; // §C.1 downed buddy / cannotWalk guest
   if (t.kind === 'vehicle') return t.vehicleType === 'raft' ? { kind: 'raft', ent: t } : null;
   if (t.kind === 'interactable') return t.interactKind === 'barrel' ? { kind: 'barrel', ent: t } : { kind: 'item', ent: t };
-  const it = interactableNear(world, x, z, 1.2, (i) => i.interactKind === 'barrel' || ['pickup', 'ammo', 'crate', 'decoy', 'trap'].includes(i.interactKind)
+  const it = interactableNear(world, x, z, 1.2, (i) => i.interactKind === 'barrel' || ['pickup', 'ammo', 'crate', 'decoy', 'trap', 'documents'].includes(i.interactKind)
     || (i.interactKind === 'bomb' && i.placed));
   if (it) return it.interactKind === 'barrel' ? { kind: 'barrel', ent: it } : { kind: 'item', ent: it };
   const b = bodyNear(world, x, z, 1.2) || (ko ? enemyNear(world, x, z, 1.2, (q) => !!q.ko && !q.puppetOf && q.state !== 'carried') : null);

@@ -64,6 +64,9 @@ export const WATER_PRESETS = {
   // from W-B's turbidity looks: `turbidity` (1/m) is extinction by suspended matter added to absorption
   clear: { absorb: [0.45, 0.075, 0.035], scatter: [0.006, 0.050, 0.060], foam: [0.9, 0.92, 0.93], roughness: 0.06, sss: 0.8, turbidity: 0.02 },
   muddy: { absorb: [0.90, 0.55, 0.75], scatter: [0.060, 0.050, 0.028], foam: [0.78, 0.74, 0.66], roughness: 0.07, sss: 0, turbidity: 0.9 },
+  // colliery slurry (LIGHTS OUT e04): coal fines in suspension — near-black, opaque, an oily gloss; only a mission's
+  // `water.preset: 'slurry'` picks it
+  slurry: { absorb: [1.6, 1.55, 1.45], scatter: [0.010, 0.010, 0.009], foam: [0.34, 0.33, 0.31], roughness: 0.04, sss: 0, turbidity: 1.0 },
 };
 
 /** Cosine-weighted upper-hemisphere irradiance of an equirect HDR (DataTexture, float/half). */

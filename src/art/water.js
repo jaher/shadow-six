@@ -52,6 +52,7 @@ export function iceShelfWidth(theater, velocity = 0) {
 
 /** Optical preset per theatre and body type (design-spec §2.4 colours). */
 export function waterPreset(theater, type, mission = {}) {
+  if (mission.water?.preset) return mission.water.preset; // a mission's own optics (LIGHTS OUT e04: colliery slurry)
   if (type === 'sea') return theater === 'snow' ? 'fjord' : 'sea';
   if (type === 'river') return theater === 'desert' ? 'muddy' : theater === 'snow' ? 'clear' : 'river';
   if (theater === 'snow') return 'fjord';

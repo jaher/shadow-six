@@ -570,7 +570,7 @@ export class Game {
     const dig = gb ? safe(() => digWarmObjects(gb.x, gb.z, (world.groundY?.(gb.x, gb.z) || 0) + (gb.y || 0)), 'dig warm-up') : null;
     safe(() => world.blood?.layers?.pools?.warmMesh?.(), 'blood pools warm-up'); // (drawn by the warm-up frame only)
     safe(() => this.selection?.noise?.prewarm?.(), 'noise ring warm-up'); // (the first running step's ring)
-    safe(() => this.selection?.prewarmBcd?.(world), 'BCD overlay warm-up'); // (the first knock-out's arc: render/bcd-overlay.js)
+    safe(() => this.selection?.prewarmBcd?.(world), 'BCD overlay warm-up'); // (the first puppet's disc, the first knock-out's arc)
     const wireWarm = safe(() => this.mapHandle?.wire?.warmObjects?.(), 'wire warm-up') || []; // (a cut's flaps and hollow)
     // (+ the raft deflated / inflating and the strapped pack, where the Marine can inflate or pack one: art/raft-actions.js)
     const diver = world.commandos.find((c) => c.role === 'diver'), rv = world.vehicles.find((v) => v.vehicleType === 'raft') || diver;

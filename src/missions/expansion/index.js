@@ -19,6 +19,7 @@ import './e02_curfew.js';
 // e03
 
 // e04
+import './e04_black_rain.js';
 
 // e05
 

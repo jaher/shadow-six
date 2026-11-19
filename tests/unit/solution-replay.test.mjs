@@ -8,8 +8,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, assert, near } from './lib.mjs';
 import { catalogFromFiles, _setCatalog, hasSolution, solutionIds } from '../../src/debug/solutions.js';
-import { TickPacer, SPEEDS, TURBO_MS, describeOrder } from '../../src/debug/solution-replay.js';
-import { makeDriver, SolutionAborted } from '../../tools/solutions/driver.mjs';
+import { TickPacer, SPEEDS, TURBO_MS, describeOrder, FrameWaiters } from '../../src/debug/solution-replay.js';
+import { makeDriver, SolutionAborted, PLAN_SLICE_MS } from '../../tools/solutions/driver.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -221,6 +221,35 @@ test('replay: a tick that set off an explosion ends its frame\'s ticks and the n
   rp._frame(1 / 60); ev.flushLate();
   for (let i = 0; i < 5 && rp._ready(); i++) rp._tick();
   assert.equal(w.tick, t1 + 5, 'fast-forward: no hold');
+});
+
+test('frame waiters: every sliced plan parked in a frame wakes on the next one, in the order it parked', async () => {
+  const fw = new FrameWaiters(), woke = [];
+  const a = fw.wait().then(() => woke.push('a')), b = fw.wait().then(() => woke.push('b'));
+  assert.equal(fw.length, 2);
+  fw.wakeAll();
+  await Promise.all([a, b]);
+  assert.deepEqual(woke, ['a', 'b']);
+  assert.equal(fw.length, 0);
+  const c = fw.wait();
+  fw.rejectAll(new SolutionAborted());
+  await assert.rejects(c, SolutionAborted);
+});
+
+test('driver: two parallel flows each mid-plan in the same frame both finish (LIGHTS OUT e04 hung at t = 0 on one slot)', async () => {
+  const { w } = fakeWorld();
+  const fw = new FrameWaiters();
+  let frameNo = 0;
+  const D = makeDriver(w, { step: () => { w.time += 1 / 60; }, quiet: true, log: () => {}, pause: () => fw.wait(), frame: () => frameNo });
+  // a plan of four steps, each a little longer than a slice: it hands the frame back after every one
+  function* plan(tag) { for (let k = 0; k < 4; k++) { const t0 = performance.now(); while (performance.now() - t0 < PLAN_SLICE_MS + 1) { /* work */ } yield k; } return tag; }
+  let out = null;
+  const run = D.parallel(() => D.runSliced(plan('a')), () => D.runSliced(plan('b'))).then((r) => { out = r; });
+  // the live replay's frames: each wakes every plan parked in the one before
+  for (let f = 0; f < 40 && !out; f++) { frameNo++; fw.wakeAll(); await new Promise((r) => setTimeout(r, 0)); }
+  await run;
+  assert.deepEqual(out, ['a', 'b'], 'both flows finished their plans');
+  assert.equal(w.time, 0, 'no tick while they planned');
 });
 
 test('replay: two flows of a D.parallel that both plan sliced in one frame (as the flows start together) both go on in the next frame', async () => {

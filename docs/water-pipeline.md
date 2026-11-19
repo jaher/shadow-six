@@ -229,6 +229,9 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
 Optical presets: `sea`, `harbor` (turbidity 0.1), `lake`, `river` (sheen 1.6), `fjord`, `reservoir`, `clear`
 and `muddy` (turbidity 0.9). The last two are W-B's turbidity looks converted to this module's absorption and
 scatter model; W-B's `river`, `sea`, `harbor`, `fjord` and `reservoir` looks map to the existing presets.
+`slurry` (LIGHTS OUT e04's colliery lagoon: coal fines in suspension, near-black and opaque with an oily gloss) is
+picked only by a mission that asks for it: `water: { …, preset: 'slurry' }` (`waterPreset` returns `mission.water.preset`
+when one is set, before the theatre rules).
 
 ## 5. Integration with the nav grid's water cells
 
