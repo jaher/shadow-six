@@ -1836,7 +1836,9 @@ export class Vehicle extends Entity {
         if (u.state === 'active' && g.walkableAt(nx, nz) && g.walkableLine(u.x, u.z, nx, nz)
           && u.walkStraight?.(nx, nz, { run: true, onArrive: () => { u.heading = hd; } })) u.stepAside = { by: this, until: this.world.time + 2.5 };
         else u.heading = angleTo(u.x, u.z, this.x, this.z);
-        if (this.driver && this.driver.faction === 'player') this.taint(u);
+        // (a man out cold or cuffed reports nothing; under BCD neither does one who takes no notice — the dozing lorry
+        // driver, as boarding: _checkTaint)
+        if (this.driver && this.driver.faction === 'player' && !u.ko && !(this.world?.rules?.id === 'BCD' && u.brain?.reacts?.() === false)) this.taint(u);
       }
     }
   }
@@ -1888,7 +1890,8 @@ export class Vehicle extends Entity {
         if (bodyRectGap(px, pz, hd, u.stance, R) < 0.1 || bodyGap(w, px, pz, hd, u.stance, this) < 0.1) continue;
         if (!u.walkStraight?.(px, pz, { run: true, onArrive: () => { u.heading = hd; } })) continue;
         u.stepAside = { by: this, until: w.time + 2.5 };
-        if (!own && this.driver && this.driver.faction === 'player') this.taint(u);
+        // (under BCD a man who takes no notice — the dozing lorry driver — steps aside and reports nothing: _runover)
+        if (!own && this.driver && this.driver.faction === 'player' && !(w?.rules?.id === 'BCD' && u.brain?.reacts?.() === false)) this.taint(u);
         return true;
       }
       return true;

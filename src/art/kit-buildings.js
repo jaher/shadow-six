@@ -89,7 +89,8 @@ function windowAt(g, S, place, x, y, w = 0.9, h = 1.25, shutters = true) {
   const parts = [
     [tbox(w + 0.12, 0.08, 0.1, frame, 0, h / 2 + 0.04, 0, 0.6)], [tbox(w + 0.12, 0.08, 0.1, frame, 0, -h / 2 - 0.04, 0, 0.6)],
     [tbox(0.08, h, 0.1, frame, -w / 2 - 0.02, 0, 0, 0.6)], [tbox(0.08, h, 0.1, frame, w / 2 + 0.02, 0, 0, 0.6)],
-    [tbox(0.05, h, 0.06, frame, 0, 0, 0.0, 0.6)], [tbox(w, 0.05, 0.06, frame, 0, h * 0.12, 0.0, 0.6)],
+    // (the transom 1 cm shallower than the mullion: where they cross, their faces shared a plane — z-fighting)
+    [tbox(0.05, h, 0.06, frame, 0, 0, 0.0, 0.6)], [tbox(w, 0.05, 0.04, frame, 0, h * 0.12, 0.0, 0.6)],
     [tbox(w + 0.25, 0.06, 0.16, dressingMaterial(S.trim), 0, -h / 2 - 0.1, 0.04, 0.6)],
     [mesh(new THREE.PlaneGeometry(w, h), glass, false)],
   ];
@@ -259,7 +260,13 @@ export function buildKitHouse(p, theater = 'temperate') {
       for (const [r0, r1] of runs) {
         const L = r1 - r0, m = (r0 + r1) / 2, px = ax ? m : x, pz = ax ? z : m, whole = runs.length === 1 && L >= len - 1e-6;
         g.add(tbox(ax ? L : pt, ph, ax ? pt : L, wallMat, px, h + ph / 2, pz, 2.2));
-        g.add(tbox(ax ? L + (whole ? 0.04 : 0) : pt + 0.08, 0.06, ax ? pt + 0.08 : L + (whole ? 0.04 : 0), trim, px, h + ph + 0.03, pz, 1.5));
+        // (a side run's coping stops at the front / back copings, which cover the corners: overlapping, their tops shared
+        // a plane — z-fighting)
+        if (ax) g.add(tbox(L + (whole ? 0.04 : 0), 0.06, pt + 0.08, trim, px, h + ph + 0.03, pz, 1.5));
+        else {
+          const c0 = Math.max(r0, -d / 2 + pt + 0.04), c1 = Math.min(r1, d / 2 - pt - 0.04);
+          if (c1 - c0 > 0.02) g.add(tbox(pt + 0.08, 0.06, c1 - c0, trim, px, h + ph + 0.03, (c0 + c1) / 2, 1.5));
+        }
       }
     }
     // (nothing stands on a walkable roof: roof walkers must not walk through domes, stairheads or chimneys)

@@ -1751,7 +1751,9 @@ export class EnemyBrain {
       e.stop();
       this.atWait = true;
       this.waitT = wp.wait ?? 0;
-      if (this.waitT > 0) this._sweep(true, CONFIG.stealth.vision.patrolWatch.sweep * DEG, CONFIG.stealth.vision.patrolWatch.period);
+      // (a halt's own `sweep`, degrees each side: a man looting a doorway or watching one spot keeps his head on it;
+      // without one, the patrol watch's ±50°)
+      if (this.waitT > 0) this._sweep(true, (wp.sweep ?? CONFIG.stealth.vision.patrolWatch.sweep) * DEG, CONFIG.stealth.vision.patrolWatch.period);
     }
     if (wp.look != null) e.turnToHeading(wp.look * DEG, dt); // `look` heading in degrees (§4.1)
     this.waitT -= dt;

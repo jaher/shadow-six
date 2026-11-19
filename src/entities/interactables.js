@@ -467,6 +467,24 @@ export class Interactable extends Entity {
     return true;
   }
 
+  /**
+   * BCD captive stowing (docs/expansion/MECHANICS.md): the cuffed captive `c` carries is put inside this enterable
+   * building — hidden like a man in a hideout (state 'hidden', out of every cone; bcd-brain bcdScan never finds him),
+   * still cuffed. The carrier stays outside. He stays in there (only the building's destruction brings him out).
+   */
+  stow(c) {
+    const u = c.carrying;
+    if (!stowable(u, this.world) || !this.enterable || this.destroyed) return false;
+    const mode = c.carryMode || null;
+    c.carrying = null; c.carryMode = null; c.carryTransition = null;
+    u.carriedBy = null;
+    u.state = 'bound';
+    if (!this.admit(u)) { u.state = 'carried'; u.carriedBy = c; c.carrying = u; c.carryMode = mode; return false; }
+    c.refreshAbilities?.();
+    this.world?.events.emit('load:dropped', { carrier: c, load: u, how: 'stowed', mode, door: this });
+    return true;
+  }
+
   // ------------------------------------------------------------ activation
 
   /** Can `commando` operate / pick this up? @returns {true|string} reason when not */
@@ -474,6 +492,8 @@ export class Interactable extends Entity {
     if (this.destroyed || this.removed) return 'Nothing there.';
     const role = commando?.role;
     if (this.roles && !this.roles.includes(role)) return "Can't use that.";
+    // (BCD: a cuffed captive on his shoulder goes inside an enterable building — stow)
+    if (this.interactKind === 'door' && this.enterable && commando?.carrying && stowable(commando.carrying, this.world)) return true;
     switch (this.interactKind) {
       case 'door':
         if (this.enterable) return commando.carrying ? "Can't take that inside." : true;
@@ -528,7 +548,7 @@ export class Interactable extends Entity {
     const id = this.tag ?? this.id;
     switch (this.interactKind) {
       case 'door':
-        if (this.enterable) return this.admit(commando);
+        if (this.enterable) return commando.carrying ? this.stow(commando) : this.admit(commando);
         return this.setOpen(!this.open);
       case 'switch': case 'lever': case 'valve': {
         const live = () => this.targets.filter((k) => w?.fencePower?.get(k)).length;
@@ -840,6 +860,15 @@ export const explodeHook = { fn: null };
 /** Pickup marker mesh (small crate). */
 /** Pickup crate (m, w × d) and the body clearance kept round it (placement RULES.bodyNav). */
 const PICKUP_SIZE = [0.5, 0.4], BODY_NAV = RULES.bodyNav;
+
+/**
+ * BCD captive stowing (docs/expansion/MECHANICS.md): may `u` be put inside an enterable building? A live enemy who is
+ * cuffed (`ko: 'bound'`, not on strings) in a world whose ruleset has handcuffs. Off under BEL (bodies never go inside:
+ * "Can't take that inside.").
+ */
+export function stowable(u, world) {
+  return !!(u && u.kind === 'enemy' && u.alive && u.ko === 'bound' && !u.puppetOf && world?.rules?.handcuffs);
+}
 
 /**
  * §7.3 `hideout` (dossier D1, M12): a commando whose spawn names a structure starts inside its enterable door

@@ -94,7 +94,13 @@ export function headlessMission(id, { patch = null, navCache = false, difficulty
     // §7.3 `stance: 'crawl'`: the mission starts him prone (as Game: already down, no stance-change lockout)
     if (c.stance === 'crawl') { cmd.setStance('crawl'); cmd._stanceT = 0; }
   }
-  for (const [i, e] of mission.enemies.entries()) world.add(new Enemy(atCachedSpawn(world, 'enemies', i, e)));
+  // (a nav cache is taken on the default variant, Hard: an Easy run finds each man's cached spot by his id there)
+  const hardIdx = difficulty === 'easy' && world.cachedSpawns
+    ? new Map(normalizeMission(getMission(id), { quiet: true, difficulty: 'hard' }).enemies.map((e, k) => [e.id, k])) : null;
+  for (const [i, e] of mission.enemies.entries()) {
+    const k = hardIdx ? hardIdx.get(e.id) : i;
+    world.add(new Enemy(k == null ? e : atCachedSpawn(world, 'enemies', k, e)));
+  }
   for (const v of mission.vehicles) world.spawnVehicle(v.vehicleType || 'truck', v);
   applyVehicleDims(world, world.cachedExtras);
   world.objectives = createObjectives(mission.objectives || []);

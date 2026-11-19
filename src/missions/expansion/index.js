@@ -11,6 +11,7 @@
  */
 
 // e01
+import './e01_dry_stone.js';
 
 // e02
 import './e02_curfew.js';

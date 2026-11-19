@@ -254,7 +254,9 @@ export function bcdScan(b) {
   if (b.state === 'IDLE' && w._drawbridges?.length && bridgeCheck(b)) return;
   if (!NOTICE.has(b.state) || NON_SOLDIERS.has(e.soldierType) || isAnimal(e) || !b.arch.reacts) return;
   for (const q of w.enemies) {
-    if (q === e || !q.alive || !q.ko || q.puppetOf || q.carriedBy || q.state === 'carried' || q._reviver) continue;
+    // (a captive aboard a vehicle rides out of sight: drive.js isCaptiveCargo)
+    if (q === e || !q.alive || !q.ko || q.puppetOf || q.carriedBy || q.state === 'carried' || q.vehicle || q._reviver) continue;
+    if (q.hidden) continue; // (a captive stowed inside a building: entities/interactables.js stow)
     if (Math.hypot(q.x - e.x, q.z - e.z) > (e.vision?.far ?? 0) + 1) continue;
     if (canSee(e, { x: q.x, z: q.z, y: q.y || 0, kind: 'body' }, w) === 'none') continue;
     cigsAbort(b);

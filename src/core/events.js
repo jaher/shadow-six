@@ -178,6 +178,7 @@ export const EVENT_NAMES = Object.freeze([
   'bcd:pack-taken',
   'bcd:pack-lured',
   'bcd:stone',
+  'bcd:evidence',
   'enemy:snitched',
   'enemy:flee',
   'enemy:freed',

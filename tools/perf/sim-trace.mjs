@@ -7,6 +7,8 @@
  *   node tools/perf/sim-trace.mjs m03 [--root=<checkout>] [--every=60] [--out=trace.json] [--pause]
  * (--pause: the driver's sliced plans hand control back between slices — a macrotask, no tick — as in the live replay)
  * (--defer: Game.deferVisuals as under the replay: the visual-only event handlers run after each tick, not inside it)
+ * (--full: hash debug/sim-trace.js simStateLines — the cold walkthrough test's per-tick state, which also has each
+ *  man's order, target and path index — instead of the places-and-states hash below)
  *   node tools/perf/sim-trace.mjs --diff a.json b.json
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -37,7 +39,7 @@ page.setDefaultTimeout(0);
 await page.goto(`${server.url.replace(/\/$/, '')}/index.html?test=1`);
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 60000 });
 await page.evaluate(async (mid) => { await window.__game.loadMission(mid); window.__game.start(); }, id);
-const out = await page.evaluate(async ([mid, every, slice, defer]) => {
+const out = await page.evaluate(async ([mid, every, slice, defer, full]) => {
   const G = window.__game, w = G.game.world;
   // (--defer: the replay's deferVisuals — the visual-only handlers of a tick run after it, as at the next draw)
   if (defer) G.game.deferVisuals = true;
@@ -48,13 +50,14 @@ const out = await page.evaluate(async ([mid, every, slice, defer]) => {
   const dt = G.CONFIG.sim.dt, hashes = [];
   const r6 = (v) => (Number.isFinite(v) ? Math.round(v * 1e6) : String(v));
   const fnv = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); };
-  const snap = () => {
+  let snap = () => {
     const parts = [w.tick, r6(w.time), w.rng?.state ?? w.rng?.s ?? '', w.alarm?.active ? 1 : 0, w.grid?.version];
     for (const u of [...w.commandos, ...w.enemies]) parts.push(u.tag ?? u.id, r6(u.x), r6(u.z), r6(u.y), r6(u.heading), u.state, u.stance, u.hp, u.brain?.state ?? '', u.path ? u.path.length : 0);
     for (const v of w.vehicles || []) parts.push(v.tag ?? v.id, r6(v.x), r6(v.z), r6(v.heading), v.destroyed ? 1 : 0, (v.occupants || []).length);
     for (const o of w.objectives || []) parts.push(o.id, o.done ? 1 : 0);
     return fnv(parts.join('|'));
   };
+  if (full) { const { simStateLines } = await import('/src/debug/sim-trace.js'); snap = () => fnv(simStateLines(w).join('|')); }
   let pauses = 0;
   const D = makeDriver(w, { dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction(), step: () => { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); },
     pause: slice ? () => new Promise((res) => { pauses++; setTimeout(res, 0); }) : null });
@@ -62,7 +65,7 @@ const out = await page.evaluate(async ([mid, every, slice, defer]) => {
   try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
   for (let i = 0; i < 600 && G.game.state === 'playing'; i++) { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); }
   return { hashes, every, pauses, result: { error, time: +D.t.toFixed(2), state: G.game.state, det: D.detections(), exp: D.exposures().length, cps: D.checkpoints.map((c) => `${c.name.split(' ')[0]}@${c.t}`).join(' ') } };
-}, [id, +arg('every', 60), args.includes('--pause'), args.includes('--defer')]);
+}, [id, +arg('every', 60), args.includes('--pause'), args.includes('--defer'), args.includes('--full')]);
 await browser.close(); await server.close();
 console.log(`${id} ${ROOT}: ${out.hashes.length} samples, ${out.pauses} plan pauses, ${JSON.stringify(out.result)}`);
 if (arg('out', '')) writeFileSync(arg('out'), JSON.stringify(out));

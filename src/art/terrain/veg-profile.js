@@ -91,6 +91,9 @@ export function vegetationProfile(mission, theater = 'temperate', src) {
   const S = { ...SEASON[season] };
   if (src === 'desert') Object.assign(S, { dry: 0.92, flowers: 0, seeds: 0.2, frost: 0 });
   if (src === 'snow') Object.assign(S, { dry: 0.95, flowers: 0, frost: 0.25 });
+  // (a mission's own sward: `vegetation: {dry, flowers}` — LIGHTS OUT e01's parched Puglian stubble in September)
+  if (Number.isFinite(hint.dry)) S.dry = hint.dry;
+  if (Number.isFinite(hint.flowers)) S.flowers = hint.flowers;
   // reeds want fresh water: rivers, ponds, oases. A coast mission's water is the sea (salt, surf) unless it says so
   const water = hint.reeds ?? (src !== 'snow' && theater !== 'coast');
   return {

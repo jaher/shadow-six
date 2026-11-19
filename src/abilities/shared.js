@@ -19,7 +19,7 @@ import { timedTask, bodyNear, interactableNear, freeToAct, inShallow, dropCarrie
 import { bodyGap, hasObstacles } from '../world/body-clearance.js';
 import { wrapAngle } from '../core/math.js';
 import { suspiciousAct } from './system.js';
-import { ACTIVATABLE, BCD_ACTIVATABLE } from '../entities/interactables.js';
+import { ACTIVATABLE, BCD_ACTIVATABLE, stowable } from '../entities/interactables.js';
 import { tryDress, dressIn, dressTask } from './spy.js';
 import { takeSpot } from './spy-actions.js';
 import { reviveDowned } from '../entities/downed.js';
@@ -461,7 +461,8 @@ registerAbility({
     if (f !== true) return f;
     const bcdDevice = (world ?? c.world)?.rules?.id === 'BCD' && BCD_ACTIVATABLE.has(t?.interactKind);
     if (!t || t.kind !== 'interactable' || !(ACTIVATABLE.has(t.interactKind) || bcdDevice)) return 'Nothing to operate.';
-    if (c.carrying && t.enterable) return "Can't take that inside.";
+    // (BCD: a cuffed captive on his shoulder is put inside — Interactable.stow; anything else stays out)
+    if (c.carrying && t.enterable && !stowable(c.carrying, world ?? c.world)) return "Can't take that inside.";
     return t.canUse(c);
   },
   start(c, t, world) {

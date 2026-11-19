@@ -356,7 +356,8 @@ export function predict(e, t, depth = 0) {
 
 /** A man halted at route point `wp` (`into` s into the halt) at (x, z), having walked in heading h. */
 function haltAt(wp, into, x, z, h) {
-  return wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined, halt: true } : { x, z, heading: h, halt: true };
+  // (`hs`: the halt's own head sweep, degrees each side, when the route point sets one — enemy-brain _route)
+  return wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined, halt: true, hs: wp.sweep } : { x, z, heading: h, halt: true, hs: wp?.sweep };
 }
 
 /**
@@ -592,11 +593,11 @@ function headsOf(e, q, w, tAbs) {
   // ± that much time
   const pw = CONFIG.stealth.vision.patrolWatch;
   if (q.halt && w.sneakHaltExact != null && pw && e.vision) {
-    const A = (pw.sweep * Math.PI) / 180, P = pw.period, ph = e.vision.phase || 0, dt = w.sneakHaltExact;
+    const A = ((q.hs ?? pw.sweep) * Math.PI) / 180, P = pw.period, ph = e.vision.phase || 0, dt = w.sneakHaltExact;
     const offs = [0, -dt, dt, -dt / 2, dt / 2].map((tau) => A * Math.sin((2 * Math.PI * (tAbs + tau + ph)) / P));
     return { hds: [q.heading, ...(q.alt != null ? [q.alt] : []), ...cryHeadings(q, w, tAbs)], offs };
   }
-  const amp = (q.halt === false ? (w.sneakWalkAmp ?? 0.25) : (q.halt ? (CONFIG.stealth.vision.patrolWatch?.sweep ?? 50) * Math.PI / 180 : e.sweepAmp ?? e.vision?.sweep ?? 0))
+  const amp = (q.halt === false ? (w.sneakWalkAmp ?? 0.25) : (q.halt ? (q.hs ?? CONFIG.stealth.vision.patrolWatch?.sweep ?? 50) * Math.PI / 180 : e.sweepAmp ?? e.vision?.sweep ?? 0))
     + (w.sneakMargin ?? 0);
   // (`w.sneakSweepSteps`, opt-in: the head tried at that many even steps each side of the heading, not just half and
   // full sweep — an elliptical cone's near band is longest straight ahead, so a man between two tried heads may be

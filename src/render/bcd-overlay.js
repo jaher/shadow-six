@@ -1,7 +1,8 @@
 /**
  * BCD ground overlays (docs/bcd-plan.md §1.1, §1.3): the puppet's translucent blue range disc (13.5 m) around
  * each controller with his blue ring on the puppet, and a knock-out timer arc under every stunned man
- * (the "zzz" ring: the arc shrinks as he comes round). Drawn by render/selection.js; BCD worlds only.
+ * (the "zzz" ring: the arc shrinks as he comes round), and set-piece timers (`world._bcdTimers` {x, z, k}: papers
+ * burning, missions/setpieces-bcd.js) as a filling orange arc. Drawn by render/selection.js; BCD worlds only.
  *
  * Like the selection rings they are GROUND DECALS (Renderer.decalScene: depth-tested, no depth writes, bent over
  * the visual ground relief via world.groundY), so the puppet's / puppeteer's legs, walls and vehicles cover them
@@ -19,6 +20,8 @@ import { CONFIG } from '../config.js';
 const BLUE = new THREE.Color().setRGB(-0.9, -0.05, 3.0, THREE.LinearSRGBColorSpace);
 const DISC = new THREE.Color().setRGB(0.02, 0.1, 0.4, THREE.LinearSRGBColorSpace);
 const KO = new THREE.Color().setRGB(2.4, 0.7, -0.5, THREE.LinearSRGBColorSpace);
+// set-piece timers (`world._bcdTimers`: papers burning, missions/setpieces-bcd.js): a hot orange-red that fills up
+const BURN = new THREE.Color().setRGB(3.0, 0.45, -0.4, THREE.LinearSRGBColorSpace);
 const LIFT = 0.015; // m above the ground (+ polygonOffset)
 
 function flatRing(inner, outer, seg, phi = 1, start = 0, len = Math.PI * 2) {
@@ -38,6 +41,7 @@ export class BcdOverlay {
     this.discs = [];
     this.rings = [];
     this.arcs = [];
+    this.timers = [];
     // radial subdivisions so the 13.5 m disc can follow the ground relief
     this.discGeo = flatRing(0.05, CONFIG.bcd.puppet.range, 64, 14);
     this.ringGeo = flatRing(0.45, 0.58, 24);
@@ -48,6 +52,10 @@ export class BcdOverlay {
     const m = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
       color, transparent: true, opacity, depthTest: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
+      // (a flat decal on the ground: both sides in one pass, as the selection and noise rings — three's back / front pass
+      // pair for a transparent double-sided material is two programs of its own, first linked at the first knock-out
+      // in play: LIGHTS OUT e01's walkthrough at t≈129. One pass shares the noise rings' warmed program)
+      forceSinglePass: true,
     }));
     m.renderOrder = 9;
     m.frustumCulled = false;
@@ -124,10 +132,21 @@ export class BcdOverlay {
       if (!e) continue;
       this._place(a, e.object3d?.position.x ?? e.x, feet(e), e.object3d?.position.z ?? e.z, this._arc(Math.max(0, e.koT) / CONFIG.bcd.koDuration));
     }
+    // (no per-frame arrays: the map is walked in place)
+    let n = 0;
+    if (world?._bcdTimers) {
+      for (const t of world._bcdTimers.values()) {
+        const a = this._pool(this.timers, n++, () => this._flat(this._arc(1), BURN, 0.9));
+        a.visible = true;
+        const gy = typeof world.groundY === 'function' ? world.groundY(t.x, t.z) || 0 : 0;
+        this._place(a, t.x, gy, t.z, this._arc(Math.max(0.04, Math.min(1, t.k))));
+      }
+    }
+    for (let i = n; i < this.timers.length; i++) this.timers[i].visible = false;
   }
 
   dispose() {
-    for (const m of [...this.discs, ...this.rings, ...this.arcs]) { this.group.remove(m); m.geometry.dispose(); m.material.dispose(); }
+    for (const m of [...this.discs, ...this.rings, ...this.arcs, ...this.timers]) { this.group.remove(m); m.geometry.dispose(); m.material.dispose(); }
     this.discGeo.dispose();
     this.ringGeo.dispose();
     for (const g of this._arcGeo.values()) g.dispose();

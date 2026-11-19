@@ -106,7 +106,7 @@ async function liveRun(h, base, run) {
 export default async function debugWalkthroughCold(page, t) {
   const h = t.harness;
   const only = (process.env.SS_COLDWT || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const extra = only.filter((s) => /^m\d\d@(auto|[\d.]+)$/.test(s)).map((s) => ({ key: s, id: s.split('@')[0], speed: s.split('@')[1], preset: null }));
+  const extra = only.filter((s) => /^[a-z]\d\d@(auto|[\d.]+)$/.test(s)).map((s) => ({ key: s, id: s.split('@')[0], speed: s.split('@')[1], preset: null }));
   const runs = [...RUNS.filter((r) => !only.length || only.includes(r.key) || only.includes(r.id)), ...extra];
   const { compareRecordings } = await import('../src/debug/sim-trace.js');
   const { diffFingerprints } = await import('../src/debug/gameplay-fingerprint.js');

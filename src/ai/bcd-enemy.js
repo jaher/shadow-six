@@ -99,7 +99,7 @@ export function bcdPostRestore(world) {
 
 /** Put the man on the ground in knock-out state `ko` (no movement, no cone, lying animation). */
 function layDown(e, ko) {
-  if (e.state !== 'carried') e.state = ko;
+  if (e.state !== 'carried' && !e.hidden) e.state = ko; // (a captive stowed in a building stays 'hidden' in there)
   e._bcdState = ko; // what dropCarried restores
   e.stop?.();
   e.sweepActive = false;

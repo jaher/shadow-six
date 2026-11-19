@@ -280,7 +280,15 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between);
   // `around` {enter, leave}: what the plan changes in the world while it runs (sneak.mjs moversOff: the line-of-sight
   // layer without the movers) is put back for the frames between its slices and made again for the next one
+  // (live replay: one sliced plan at a time. Two flows of a D.parallel that both start by planning — e01's stage B: the
+  // Green Beret and the Driver set off together — would otherwise both hand the frame back at once, and the replay
+  // wakes one waiter per frame: the other flow never woke and the run froze. The next plan waits for the one in
+  // progress; a plan that finds none waiting starts at once, as before. A logic-only run never slices: unchanged)
+  let planBusy = null;
   const runGenAsync = async (it, around = null) => {
+    if (pause) while (planBusy) await planBusy;
+    let freed = null;
+    if (pause) planBusy = new Promise((r) => { freed = r; });
     let t0 = frame ? sliceStart() : performance.now(), done = false;
     around?.enter();
     try {
@@ -292,6 +300,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     } finally {
       if (!done) it.return?.(); // (aborted between slices: the plan's own finally blocks put back what it set)
       around?.leave();
+      if (freed) { planBusy = null; freed(); }
     }
   };
   const events = [];

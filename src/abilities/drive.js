@@ -91,21 +91,40 @@ export function leaveVehicle(unit, x, z) {
   return ok;
 }
 
-/** The live man `c` transports (a downed buddy or a guest who can't walk), else null (§C.8). */
+/**
+ * The live man `c` transports (a downed buddy or a guest who can't walk), else null (§C.8). Under the BCD ruleset a
+ * cuffed captive on his shoulder is loaded the same way (`isCaptiveCargo`).
+ */
 function liveLoad(c) {
   const u = c.carrying;
-  return u && u.kind === 'commando' && u.alive && (u.downed || u.cannotWalk) ? u : null;
+  if (!u || !u.alive) return null;
+  if (u.kind === 'commando') return u.downed || u.cannotWalk ? u : null;
+  return isCaptiveCargo(u, c.world) ? u : null;
+}
+
+/**
+ * BCD captive cargo (docs/expansion/MECHANICS.md): a cuffed enemy (`ko: 'bound'`) carried to a land vehicle is put
+ * aboard like a downed buddy (§C.8: the carrier stays outside). He rides in the back, still cuffed, out of every
+ * cone (a land vehicle hides its occupants); a `deliver` objective counts him once the vehicle has left. Off under
+ * BEL (`rules.handcuffs` false), and never into a boat, a gun or a train.
+ */
+export function isCaptiveCargo(u, world) {
+  return !!(u && u.kind === 'enemy' && u.alive && u.ko === 'bound' && world?.rules?.handcuffs);
 }
 
 /** §C.8: hand the load over to the vehicle (he becomes an occupant; the transporter stays outside). */
 function loadIntoVehicle(c, load, vehicle, world) {
   if (c.carrying !== load || !load.alive) return false;
   const mode = c.carryMode;
+  const captive = load.kind === 'enemy';
+  if (captive && (vehicle.vehicleKind !== 'land' || vehicle.def?.rail)) return false;
   c.carrying = null; c.carryMode = null; c.carryTransition = null;
   load.carriedBy = null;
   load.state = 'active';
   if (vehicle.canEnter(load) !== true) { load.state = 'carried'; load.carriedBy = c; c.carrying = load; c.carryMode = mode; return false; }
-  vehicle.enter(load);
+  // (a captive takes the last free seat, in the back: never the wheel the team's Driver will want)
+  const free = captive ? vehicle.freeSeats() : null;
+  vehicle.enter(load, free?.length ? free[free.length - 1] : null);
   if (vehicle.driver === load && load.downed) vehicle.driver = null; // a downed man never operates it
   c.refreshAbilities?.();
   world.events.emit('load:dropped', { carrier: c, load, how: 'vehicle', mode });
@@ -134,6 +153,7 @@ registerAbility({
     if (target.destroyed) return 'Pick a vehicle.';
     if (load) { // bodies-design §C.8: load a downed buddy / a guest who can't walk (the transporter stays out)
       if (target.vehicleKind === 'emplacement') return 'Drop it first.';
+      if (load.kind === 'enemy' && (target.vehicleKind !== 'land' || target.def?.rail)) return 'Drop it first.'; // captive cargo: land vehicles only
       const ok = target.canEnter(load);
       return ok === true ? true : `Can't load him: ${ok}.`;
     }

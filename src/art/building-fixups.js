@@ -19,6 +19,9 @@
  *    continue them, a dome's bead), the analytic normal where the file is flat-shaded, the artist's own where it is
  *    smooth; a decimated LOD's cone gets its normals smoothed (art/round-roofs.js; user 2026-11-09 "Some round roofs
  *    look polygonal when seen from above")
+ *  - coplanar parts (user 2026-11-18 "Make sure there is no z-fighting in the geometry"; tools/art/zfight.mjs): faces of
+ *    two parts of one asset exported in the same plane, or a part's top flush with the ground, flickered → the part
+ *    that shows draws a depth step nearer (its own polygonOffset material, as the ground decals do; ZFIGHT_NEAR)
  * @module art/building-fixups
  */
 
@@ -41,6 +44,38 @@ function libTex(base, file, srgb) {
 const meshesOf = (root) => { const out = []; root.traverse((o) => { if (o.isMesh) out.push(o); }); return out; };
 const matsOf = (o) => (Array.isArray(o.material) ? o.material : [o.material]);
 const setMat = (o, fn) => { o.material = Array.isArray(o.material) ? o.material.map(fn) : fn(o.material); };
+
+/**
+ * Coplanar parts drawn a depth step nearer, by asset: the material names (any LOD) whose meshes win where they share a
+ * plane with another part, or lie flush with the ground (each mesh gets its own clone; the shared library material
+ * stays as it was).
+ *  - guard_hut_b: the painted sentry box's striped boards and their tarred backing share the shelf's top and underside
+ *  - comms_hut_antenna_bq: the door's stone threshold and timber sill lie with their tops flush with the ground
+ */
+export const ZFIGHT_NEAR = {
+  guard_hut_b: [/^kit:wood_paint$/],
+  comms_hut_antenna_bq: [/^kit:ashlar$/, /^kit:timber_beam$/],
+};
+export function fixCoplanarParts(root, name) {
+  const rxs = ZFIGHT_NEAR[name];
+  if (!rxs) return 0;
+  const clones = new Map();
+  let n = 0;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    setMat(o, (m) => {
+      if (!m || !rxs.some((rx) => rx.test(m.name || ''))) return m;
+      if (!clones.has(m)) {
+        const c = m.clone();
+        c.polygonOffset = true; c.polygonOffsetFactor = -1; c.polygonOffsetUnits = -2;
+        clones.set(m, c);
+      }
+      n++;
+      return clones.get(m);
+    });
+  });
+  return n;
+}
 
 /**
  * LODs that are not used: the dam's LOD2 decimation collapsed the gorge walls (one wall faces away from the sun →
@@ -197,5 +232,6 @@ export function applyAssetFixups(root, name, lod, base = 'assets/', meta = null)
   if (fixPalmFrond(root)) out.push('palm-frond-cutout'); // every desert asset with frond shades/thatch
   if (/^uboat_pen/.test(name) && fixUboatConcrete(root)) out.push('uboat-triplanar');
   if (roundRoofs(root, lod)) out.push('round-roofs'); // every cone / dome of every asset (its own LOD's tolerance)
+  if (fixCoplanarParts(root, name)) out.push('coplanar-near');
   return out;
 }

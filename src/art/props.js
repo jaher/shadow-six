@@ -211,8 +211,10 @@ function buildLinear(type, p, def, ctx = {}) {
   const fp = { shape: 'line', points, width };
   const footprints = [];
   if (def.terrain != null) footprints.push({ ...fp, terrain: p.terrain ?? def.terrain });
-  // thin props (fences) still need ≥ 1 cell of blocking, whatever their alignment to the grid
-  if (def.block) footprints.push({ ...fp, width: Math.max(width, CELL), block: def.block });
+  // thin props (fences) still need ≥ 1 cell of blocking, whatever their alignment to the grid. `low: true` on a wall
+  // (BCD dry-stone field walls, e01): LOW COVER (B.LOW) — a man lying behind it is hidden from the ground, a standing
+  // one is not (§4.2); no BEL wall sets it, so theirs keep def.block
+  if (def.block) footprints.push({ ...fp, width: Math.max(width, CELL), block: type === 'wall' && p.low === true ? B.LOW : def.block });
   return { object3d: root, footprints, castsShadow: type === 'wall' || type === 'fence' };
 }
 

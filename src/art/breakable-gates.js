@@ -234,7 +234,8 @@ function counterweight(hx, hy, hz) {
   const core = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('concrete'));
   g.add(core);
   for (const y of [-hy * 0.55, hy * 0.55]) { const b = mk(new THREE.BoxGeometry(2 * hx + 0.016, 0.04, 2 * hz + 0.016), ironMat()); b.position.y = y; g.add(b); }
-  for (const x of [-hx * 0.6, hx * 0.6]) { const b = mk(new THREE.BoxGeometry(0.04, 2 * hy + 0.016, 2 * hz + 0.016), ironMat()); b.position.x = x; g.add(b); }
+  // (the upright straps stand 4 mm prouder than the bands they cross: flush, their faces fought at every crossing)
+  for (const x of [-hx * 0.6, hx * 0.6]) { const b = mk(new THREE.BoxGeometry(0.04, 2 * hy + 0.016, 2 * hz + 0.024), ironMat()); b.position.x = x; g.add(b); }
   return g;
 }
 
@@ -248,8 +249,9 @@ function poleExtras(m, p, trim = 0) {
     for (const sx of [-0.2, 0.2]) { const h = mk(new THREE.BoxGeometry(0.012, 0.06, 0.012), ironMat(), false); h.position.set(sx, -r - 0.025, 0); m.add(h); }
   }
   if (!p.seamMax && p.seamMin) { // free end: iron ferrule
-    const f = mk(new THREE.CylinderGeometry(r * 1.06, r * 1.06, 0.07, 12), ironMat());
-    f.rotation.z = Math.PI / 2; f.position.x = p.h[0] - trim - 0.035; m.add(f);
+    // (its end 4 mm past the pole's: flush, the cap's disc and the pole's end fought — z-fighting)
+    const f = mk(new THREE.CylinderGeometry(r * 1.06, r * 1.06, 0.074, 12), ironMat());
+    f.rotation.z = Math.PI / 2; f.position.x = p.h[0] - trim - 0.033; m.add(f);
   }
 }
 

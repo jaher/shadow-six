@@ -181,7 +181,25 @@ function loadMeta(model) {
  * swept up into the raised bow, joined to the tube (art/raft-hull.js raftFloorFix; raft.py builds the same floor);
  * the raft's paddles (deployed and the wreck's) shaped — T-grip, tapered shaft, oval blade (art/paddle.js).
  */
-const SCENE_FIXES = { raft_deployed: (sc) => { raftFloorFix(sc); raftPaddleFix(sc); }, raft_deflated: raftPaddleFix };
+/**
+ * The Opel cargo lorries' canvas tilt: its hem was exported in the plane of the body's side rails it hangs over and the
+ * two fought along the bed (user 2026-11-18 "Make sure there is no z-fighting in the geometry") → the canvas draws a
+ * depth step nearer (its own polygonOffset material, as the ground decals do).
+ */
+function canvasNear(sc) {
+  const clones = new Map();
+  sc.traverse((o) => {
+    if (!o.isMesh) return;
+    const swap = (m) => {
+      if (!m || !/^kit:canvas/.test(m.name || '')) return m;
+      if (!clones.has(m)) { const c = m.clone(); c.polygonOffset = true; c.polygonOffsetFactor = -1; c.polygonOffsetUnits = -2; clones.set(m, c); }
+      return clones.get(m);
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+  });
+}
+const SCENE_FIXES = { raft_deployed: (sc) => { raftFloorFix(sc); raftPaddleFix(sc); }, raft_deflated: raftPaddleFix,
+  opel_blitz_cargo_grey: canvasNear, opel_blitz_cargo_dak: canvasNear, opel_blitz_cargo_winter: canvasNear };
 
 /** LOD scene (shared; instances clone it). Missing LODs (LOD1 is not shipped) resolve to null. */
 function loadLod(model, i, swap) {

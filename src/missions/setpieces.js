@@ -25,6 +25,7 @@ import { installTriggers, runDelayed, TriggerState } from './setpiece-triggers.j
 import './setpieces-transport.js';
 import './setpieces-structures.js';
 import './setpieces-hazards.js';
+import './setpieces-bcd.js'; // BCD: papers on the table (evidence), burned on the alarm
 
 export { SetPiece, SETPIECE_TYPES, registerSetpiece, inPoly, inArea, P };
 export { cableCar } from './setpieces-transport.js';

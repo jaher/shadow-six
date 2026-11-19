@@ -208,7 +208,7 @@ function normRoute(e) {
   const r = e.route;
   if (!r) return null;
   const legacy = Array.isArray(r);
-  const points = (legacy ? r : arr(r.points)).map((p) => ({ x: p.x, z: p.z, wait: num(p.wait, 0), look: p.look ?? null, ...(p.speed !== undefined ? { speed: p.speed } : {}) }));
+  const points = (legacy ? r : arr(r.points)).map((p) => ({ x: p.x, z: p.z, wait: num(p.wait, 0), look: p.look ?? null, ...(p.speed !== undefined ? { speed: p.speed } : {}), ...(p.sweep != null ? { sweep: num(p.sweep, 0) } : {}) }));
   if (!points.length) return null;
   const type = legacy ? (e.routeMode ? String(e.routeMode).toUpperCase() : 'PINGPONG') : (r.type || 'PINGPONG');
   return { type, vel: num(legacy ? e.vel : r.vel, 1.0), points };

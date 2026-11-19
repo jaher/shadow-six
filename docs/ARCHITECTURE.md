@@ -259,6 +259,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `bcd:stone` | `{x, z, thrower, reacted}` | BCD stone landed (§1.4) → audio, ui |
 | `bcd:pack-lured` | `{enemy, pack}` | BCD cigarette pack lures a soldier (§1.5) |
 | `bcd:pack-taken` | `{enemy, pack}` | BCD pack pocketed by a soldier (§1.5) |
+| `bcd:evidence` | `{id, taken?, burning?: 'walk'\|'burn', burned?, by}` | BCD papers on a table (`evidence` set-piece, missions/setpieces-bcd.js): taken by a commando, carried to the stove, burned (the mission fails) → ui, audio |
 
 The machine-readable list is `EVENT_NAMES` in `src/core/events.js`; `tests/unit/interfaces.test.mjs` fails when
 `src/` emits a name that is not in it, or when a listed name is missing from this table.

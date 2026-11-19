@@ -212,6 +212,7 @@ export const VARIANT_SPECIES = Object.freeze({
   plane_tree: ['plane'], horse_chestnut: ['horse_chestnut'], cypress: ['cypress'],
   box_parterre: ['box'], scrub_desert: ['desert_shrub', 'desert_shrub', 'acacia_shrub'], camel_thorn: ['desert_shrub'],
   date_palm: ['date_palm'],
+  olive: ['olive'], almond: ['almond'], fig: ['fig'], // LIGHTS OUT e01: the Puglia groves and fields
 });
 /** Theatre defaults for a variant-less structure. */
 const DEFAULT_SPECIES = {

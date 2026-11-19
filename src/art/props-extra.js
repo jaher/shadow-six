@@ -27,6 +27,7 @@ import { dressingMaterial } from './dressing.js';
 import { buildGorge, buildRailBridge } from './kit-terrain.js';
 import { kitify } from './kit-materials.js';
 import { buildDetonator, buildLeverBox, paintedMaterial } from './kit-props.js';
+import { E01_EXTRA_DEFAULTS, buildE01Extra } from './e01-kit.js'; // LIGHTS OUT e01: trulli, the masseria, the cistern
 
 /**
  * Placeholder-art pass: textured kit models (art/kit-buildings.js, art/kit-props.js) instead of the primitive boxes,
@@ -55,7 +56,7 @@ function kitExtraMesh(type, p, ctx) {
     case 'battleship': return p.variant === 'uboat_docked' ? null : buildWarship(p); // art/warship.js (detailed Bismarck class)
     case 'detonator': return buildDetonator(p);
     case 'lever': case 'fuel_valve': return buildLeverBox(p);
-    default: return null;
+    default: return buildE01Extra(type, p); // LIGHTS OUT e01 kit (art/e01-kit.js), null for any other type
   }
 }
 
@@ -107,6 +108,7 @@ export const EXTRA_PROP_DEFAULTS = {
   uboat_tower: { w: 5, d: 2.4, h: 4, block: H, mat: 'greyPaint', kind: 'uboatTower' },
   // M2: timber access platform + stair inside the river wall (art/access-platform.js): walkable deck, graded stair
   timber_platform: { w: 2.2, d: 1.4, h: 2.2, block: 0, mat: 'planks', kind: 'platform' },
+  ...E01_EXTRA_DEFAULTS, // LIGHTS OUT e01 (art/e01-kit.js)
 };
 
 export const EXTRA_PROP_TYPES = Object.keys(EXTRA_PROP_DEFAULTS);

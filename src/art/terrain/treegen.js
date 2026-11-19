@@ -136,6 +136,11 @@ SPECIES.acacia_shrub = { ...SPECIES.acacia, H: [1.8, 2.6], stems: [2, 3], crownB
     { seg: 2, radial: 3, children: 0 }], leafLevel: 1, leaves: 2, leafSize: [0.6, 0.9], gap: 0.3, fill: 0.05, lean: 0.1, lt: [1.15, 1.1, 0.95] };
 SPECIES.cypress = { ...SPECIES.poplar, leaf: 'fir', bark: 'pine', H: [8, 14], r0: [0.18, 0.26], leafSize: [0.8, 1.1], evergreen: true };
 SPECIES.olive.evergreen = true;
+// LIGHTS OUT e01 (Puglia): the almond's narrow leaves on an apple-sized frame, pale grey-green; the fig low, many-stemmed,
+// broad-crowned on smooth grey bark, its big lobed leaves read through the plane cards
+SPECIES.almond = { ...SPECIES.apple, leaf: 'willow', H: [4, 6], r0: [0.13, 0.2], crownBase: [0.3, 0.4], wr: [0.42, 0.58], lt: [0.9, 0.98, 0.84] };
+SPECIES.fig = { ...SPECIES.apple, bark: 'beech', leaf: 'plane', H: [3.4, 5.2], r0: [0.12, 0.18], stems: [2, 3], crownBase: [0.16, 0.26], wr: [0.56, 0.74],
+  leafSize: [1.0, 1.3], lt: [0.92, 1.02, 0.86], evergreen: false };
 // forest floor (forest-fill.js understorey): brambles (semi-evergreen, dark in winter), fallen boughs
 SPECIES.bramble = { kind: 'bush', shape: 'dome', bark: 'generic', leaf: 'hedge', leafV: 0, H: [0.55, 1.0], R: [0.9, 1.6], stems: [5, 9], shoots: 3, cards: 38, leafSize: [0.5, 0.75], arch: 1, lt: [0.66, 0.7, 0.62], evergreen: true };
 SPECIES.fallen = { kind: 'broad', bark: 'dead', leaf: null, H: [2.5, 6], r0: [0.06, 0.14], fallen: true, levels: [{ seg: 2, radial: 3, children: 0 }] };

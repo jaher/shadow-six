@@ -20,7 +20,8 @@ const FILE = join(ROOT, 'tests/render-budgets.json');
 export default async function (page, t) {
   const budgets = existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : { missions: {} };
   const slack = budgets.slack ?? 1.25, msSlack = budgets.msSlack ?? 3;
-  let ids = await page.evaluate(async () => (await import('/src/missions/index.js')).MISSIONS.filter((m) => !m.dev && m.campaign !== 'BCD').map((m) => m.id));
+  // (a LIGHTS OUT mission is measured once it has a budget of its own)
+  let ids = await page.evaluate(async (own) => (await import('/src/missions/index.js')).MISSIONS.filter((m) => !m.dev && (m.campaign !== 'BCD' || own.includes(m.id))).map((m) => m.id), Object.keys(budgets.missions || {}));
   if (process.env.RENDER_BUDGET_MISSIONS) ids = process.env.RENDER_BUDGET_MISSIONS.split(',');
   const out = {};
   const fails = [];

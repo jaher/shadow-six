@@ -21,6 +21,7 @@ import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
 import { ruinedStoneWall, whitewashedBlock } from './mine-walls.js';
 import { drystonePlankWall } from './norway-walls.js';
+import { E01_WALL_RX, buildE01Wall } from './e01-kit.js';
 import { brickDepotWall } from './depot-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { registerHdTexture } from '../engine/hd-textures.js';
@@ -576,6 +577,8 @@ export function buildWall(points, o) {
   if (o.variant === 'whitewashed_concrete') return whitewashedBlock(points, { ...o, h, width }, R);
   // M1 art pass (art/norway-walls.js): the south bank's dry-stone wall under its plank lean-to roof
   if (o.variant === 'stone_plank_roof') return drystonePlankWall(points, { ...o, h, width }, R);
+  // LIGHTS OUT e01 (art/e01-kit.js): Puglian dry-stone field walls, the masseria's rubble compound wall, the radio room
+  if (E01_WALL_RX.test(String(o.variant))) return buildE01Wall(points, { ...o, h, width }, R);
   // M0 art pass (art/depot-walls.js): the sandbox depot's Flemish brick yard wall (pilasters, tarred plinth, blue-stone coping)
   if (/^brick_depot(_wire)?$/.test(String(o.variant))) return brickDepotWall(points, { ...o, h, width }, R);
   if (/^mudbrick_broken$/.test(String(o.variant))) return ruinLook(ruinedMudWall(points, { ...o, h, width }, R), mudRuin(points, { h, width, id: o.id, theater: o.theater, capTop: h + 0.35 })); // M9 art pass: the broken stub

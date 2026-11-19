@@ -1,0 +1,106 @@
+/**
+ * Walkthrough of the LIGHTS OUT e01 "Dry Stone" solution (tools/solutions/e01.solution.mjs) for debug VIDEO MODE
+ * (src/debug/walkthrough.js): chapters per stage, one narration step per checkpoint, camera and cone cues. Format:
+ * docs/walkthrough-format.md. The Sapper's (S) and the Driver's (D) checkpoints come from their own flows, which run
+ * alongside the stages and are defined after them in the solution, so their steps come last here (validated against the
+ * checkpoints' source order) and their captions come up as notes when they happen. y2 and the patrol are Hard only.
+ */
+export const WALKTHROUGH = {
+  version: 1,
+  mission: 'e01',
+  title: 'Dry Stone',
+  intro: 'Contrada Sant\'Elia, Puglia, September 1943. Take Hauptmann Steinmetz alive, take his key tables, blow the masts\' coupling hut and drive out in the detachment\'s own lorry. The hamlet is the practice ground: nobody in the farm can see into it. Everyone goes down unseen, cuffed and out of sight; the only alarm is the charge, after the lorry has left.',
+  chapters: [
+    { id: 'A', title: 'The grove', say: 'The team starts among the olives south-west of the hamlet. Everything is done lying down until a man is out of every eye.' },
+    { id: 'B', title: 'The foragers', say: 'Two foragers loot the hamlet. The jazzo, the walled sheepfold, hides the piazza from the checkpoint: a mistake here costs a chase, nothing more.' },
+    { id: 'C', title: 'The checkpoint', say: 'cp1 stands at the boom looking down the road at the hamlet; cp2 walks the road between the boom and the farm\'s gate.' },
+    { id: 'E', title: 'The gate', say: 'g1 stands outside the arch watching the road east. The foot of the compound wall is out of his sight and, behind the gate\'s buttress and the stacked crates, out of the yard\'s.' },
+    { id: 'F', title: 'The yard walker', say: 'y1 walks round the yard. At its south-west corner he looks at the stables, the arch three paces behind him.' },
+    { id: 'G', title: 'The stables', say: 'st1 at the stables door looks east across the yard. On Hard y2 walks the house front, looking north and east at its ends.' },
+    { id: 'H', title: 'The radio room', say: 'The lieutenant walks between the officers\' wing and the radio room, where Steinmetz and his operator face their tables. If the farm\'s alarm sounds, Steinmetz burns the key tables.' },
+    { id: 'I', title: 'The lorry', say: 'Everyone in the detachment\'s lorry, and out by the north road: nobody stops a German lorry on a German road.' },
+  ],
+  steps: [
+    // A · the grove
+    { cp: 'A0', who: ['greenberet', 'driver', 'sapper'], cones: ['f1', 'f2'],
+      say: 'All three lie down among the olive trees. The hamlet\'s two foragers are a field away and nobody else looks this way.' },
+    // B · the foragers (and the Sapper sets off)
+    { cp: 'B1', who: ['greenberet', 'driver'], look: ['chapel', 'jazzo'], cones: ['f1', 'f2'],
+      say: 'The Green Beret crawls out by the grove wall\'s north gate to the chapel\'s blind west side. The Driver crawls along the hamlet\'s north side and down the lane by the first trullo into the jazzo, where nobody can see him.' },
+    { cp: 'B2', who: 'greenberet', look: ['f2'], cones: ['f2', 'f1'],
+      say: 'f2 faces south over the road into the piazza. A stone thrown east of him turns his head; the Green Beret fists him from behind, cuffs him, and puts him inside the chapel he guards.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['f2'], shot: true, hold: 1.5 }] },
+    { cp: 'B3', who: ['driver', 'greenberet'], look: ['f1'], cones: ['f1'],
+      say: 'At the first trullo\'s door f1 faces the doorway he is looting. The Driver steps out through the breach in the jazzo\'s wall behind him and coshes him; the Green Beret runs over, cuffs him, and carries him into the trullo.',
+      beats: [{ on: 'driver:knockoutClub', look: ['f1'], shot: true, hold: 1.5 }] },
+    // C · the checkpoint
+    { cp: 'C1', who: ['greenberet', 'driver'], look: ['cp1'], cones: ['cp1', 'cp2'],
+      say: 'Both crawl out by the lane and along the field wall that runs up to the checkpoint, the wall between them and cp2\'s road.' },
+    { cp: 'C2', who: 'greenberet', look: ['cp1', 'sentry_box'], cones: ['cp1', 'cp2'],
+      say: 'When cp2 has his back to the boom, the Green Beret gets up, fists cp1 from behind, cuffs him and puts him in his own sentry box.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['cp1'], shot: true, hold: 1.5 }] },
+    { cp: 'C3', who: 'greenberet', look: ['casedda'], cones: ['cp2'],
+      say: 'Back west below the jazzo, up the field\'s west side through the field gate and along the foot of the compound\'s corner to the casedda, the little field trullo. cp2 never looks there.' },
+    { cp: 'C4', who: 'greenberet', look: ['cp2', 'casedda'], cones: ['cp2', 'g1'],
+      say: 'At the gate end of his beat cp2 looks down the road east. The Green Beret gets up behind him, fists him, cuffs him and puts him in the casedda.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['cp2'], shot: true, hold: 1.5 }] },
+    // E · the gate
+    { cp: 'E1', who: 'greenberet', look: ['g1', 'mas_gate'], cones: ['g1', 'y1'],
+      say: 'Along the foot of the wall and across the arch\'s mouth while nobody in the yard looks out, to g1\'s back.' },
+    { cp: 'E2', who: 'greenberet', look: ['g1'], cones: ['g1'],
+      say: 'He fists g1, cuffs him and carries him back into the casedda.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['g1'], shot: true, hold: 1.5 }] },
+    // F · the yard walker
+    { cp: 'F1', who: 'greenberet', look: ['mas_gate'], cones: ['y1', 'lt1'],
+      say: 'He lies at the foot of the wall beside the arch, hidden by the gate\'s buttress.' },
+    { cp: 'F2', who: 'greenberet', look: ['y1'], cones: ['y1', 'lt1', 'st1'],
+      say: 'y1 halts at the yard\'s south-west corner looking at the stables. The Green Beret gets up, steps in under the arch, fists him, cuffs him and carries him out to the casedda.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['y1'], shot: true, hold: 1.5 }] },
+    // G · the stables
+    { cp: 'G1', who: 'greenberet', look: ['st1', 'stables'], cones: ['st1', 'lt1'],
+      say: 'With the walker gone only st1, at the stables door, looks across the yard. The Green Beret crawls in under the arch and up the stables\' wall from his blind south side.' },
+    { cp: 'G2', who: 'greenberet', look: ['st1'], cones: ['st1', 'lt1', 'y2'],
+      say: 'He fists st1, cuffs him and carries him out to the casedda.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['st1'], shot: true, hold: 1.5 }] },
+    { cp: 'G3', who: 'greenberet', look: ['y2'], cones: ['y2'],
+      say: 'On Hard, y2 walks the house front. He lies at the stables\' door, below the west end of y2\'s beat.' },
+    { cp: 'G4', who: 'greenberet', look: ['y2'], cones: ['y2', 'lt1'],
+      say: 'At that end y2 looks north at the house: the Green Beret gets up behind him, fists him and cuffs him where he falls. Nobody comes near that corner any more.',
+      beats: [{ on: 'greenberet:knockoutFist', look: ['y2'], shot: true, hold: 1.5 }] },
+    // H · the radio room
+    { cp: 'H1', who: 'greenberet', look: ['officers_wing', 'lt1'], cones: ['lt1'],
+      say: 'While the lieutenant stands in the radio room, the Green Beret crosses the yard\'s south side and slips into the officers\' wing beside the lorry.' },
+    { cp: 'H2', who: 'greenberet', look: ['lt1', 'hptm', 'op1'], cones: ['lt1', 'op1'],
+      say: 'The Green Beret follows the lieutenant back into the radio room and fists him, then Steinmetz at his map table and the operator at his set. Three pairs of cuffs, the key tables taken: nothing left to burn.',
+      beats: [{ on: 'objective:o2', look: ['hptm'], shot: true, hold: 2 }] },
+    { cp: 'H3', who: 'greenberet', look: ['lorry'], cones: [],
+      say: 'Steinmetz on his shoulder, down the officers\' wing to the lorry; into the back with him, and the Green Beret climbs in after.' },
+    // I · the lorry
+    { cp: 'I1', who: 'driver', look: ['lorry'], cones: [],
+      say: 'Everyone aboard: the Driver at the wheel, the Sapper and the Green Beret in the back with Steinmetz.' },
+    { cp: 'I2', who: 'driver', look: ['lorry', 'cistern'], cones: ['ct1'],
+      say: 'The lorry backs up, rolls out under the arch, east along the wall and north past the cistern tower. On Hard it waits for the patrol to walk away along the north side: men stepping out of a lorry\'s way see who drives it.' },
+    { cp: 'I3', who: 'driver', look: ['coupler'], shot: true, cones: [],
+      say: 'Behind them the charge on the coupling hut goes up: the farm\'s siren, and a yard full of cuffed men.',
+      beats: [{ on: 'objective:o3', look: ['coupler'], shot: true, hold: 4 }] },
+    { cp: 'I4', who: 'driver', look: ['lorry'], cones: [],
+      say: 'A German lorry on a German road: out by the north road, with the Hauptmann in the back.' },
+    // the Sapper's and the Driver's own flows (they run alongside the stages: their notes come up as they happen)
+    { cp: 'S1', who: 'sapper', look: ['floor_fence', 'coupler'], cones: ['m1'],
+      say: 'Meanwhile, from the start, the Sapper has crawled out of the grove by its north gate and up the empty west fields to the threshing floor\'s wire.' },
+    { cp: 'S2', who: 'sapper', look: ['coupler'], cones: ['m1', 'm2'],
+      say: 'He cut a hole in the wire and lay down behind the coupling hut: its door sentry and m1 both look south, the hut between them and him. There he waited for the radio-room raid.' },
+    { cp: 'S3', who: 'sapper', look: ['coupler'], cones: ['m1', 'm2'],
+      say: 'As the Green Beret walked into the radio room, the Sapper set the long-fused charge on the coupling hut: four minutes, enough for the lorry to be gone.',
+      beats: [{ on: 'sapper:timeBomb', look: ['coupler'], hold: 3 }] },
+    { cp: 'S4', who: 'sapper', look: ['mas_gate'], cones: ['m1'],
+      say: 'Then he cut a second hole in the floor\'s east wire and crawled down between the fence and the farm\'s wall to the gate.' },
+    { cp: 'S5', who: 'sapper', look: ['lorry'], cones: [],
+      say: 'Across the empty yard and into the back of the lorry.' },
+    { cp: 'D1', who: 'driver', look: ['casedda'], cones: [],
+      say: 'The Driver, waiting by the checkpoint since the boom, crawled round behind the road to the farm\'s gate when the raid began.' },
+    { cp: 'D2', who: 'driver', look: ['lorry'], cones: [],
+      say: 'He crossed the empty yard and climbed in at the wheel.' },
+  ],
+  outro: 'Mission complete: Steinmetz and his key tables away in the lorry, the coupling hut blown. Every man taken was taken from behind, cuffed and put out of sight; nobody ever saw a commando.',
+};
