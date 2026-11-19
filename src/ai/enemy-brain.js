@@ -30,6 +30,7 @@ import { AnimalBrain } from './animal-brain.js';
 import { ANIMAL_TYPES } from './bcd-ranks.js';
 import { bcdPre, bcdScan, bcdOnSeen, bcdState, bcdExit, bcdOfficerLook } from './bcd-brain.js';
 import { blocks as blocksUnit } from '../entities/avoidance.js';
+import { stairSpeed } from '../entities/stair-walk.js';
 
 /** A noise-driven turn needs this long (s) before what he now faces counts for a kill witness (notifyKill). */
 const NOISE_WITNESS_DELAY = 0.3;
@@ -2071,7 +2072,9 @@ export class EnemyBrain {
     const x = Math.max(0, Math.abs(err) - F.arrive);
     // his real pace last tick caps the controller's memory (he may have reached his slot and stood since)
     // (his own pace, before the avoidance's brake on top of it: the two would compound into a hard stop)
-    const v0 = Math.min(this._fv ?? 0, (e.path ? (e.trackV ?? 0) / Math.max(0.05, e._avScale ?? 1) : 0) + F.accel * dt);
+    // (and before a flight's pace, stair-walk.js stairSpeed: capped by his pace on the treads, × 0.85, the memory shrank
+    // tick by tick — a follower climbed a flight at a crawl, ~0.3 m/s, and the file strung out: sol/m20-v2)
+    const v0 = Math.min(this._fv ?? 0, (e.path ? (e.trackV ?? 0) / Math.max(0.05, (e._avScale ?? 1) * stairSpeed(e, 1)) : 0) + F.accel * dt);
     let want;
     if (pt.hold) want = 0;
     else if (base > 0) { // keeping station on a walking leader: braking curve, linear near the slot (no limit cycle)
@@ -2123,16 +2126,37 @@ export class EnemyBrain {
       // pure pursuit: aim a little further up the trail than the slot (rounded corners, smooth merge after a halt)
       const mv = hypot2(e.vx || 0, e.vz || 0), bd = (v * v) / (2 * F.decel) + 0.05; // braking to a hold: on his way, a stop's length
       const aim = pt.hold && mv > 0.05 ? { x: e.x + (e.vx / mv) * bd, z: e.z + (e.vz / mv) * bd } : halted || pt.hold ? pt : this._followPoint(lead, F.lookahead) || pt;
-      if (this._steerable(aim)) e.steerTo(aim.x, aim.z);
+      // (halfway up / down a stone flight on its link he walks on to its end first: a path planned from its treads
+      // would start from the free cell nearest him — beside the flight, behind its cheek wall)
+      if (this._onSolidFlight()) { /* on to the flight's end (his path's leg) */ }
+      else if (this._steerable(aim)) e.steerTo(aim.x, aim.z);
       // (no straight line: a path to the aim point, renewed before its end while the slot moves on — arriving on a
       // stale slot point at a walk would stop him dead for a tick)
       else if (this._repathT <= 0 || !e.isMoving || (base > 0 && e._pathLeft && e._pathLeft(1) < v * 0.4 + 0.1)) {
         this._repathT = 0.25;
-        if (!e.moveTo(aim.x, aim.z) && (aim === pt || !e.moveTo(pt.x, pt.z))) { e.stop(); this._fv = 0; }
+        // (the leader's trail up a stone flight's treads is no ground to walk to: he goes by its end on the leader's
+        // side — up the stairs after him — not to the free cell nearest the point, beside the flight behind its cheek wall)
+        const ta = this._stairAim(aim, lead), tp = aim === pt ? ta : this._stairAim(pt, lead);
+        if (!e.moveTo(ta.x, ta.z) && (aim === pt || !e.moveTo(tp.x, tp.z))) { e.stop(); this._fv = 0; }
       }
     }
     if (lb?.atWait) this._sweep(true, CONFIG.stealth.vision.patrolWatch.sweep * DEG, CONFIG.stealth.vision.patrolWatch.period);
     else this._look(0);
+  }
+
+  /**
+   * Where a squad member walks to for point `p` of his leader's trail: `p` itself, or — over the treads of a solid stair
+   * link — that flight's end on the side of `lead` along it (world/stairs.js StairField.solidEndFor).
+   */
+  _stairAim(p, lead) {
+    const F = this.world?.grid?.flights;
+    return (F?.size && F.solidEndFor?.(p.x, p.z, lead)) || p;
+  }
+
+  /** Walking a solid stair link's leg of his path (up / down a stone flight's treads, world/stairs.js). */
+  _onSolidFlight() {
+    const e = this.enemy, L = e.path?.[e.pathIndex]?.link;
+    return !!(L?.walk && this.world?.grid?.flights?.ofLink(L.id)?.solid);
   }
 
   /** §4.1 dog: follows its handler, 1.5 m behind (a dead handler leaves it at its post). */

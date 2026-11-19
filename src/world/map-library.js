@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { due, runSync } from '../engine/slice.js';
 import { LINK, B } from './grid.js';
 import { placeholderHinted } from '../art/building-props.js';
+import { gameplayGeometry } from '../engine/gameplay-geometry.js';
 
 const MIN_RAISE = 1.5; // m — lower walkable sidecar surfaces (quays, porches) stay ground level
 
@@ -409,6 +410,13 @@ export function* calibrateDeckG(deck, THREE) {
   }
   deck.root.updateMatrixWorld(true);
   const rc = new THREE.Raycaster(), o = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0), d = [];
+  // (each ray on the geometry gameplay measures: a visual refinement of the drawn meshes — art/coplanar-nudge.js,
+  // art/round-roofs.js — must not move the lift; engine/gameplay-geometry.js, as placement-visual's measureTop)
+  const cast = (rr) => {
+    const swapped = [];
+    deck.root.traverse((m) => { if (m.isMesh) { const g = gameplayGeometry(m.geometry); if (g !== m.geometry) { swapped.push([m, m.geometry]); m.geometry = g; } } });
+    try { return rr.intersectObject(deck.root, true); } finally { for (const [m, g] of swapped) m.geometry = g; }
+  };
   const lift = deck.lift;
   deck.lift = 0;
   const hs = pts.map(([x, z]) => deck.heightAt(x, z));
@@ -419,7 +427,7 @@ export function* calibrateDeckG(deck, THREE) {
     if (h == null) continue;
     if (k && due()) yield;
     rc.set(o.set(x, h + 3, z), down);
-    const all = rc.intersectObject(deck.root, true);
+    const all = cast(rc);
     if (all.length) hits++;
     const hit = all.find((q) => q.point.y > h - 0.06 && q.point.y < h + 0.25);
     if (hit) d.push(hit.point.y - h);

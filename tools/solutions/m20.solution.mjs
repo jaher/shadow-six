@@ -9,11 +9,14 @@
  *   B  along the HQ terrace's S strip behind the forecourt screen: e2 by the searchlight, e38 behind the second screen
  *   C  e37 at his halt beside the turret, his body into the turret's blind corner (e3 on the turret sweeps 240°)
  *   D  down to the NW terrace: e33, e34 (they look S over the W quarter; bodies on a terrace are out of sight below)
- *   E  the decoy on the gatehouse roof lures e29 (only he can hear it) up the stairs to the knife; e32 at their foot
+ *   E  the decoy on the gatehouse roof lures e29 (only he can hear it) up the W quarter's stairs (re-routed into the yard
+ *      by the inner gatehouse, user 2026-11-15) while the Green Beret lies on the NW terrace, above his sight; the knife
+ *      from behind; down into the yard behind e32's back (he looks W from his post, 11 m S of the stairs' foot now: he is
+ *      left there). The Sniper crawls round the castle outside (e11 leaves a lane down the narrow E field) and shoots e7
+ *      on the S wall from the meadow at the bastion's foot, in the gap between two of its re-seated merlons
  *   F  round the barracks into the hut's lee in the S court: e65, e27, e24 and e22 by way of the barracks' S face (out of
  *      e22's sight), each body back into the lee or into the pocket by the gatehouse
- *   G  the Sniper crawls round the castle outside (e11 now leaves a lane down the narrow E field) and shoots e7 on the
- *      SW wall from the meadow; the Green Beret knifes the gate's rear pair in its arch
+ *   G  the Green Beret knifes the gate's rear pair in its arch
  *   H  the Sapper and the Driver come round the same way; the Marine and the Spy settle in the meadow's SW corner
  *   I  Sapper, Driver and Sniper over the bridge behind the front pair's backs and in through the arch
  *   J  the Sniper onto the W bastion terrace; the Green Beret knifes e67 on the N range roof, the Sniper shoots e66
@@ -29,6 +32,7 @@ import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { contactPlan, CONTACT } from '../../src/abilities/knife-contact.js';
 import { dropSpot } from '../../src/abilities/common.js';
+import { shotClear } from '../../src/abilities/weapons.js';
 import { settleBody, fallHeading, settleSolid, settleHands } from '../../src/world/placement.js';
 import { BODY, bodyGap, clearPose, hasObstacles, deadStance, STOP_MARGIN } from '../../src/world/body-clearance.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
@@ -36,6 +40,7 @@ import { boardPoint } from '../../src/abilities/drive.js';
 import { arcStep } from '../../src/entities/vehicle-maneuver.js';
 import { sneak, planSneak, clearFor, routeClear, routeClearGen, unwitnessed, bodySeen, predict, walking, viewersOf, walkerViews, walkerSees, walkerSeesWide, seesAny, inflateCone, dummyAt, glanceCone } from './sneak.mjs';
 import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
+import { flightLocal, lineAt } from '../../src/world/stairs.js';
 
 const DBG = !!(globalThis.process?.env?.M20DBG || globalThis.__M3DBG);
 let dbgN = 0;
@@ -165,6 +170,22 @@ async function atMoment(D, role, at, okAt, back, { tries = 6, grace = 4, label =
 const CONE_MARGIN = [4, 0.4];
 
 /**
+ * sneak.dummyAt, on a stair flight at the height of its nosing line (stairs.js lineAt): a link flight's cells keep the
+ * floor's height in the grid — only a man walking the link stands on it — so a man going up or down the W quarter's
+ * stairs (re-routed into the yard, user 2026-11-15: in full view of the N court from their head) would be judged as if
+ * he stood at their foot, hidden by the bastion terrace's retaining wall.
+ */
+function dummyOn(w, mode, x, z) {
+  const d = dummyAt(w, mode, x, z), F = w.grid.flights;
+  if (mode !== 'body' && mode !== 'boat' && F?.size) for (const f of F.near(x, z)) {
+    if (!f.link) continue;
+    const q = flightLocal(f, x, z);
+    if (Math.abs(q.v) <= f.w / 2 && q.s >= f.sFoot && q.s <= f.sTop + 0.3) { d.y = Math.max(d.y, lineAt(f, q.s)); break; }
+  }
+  return d;
+}
+
+/**
  * routeClear with widened cones (CONE_MARGIN): would a man ('crawl' / 'walk'; 'body' for a body lying there) going
  * along `pts` from `from` at `speed`, setting off in `delay` s and holding `hold` s at the end, stay unseen? Samples
  * every `step` s, each tried `slack` s early and late. `except`: guards left out.
@@ -188,7 +209,7 @@ function* quietRouteG(D, pts, { mode = 'walk', from, speed = 1.0, delay = 0, hol
     let n = 0, mir = null;
     for (const [sx, sz, st] of samples) {
       if (Math.hypot(e.x - sx, e.z - sz) > reach) continue;
-      const d = dummyAt(w, mode, sx, sz);
+      const d = dummyOn(w, mode, sx, sz);
       for (let o = -slack; o <= slack + 1e-6; o += 0.1) {
         if (++n % (moving ? 6 : 24) === 0) yield; // (a few looks at a time — a walker's are many heads: the live replay hands the frame back between them)
         const tt = Math.max(0, st + o);
@@ -455,15 +476,30 @@ async function carryTo(D, role, e, [x, z], via = [], { tol = 0.5, viaTol = 0.7 }
  * gatehouse's foot, through its tunnel and out into the N court along the W bastion terrace's foot (x ≈ 71.6).
  */
 async function downAndThrough(D, role, spot = YARD_WAIT[0]) {
-  const u = D.c(role);
-  await untilA(D, async () => { const why = []; return await qrA(D, [S_GW_UP[1], S_GW_FOOT], { mode: 'crawl', from: [u.x, u.z], speed: 0.8, hold: 2, why, margin: [3, 0.2] }) || dbg(D, why, `${role} down the stairs`); }, 300, 'the stairs unwatched');
-  D.order(role, { type: 'move', x: S_GW_FOOT[0], z: S_GW_FOOT[1] });
-  await D.until(() => !u.path && !u.isMoving && (u.y || 0) < 0.5, 40, `${role} down the stairs`);
+  await gwDown(D, role);
   await D.path(role, [spot], { tol: 0.5, max: 30 });
 }
 
+/**
+ * `role`, on the W bastion terrace or the gatehouse roof: to the head of the W quarter's stairs and down them on his
+ * belly once nobody will see him on them, to their foot in the yard (`hold` s there unseen too).
+ */
+async function gwDown(D, role, hold = 2) {
+  const u = D.c(role);
+  if (Math.hypot(u.x - S_GW_TOP[0], u.z - S_GW_TOP[1]) > 0.6) await D.path(role, [S_GW_TOP], { tol: 0.4, max: 30 });
+  await untilA(D, async () => { const why = []; return await qrA(D, [S_GW_UP[1], S_GW_FOOT], { mode: 'crawl', from: [u.x, u.z], speed: 0.8, hold, why, margin: [3, 0.2] }) || dbg(D, why, `${role} down the stairs`); }, 300, 'the stairs unwatched');
+  D.order(role, { type: 'move', x: S_GW_FOOT[0], z: S_GW_FOOT[1] });
+  await D.until(() => !u.path && !u.isMoving && (u.y || 0) < 0.5, 40, `${role} down the stairs`);
+}
+
+/**
+ * the yard's mouth E of the W quarter's stairs' foot, NE of e32's post: he looks W over the quarter (sweep ±30°), the
+ * yard and the way from it to the inner gate's S mouth are behind his back (the stairs, re-routed into the yard by the
+ * user 2026-11-15, no longer come down by his post: he is left at it)
+ */
+const YARD_OUT = [62.6, 71.5];
 /** the way from the yard past the gatehouse's foot and through its tunnel into the N court's W strip (Patrol 57 walks it) */
-const TUNNEL = [[60.4, 77.6], [66, 76], [72.6, 72.8], [72.4, 66], [71.8, 58]];
+const TUNNEL = [YARD_OUT, [66, 76], [72.6, 72.8], [72.4, 66], [71.8, 58]];
 
 /**
  * `role`, in the N court's W strip below the W bastion terrace: N along the terrace's foot and round its corner — e55's
@@ -508,8 +544,14 @@ async function clearWay(D, tank, x, z, { r = 24, lane = 3.4 } = {}) {
   }
 }
 
-/** How far round the tank its gun clears the men at the SW gate's mouth before each move (m). */
-const GATE_CLEAR = 24;
+/** The live men on their feet on the ground within `r` m of the tank, nearest first. */
+function nearMen(D, tank, r) {
+  return D.world.enemies.filter((q) => q.alive && !q.removed && (q.y ?? 0) <= 1.5 && !q.vehicle && Math.hypot(q.x - tank.x, q.z - tank.z) < r)
+    .sort((a, b) => Math.hypot(a.x - tank.x, a.z - tank.z) - Math.hypot(b.x - tank.x, b.z - tank.z));
+}
+
+/** How far round the tank its gun clears the men at the SW gate's mouth before each move (m); and while it drives. */
+const GATE_CLEAR = 24, DRIVE_GUARD = 14;
 async function clearAround(D, tank, r = 14) {
   const tried = new Set();
   for (;;) {
@@ -545,12 +587,28 @@ async function pathFile(D, file, { gap = FILE_GAP, tol = 0.45, max = 120 } = {})
   }, max, `${file.map(([r]) => r).join(', ')} in file`);
 }
 
-/** The Driver's clicks, one after the other: each the moment the tank is within 2.2 m — or, `stop`, once it stands. */
-async function drive(D, tank, pts, { stop = false } = {}) {
+/**
+ * The Driver's clicks, one after the other: each the moment the tank is within 2.2 m — or, `stop`, once it stands.
+ * `guard` m: meanwhile its guns take any man on his feet who comes that near (the alarm brings men running from the
+ * courts: one who walked into its way would step aside and know it for the enemy's — vehicle.js, the taint); a shot
+ * that left the tank without its goal gives it the click again.
+ */
+async function drive(D, tank, pts, { stop = false, guard = 0 } = {}) {
   for (const [x, z] of pts) {
     try { D.order('driver', { type: 'move', x, z }); } catch (err) { throw new Error(`${err.message} (the tank at (${tank.x.toFixed(2)},${tank.z.toFixed(2)}) h${Math.round((tank.heading * 180) / Math.PI)})`); }
-    let still = 0;
-    await D.until(() => { if ((tank.speed || 0) < 0.05 && !tank.goal) still += 0.1; else still = 0; return stop ? still > 0.5 : Math.hypot(tank.x - x, tank.z - z) < 2.2 || still > 3; }, 60, `tank to (${x},${z})`);
+    let still = 0, nextShot = 0;
+    await D.until(() => {
+      if (guard > 0 && D.t >= nextShot) {
+        const e = nearMen(D, tank, guard)[0];
+        if (e) {
+          nextShot = D.t + 0.3;
+          try { D.ability('driver', 'vehicleFire', e); } catch { /* reloading, or no line */ }
+          if (!tank.goal && Math.hypot(tank.x - x, tank.z - z) > 2.2) { try { D.order('driver', { type: 'move', x, z }); } catch { /* the next tick */ } }
+        }
+      }
+      if ((tank.speed || 0) < 0.05 && !tank.goal) still += 0.1; else still = 0;
+      return stop ? still > 0.5 : Math.hypot(tank.x - x, tank.z - z) < 2.2 || still > 3;
+    }, 60, `tank to (${x},${z})`);
     if (DBG) D.log(`DBG tank for (${x},${z}) at (${tank.x.toFixed(2)},${tank.z.toFixed(2)}) h${Math.round((tank.heading * 180) / Math.PI)} t=${D.t.toFixed(1)}`);
   }
 }
@@ -672,8 +730,13 @@ const DECOY_AT3 = [31.2, 53.3], E37_SIDE = [33.5, 65], B2_W = [34.4, 69.7], B2_W
 /** behind e37 at his N halt (out of the turret guard's sight); his body round the turret in its blind corner */
 /** the stairs by the flak (S_nw2): its head on T_hq, its foot on T_nw */
 const S_NW2_TOP = [37.6, 63], S_NW2_FOOT = [46.6, 63]; // S_nw2 re-seated due W (user 2026-11-15)
-/** the HQ charge: in the turret's blind corner against the château (within the charge's reach of it, out of every eye) */
-const HQ_BOMB = [28.6, 53];
+/**
+ * the way into the turret's blind corner from the head of the stairs by the Flak: down the HQ terrace's E edge and W
+ * along the corner's S side, where the turret guard never looks (his sweep, sampled tick by tick over two of them);
+ * the Sapper's spot for the charge, a metre on into the guard's view (facing W, the charge 0.4 m ahead of him: within
+ * its reach of the château)
+ */
+const CORNER_IN = [[37.8, 58], [37.8, 55], [37.6, 54], [35.5, 53.4], [33, 53], [31.2, 52.6]], PLANT_AT = [30.1, 52.7];
 /** the AT-gun charge (6 m W of the gunner e55, within the charge's reach of him); the N court's NW corner, under the N range */
 /** from the W strip across to the tank's W end, by its hatch on the S side */
 const TO_TANK = [[71.6, 50], [72.4, 44.5], [76.6, 38.6], [79.6, 39.8]];
@@ -780,7 +843,9 @@ function* straightRunG(tank, p, x, z, v0 = 0) {
   }
   return null;
 }
-const YARD_WAIT = [[58.6, 69.2], [58.2, 66.8], [60.2, 65.6], [59.5, 63.6]], DECOY_FC = [86, 79], AT_BOMB = [71.2, 50.8], NWC = [[59.5, 35.2], [58.2, 36.8], [60.8, 37.6], [57.6, 34.6]];
+// (the yard's spots W of the W quarter's stairs, re-routed into it (user 2026-11-15): each one's metre, where the crawl
+// planner starts from, clear of their flight's kerbs)
+const YARD_WAIT = [[58.6, 69.2], [58.2, 66.8], [57.2, 65.0], [59.5, 63.6]], DECOY_FC = [86, 79], AT_BOMB = [71.2, 50.8], NWC = [[59.5, 35.2], [58.2, 36.8], [60.8, 37.6], [57.6, 34.6]];
 /** behind e33 and e34 on T_nw's S edge (they face S) */
 const E33_BACK = [45.6, 68.9], E34_BACK = [51.6, 68.9];
 /** S_nw1 (T_nw <-> T_wb) and S_gw (T_wb <-> the W quarter) */
@@ -794,8 +859,25 @@ const LURK67 = [66, 14.8], E67_BACK = [59.8, 23.4], SNIPE66 = [57.5, 44];
  * draws at (11-18, 137-144) in the meadow's SW corner: the headless grid has none of the library meshes)
  */
 const S_FIELD = [[156.6, 45], [156.6, 80], [156, 115], [156, 150], [130, 158], [95, 158], [60, 158], [32, 156], [20.5, 138.5], [16, 131]];
-/** the Sniper's firing point for e7 (W of the gate's front pair, beyond the bastion's eyes) */
-const SNIPE7 = [21, 127];
+/**
+ * the Sniper's firing point for e7 (W of the gate's front pair, out of their sweep, beyond the bastion's eyes), and the
+ * stretch of the S wall where e7 is in his sight over the parapet, clear of the merlons, for the whole aim
+ */
+const SNIPE7 = [23, 122], SNIPE7_WIN = [60.4, 62.8], SNIPE7_WAIT = [21, 127];
+/**
+ * Will the Sniper's shot at `e` still find him when it goes off — at the end of the aim (CONFIG weapons sniper.aim),
+ * where he will be by then, with a tick either way: in range and in sight past the parapet's merlons (abilities
+ * sniper: the shot is lost otherwise)?
+ */
+function aimClear(D, sn, e) {
+  const A = CONFIG.weapons?.sniper?.aim ?? 0.6, g = { kind: 'enemy', alive: true, x: 0, z: 0, y: e.y || 0, isLow: false };
+  for (const dt of [A - 0.1, A, A + 0.15]) {
+    const q = predict(e, dt);
+    g.x = q.x; g.z = q.z;
+    if (Math.hypot(q.x - sn.x, q.z - sn.z) > 44.5 || !shotClear(D.world, sn, g, true)) return false;
+  }
+  return true;
+}
 /** where the Sapper and the Driver lie on the moat's W bank by the gate's bridge; where the outside three wait for the tank */
 /** over the bridge and through the gate's arch (along its axis); the pocket behind the gatehouse's E tower */
 const INTO = [[40, 120.5], [47, 123.6], [52.6, 126.1], [54.4, 123.7], [55.7, 118.8], [56.6, 116], [57.3, 113.2], [58, 110.4], [62.6, 110.7], [64.5, 112], [65.6, 115.6], [72, 115.6]], POCKET = [[75.6, 115.4], [77.6, 116.2], [79.6, 116.6]];
@@ -821,7 +903,7 @@ const AT_S = [76.5, 102.5];
  */
 const E65_BODY = [79.6, 109.5], LEE = [78, 107.9];
 /** behind e22 (NE of him: he looks SE down the road); his body in the pocket E of the gatehouse's tower (by the rear pair's) */
-const E22_BACK = [61.2, 105], E22_BODY = [65, 112.4];
+const E22_BACK = [61.2, 105], E22_BODY = [63.9, 113.3]; // (a stride SW of where it lay till 2026-11-18: e24, left on his beat until F4, now sees the pocket's NE part)
 /** behind the gate's rear pair (N of them in the arch: they look S down the bridge); their bodies in the pocket E of its tower */
 const SB_BACK = [57.7, 113.5], SA_BACK = [55.9, 113.3], GATE_BODY = [[64.4, 113.4], [65.3, 114.4]];
 /**
@@ -837,9 +919,9 @@ const S_FACE_W = [[72.8, 103.65], [70.5, 103]];
 /** the GB's crawl from the yard round the barracks' E end into the hut's lee (he lies on a whole metre of it: the planner's squares) */
 /** Patrol 57's file keeps only roughly to its leader's step: crawlers along its round keep 9 m from each man */
 const P57_KEEP = { p57: 9, p57b: 9, p57c: 9 };
-const S1 = [79.5, 108.5], F_WAY = [[59.6, 78.8], [66, 76], [73, 73.5], [81, 77.5], [85, 87], [83, 99], S1];
+const S1 = [79.5, 108.5], F_WAY = [YARD_OUT, [66, 76], [73, 73.5], [81, 77.5], [85, 87], [83, 99], S1];
 /** F_WAY back N from the S court, without its stop at (81, 77.5) on Patrol 57's round: the planner's own way past it */
-const F_BACK = [[83, 99], [85, 87], [73, 73.5], [66, 76], [59.6, 78.8]];
+const F_BACK = [[83, 99], [85, 87], [73, 73.5], [66, 76], YARD_OUT];
 
 /**
  * Crawl `role` along `way` (ending F_BACK) from where he lies hidden in the S court round the barracks to the yard,
@@ -862,13 +944,18 @@ async function roundBarracks(D, role, way, label) {
 
 /** the far E corridor of the W quarter (x 72-74: only p57 passes) */
 const E_CORR_N = [72.5, 80.5];
-/** behind e32 (on the stairs' lowest steps; he looks W); the stairs up to the gatehouse roof; the bodies up there */
+/** the W quarter's stairs (S_gw, re-routed into the yard by the inner gatehouse, user 2026-11-15): its foot, its head */
 const S_GW_UP = [[62, 68], [62, 62.1]], S_GW_FOOT = [62, 68];
+/** the decoy at the gatehouse roof's W corner (only e29 at his E halt hears it) */
+const DECOY_R = [64.06, 65.06];
+/** where he lies in the yard, W of the stairs (behind e32's back; a crawler there is beyond every other near band) */
+const YARD_LIE = [58.6, 64.6];
 /**
- * the decoy at the gatehouse roof's W corner (only e29 at his E halt hears it); where the GB waits; e32's body, in the
- * yard's N end under the bastion's face (Patrol 26, coming round the barracks' N side, sees the rest of the yard)
+ * where the GB lies for e29 on the NW terrace, beside the head of its stairs down to the W bastion terrace (3 m above it:
+ * a man lying there is out of sight of everyone on the bastion terrace and below); his way from their foot S along the
+ * bastion terrace, W of its middle, to behind e29 staring at the decoy on the gatehouse roof
  */
-const DECOY_R = [64.06, 65.06], ROOF_LURK = [68.6, 46.5], E32_BODY = [61.4, 63.8];
+const NW_LURK = [54.2, 50.4], E3_WAY = [[61.4, 54], [62.4, 59.6]];
 const E37_BEHIND = [34.9, 62.1], E37_CARRY = [[34.8, 57.5], [34.4, 55.4], [34.1, 53.6]];
 /** the climb's foot and the corner of the W rock on the way there */
 const FOOT = [14.6, 83.05], FOOT_TURN = [7.4, 83.5];
@@ -981,7 +1068,15 @@ export const STAGES = [
       // (his cone's edge, swinging back, crosses the strip's W end in 0.05 s, between two of the planner's samples: his
       // cone tried every 0.025 s, and a little wider: he passes between two cell centres)
       await D.path('greenberet', [[11.5, 70.3], SCREEN_E], { tol: 0.4, max: 30 });
-      await crawl(D, 'greenberet', ...E2_BACK, { box: 5, horizon: 200, keep: 1, hold: 2, keepWalker: 3, maxExpand: 900000, maxWait: 600, margin: [5, 6], edgePad: 3, subSteps: 4, postMargin: [4, 0.5], label: 'GB behind e2' });
+      // (the plan's 0.1 s steps against two sweeps — e3's 11 s, e40's 8 s — re-planned every second: a tick's shift in
+      // when he lies down here can leave every re-plan in the same phase and no way at all (headless --delay 23: 600 s).
+      // He lies on behind the screen, out of everyone's sight, and plans afresh a tick or two later)
+      for (let k = 0; ; k++) {
+        try { await crawl(D, 'greenberet', ...E2_BACK, { box: 5, horizon: 200, keep: 1, hold: 2, keepWalker: 3, maxExpand: 900000, maxWait: 90, margin: [5, 6], edgePad: 3, subSteps: 4, postMargin: [4, 0.5], label: 'GB behind e2' }); break; }
+        catch (err) { if (!/no way/.test(err.message) || k >= 15) throw err; }
+        D.log(`  GB behind e2: no way (t=${D.t.toFixed(1)}); a fresh plan ${(k % 3) + 1} tick(s) later`);
+        await D.wait(((k % 3) + 1) * D.dt);
+      }
       D.checkpoint('B1 the Green Beret crawls along the strip to its east end, behind the searchlight guard');
     }],
     ['B2', async (D) => {
@@ -1037,7 +1132,9 @@ export const STAGES = [
       // along the terrace's E edge (out of the turret guard's and everyone's sight) to the head of the stairs by the flak,
       // and down them to the NW terrace behind its two sentries (they watch the W quarter, S)
       const gb = D.c('greenberet');
-      await D.path('greenberet', [[36.8, 54.5], [37, 58], S_NW2_TOP], { tol: 0.35, max: 30 });
+      // (along the corner's S side and the terrace's E edge, where the turret guard never looks — a step N of that line, by
+      // the corner's mouth, he glimpses a man lying there a moment in each sweep)
+      await D.path('greenberet', [...CORNER_IN.slice().reverse().slice(2), S_NW2_TOP], { tol: 0.35, max: 30 });
       D.order('greenberet', { type: 'move', x: S_NW2_FOOT[0], z: S_NW2_FOOT[1] });
       await D.until(() => !gb.path && !gb.isMoving && Math.abs((gb.y || 0) - 7) < 0.3, 30, 'GB down the stairs on the NW terrace');
       D.checkpoint('D1 the Green Beret crawls down the stairs to the north-west terrace');
@@ -1079,8 +1176,10 @@ export const STAGES = [
       // (he sets it down on his feet, a pace E of the spot, having stepped up to it facing W: lying beside the parapet a
       // man lies along it, and the decoy would go down a pace N of him)
       const stand = [DECOY_R[0] + 0.4, DECOY_R[1]], pre = () => [stand[0] + 0.9, stand[1]];
-      // (his way from the bastion terrace's NE corner along its E edge, onto the roof and up behind e29)
-      const approach = (q) => [ROOF_LURK, [68.75, ROOF_LURK[1] + 1], [68.75, 62], [68.6, 66.5], [q.x - Math.cos(q.h) * 1.8, q.z - Math.sin(q.h) * 1.8]];
+      // (his way from the NW terrace down its stairs onto the W bastion terrace and S along it, up behind e29: e29 comes up
+      // the W quarter's stairs, re-seated due N (user 2026-11-15), looking straight along the bastion terrace — the old
+      // lurk on it lay in his near band; on the NW terrace, 3 m higher, a man lying down is out of his sight altogether)
+      const approach = (q) => [S_NW1_FOOT, ...E3_WAY, [q.x - Math.cos(q.h) * 1.8, q.z - Math.sin(q.h) * 1.8]];
       for (let k = 0; ; k++) {
         await D.go('greenberet', ...pre(), { tol: 0.2, max: 20 });
         // (e29's head swings across the corner as he turns away from either end of his beat: turns foreseen; and Patrol 26,
@@ -1105,8 +1204,12 @@ export const STAGES = [
         await D.until(() => gb.has?.('decoy'), 20, 'decoy taken up');
         await D.idle('greenberet', 3);
       }
-      await D.path('greenberet', [[68.5, 62], ROOF_LURK], { tol: 0.4, max: 30 });
-      D.checkpoint('E2 the Green Beret leaves his decoy on the gatehouse roof and lies in wait on the W bastion terrace');
+      // (back over the bastion terrace on his belly and up its stairs onto the NW terrace, where he lies beside their head)
+      await D.path('greenberet', [[62.5, 58], S_NW1_FOOT], { tol: 0.4, max: 40 });
+      D.order('greenberet', { type: 'move', x: S_NW1_TOP[0], z: S_NW1_TOP[1] });
+      await D.until(() => !gb.path && !gb.isMoving && Math.abs((gb.y || 0) - 7) < 0.3, 40, 'GB up on the NW terrace');
+      await D.path('greenberet', [NW_LURK], { tol: 0.4, max: 20 });
+      D.checkpoint('E2 the Green Beret leaves his decoy on the gatehouse roof and lies in wait on the NW terrace');
     }],
     ['E3', async (D) => {
       // the decoy beeps as e29 halts at the E end of his beat (Patrol 57 well away from the tunnel under the roof): he
@@ -1120,9 +1223,13 @@ export const STAGES = [
       await D.until(() => e29.brain?.state === 'DECOY' && e29.brain.phase === 'stare', 60, 'e29 stares at the decoy');
       D.log(`  e29 stares from (${e29.x.toFixed(1)},${e29.z.toFixed(1)}) y${(e29.y || 0).toFixed(1)} h=${(e29.heading * 180 / Math.PI).toFixed(0)}`);
       const back = [e29.x - Math.cos(e29.heading) * 1.8, e29.z - Math.sin(e29.heading) * 1.8];
-      const way = [[68.75, ROOF_LURK[1] + 1], [68.75, 62], [68.6, 66.5], back];
+      // (down the NW terrace's stairs behind him — he stares S at the decoy — and S along the bastion terrace)
+      const way = [S_NW1_TOP, S_NW1_FOOT, ...E3_WAY, back];
       await untilA(D, async () => { const why = []; return await qrA(D, way, { mode: 'crawl', from: [gb.x, gb.z], speed: 0.8, hold: 1, why, margin: [0.7, 0.1] }) || dbg(D, why, 'behind e29'); }, 20, 'the way behind e29 unwatched');
-      await D.path('greenberet', way, { tol: 0.4, max: 30 });
+      await D.path('greenberet', [S_NW1_TOP], { tol: 0.4, max: 10 });
+      D.order('greenberet', { type: 'move', x: S_NW1_FOOT[0], z: S_NW1_FOOT[1] });
+      await D.until(() => !gb.path && !gb.isMoving && Math.abs((gb.y || 0) - 4) < 0.3, 30, 'GB down on the W bastion terrace');
+      await D.path('greenberet', [...E3_WAY, back], { tol: 0.4, max: 30 });
       await knife(D, e29, { maxSec: 30, quiet: 60, label: 'staring at the decoy' });
       D.ability('greenberet', 'decoyToggle');
       D.ability('greenberet', 'hand', D.world.interactables.find((i) => i.interactKind === 'decoy' && !i.removed));
@@ -1131,19 +1238,14 @@ export const STAGES = [
       D.checkpoint('E3 the decoy beeps: e29 comes up the stairs to it and the Green Beret knifes him on the roof');
     }],
     ['E4', async (D) => {
-      // down the stairs behind e32 (he looks W over the quarter from their foot, his head swinging round to the stairs at
-      // the end of each sweep), the knife, and the body into the yard N of the beat (only e29 ever looked in there)
-      const gb = D.c('greenberet');
-      await D.path('greenberet', [S_GW_TOP], { tol: 0.4, max: 20 });
-      await untilA(D, async () => { const why = []; return await qrA(D, [S_GW_UP[1], S_GW_FOOT], { mode: 'crawl', from: [gb.x, gb.z], speed: 0.8, hold: 4.5, slack: 0.8, why, margin: [3, 0.2] })
-        && await qrA(D, [], { mode: 'body', from: [61, 78.8], delay: 14, hold: 8, why, except: [D.get('e32')] }) || dbg(D, why, 'down the stairs'); }, 200, 'the stairs unwatched');
-      D.order('greenberet', { type: 'move', x: S_GW_FOOT[0], z: S_GW_FOOT[1] });
-      await D.until(() => !gb.path && !gb.isMoving, 30, 'GB at the foot of the stairs');
-      await crawl(D, 'greenberet', 63.2, 78.5, { box: 4, keep: 1, hold: 1, keepWalker: 2, horizon: 120, label: 'GB behind e32' });
-      await knife(D, 'e32', { maxSec: 120, quiet: 8, after: null, label: 'at his post', reach: 3.4, ahead: 1.3 }); // (S_gw re-routed 2026-11-15: its foot is now 11 m N of e32's post)
-      await carryTo(D, 'greenberet', D.get('e32'), E32_BODY);
-      await D.stance('greenberet', 'crawl');
-      D.checkpoint('E4 the Green Beret knifes e32 at the foot of the west quarter\'s stairs and hides him in the yard under the W bastion');
+      // down the stairs on his belly while nobody looks, into the yard by the inner gatehouse: e32, 11 m S of the stairs'
+      // foot since the user re-routed them into the yard (2026-11-15), looks W over the quarter — the yard and the way E
+      // from it to the inner gate are behind his back. He is left at his post: a body anywhere near it would be found
+      // (the yard is open to Patrol 26's file coming round the barracks, the bastion terrace's S strip by the stairs'
+      // head to the whole N court on the way up to the gatehouse roof)
+      await gwDown(D, 'greenberet', 3);
+      await crawl(D, 'greenberet', ...YARD_LIE, { box: 4, hold: 4, crawlPad: 5, keepFrom: P57_KEEP, label: 'GB into the yard' });
+      D.checkpoint('E4 the Green Beret slips down the west quarter\'s stairs into the yard behind e32\'s back');
     }],
     ['E5', async (D) => {
       // (the Green Beret lies on in the yard under the W bastion: e7 on the SW wall sees the whole hut's lee where the
@@ -1155,29 +1257,58 @@ export const STAGES = [
       D.checkpoint('E5 the Sniper crawls round the south field to the moat\'s west bank');
     }],
     ['E6', async (D) => {
-      // from the meadow W of the gate's front pair (out of their sweep and beyond the bastion's eyes) the Sniper takes
-      // e7 on the SW wall as he walks its middle stretch: there his body lies out of sight of the bastion and the S wall
-      const e7 = D.get('e7'), sn = D.c('sniper');
-      // (he waits out by the SW corner, beyond Patrol 26's eyes, and crawls up to the firing point as e7 nears it)
-      const inWin = (q) => q.x > 60.6 && q.x < 63.6;
-      const tWin = () => { for (let t = 0; t < 130; t += 0.5) if (inWin(D.predict(e7, t))) return t; return Infinity; };
-      const crawlT = Math.hypot(SNIPE7[0] - sn.x, SNIPE7[1] - sn.z) / 0.8 + 2;
-      await untilA(D, async () => { const why = []; const tw = tWin(); return (tw > crawlT && tw < crawlT + 4
-        && await qrA(D, [SNIPE7], { mode: 'crawl', from: [sn.x, sn.z], speed: 0.8, hold: tw - crawlT + 8, why, margin: [6, 0.5] })) || dbg(D, why, 'to the firing point'); }, 600, 'e7 nearing the middle of the wall, the way to the firing point unwatched');
-      await D.path('sniper', [SNIPE7], { tol: 0.4, max: 40 });
-      await untilA(D, async () => {
-        const why = [];
-        if (!inWin(e7)) return dbg(D, [`e7 at x ${e7.x.toFixed(1)}`], 'e7');
-        const cu = ABILITIES.sniper.canUse(sn, e7, D.world);
-        if (cu !== true) return dbg(D, [`rifle: ${cu}`], 'e7');
-        if (!await qrA(D, [], { mode: 'walk', from: [sn.x, sn.z], delay: 0, hold: 2.2, why, margin: [6, 0.5], except: [e7] })) return dbg(D, why, 'e7');
-        const f = await bsA(D, e7.x + Math.cos(e7.heading) * 1.2, e7.z + Math.sin(e7.heading) * 1.2, 300, { except: [e7] });
-        return !f.length || dbg(D, [`body seen by ${f.join(',')}`], 'e7');
-      }, 30, 'e7 on the middle of the SW wall, nobody to see the shot');
+      // from the meadow W of the gate's front pair (out of their sweep; below the bastion, whose parapets hide the
+      // meadow at its foot from e5 and e6) the Sniper takes e7 on the S wall as he walks its W end, just past the
+      // gatehouse: there his body lies out of sight of the bastion and of the S corner's pair (e64, turning W to his
+      // partner every 25 s, takes in the wall walk to 36 m). The user's re-seated merlons on the S wall (2026-11-14/15)
+      // leave the rifle a merlon's gap there, a second and a half of his walk each way: the shot waits for the gap to
+      // hold for the whole aim)
+      const e7 = D.get('e7'), sn = D.c('sniper'), AIM = CONFIG.weapons.sniper.aim;
+      // (he waits out by the SW corner, beyond Patrol 26's eyes, and crawls up to the firing point as e7 nears the stretch;
+      // Patrol 26 halts by the firing point on its round: he is there only while it is far, and goes back after the shot)
+      const near = (q) => q.x > SNIPE7_WIN[0] && q.x < SNIPE7_WIN[1] + 0.6; // (where the rifle can open on him with the body to fall in the stretch)
+      const tWin = () => { for (let t = 0; t < 140; t += 0.5) if (near(predict(e7, t))) return t; return Infinity; }; // (the planner's forecast: his legs as the game walks them, along the bends of the wall walk)
+      for (let k = 0; ; k++) {
+        const crawlT = Math.hypot(SNIPE7[0] - sn.x, SNIPE7[1] - sn.z) / 0.8 + 2;
+        await untilA(D, async () => { const why = []; const tw = tWin(); return (tw > crawlT && tw < crawlT + 4
+          && (farFrom(D, P26, [SNIPE7], tw + 14, 24) || (why.push('Patrol 26 near'), false))
+          && await qrA(D, [SNIPE7], { mode: 'crawl', from: [sn.x, sn.z], speed: 0.8, hold: tw - crawlT + 10, why, margin: [6, 0.5] })) || dbg(D, why, 'to the firing point'); }, 600, 'e7 nearing the W end of the S wall, the way to the firing point unwatched');
+        await D.path('sniper', [SNIPE7], { tol: 0.4, max: 40 });
+        try {
+          await untilA(D, async () => {
+            const why = [];
+            if (!near(e7)) return dbg(D, [`e7 at x ${e7.x.toFixed(1)}`], 'e7');
+            // (where he falls: where he is when the shot goes off, after the aim — he drops on the spot)
+            const b = predict(e7, AIM);
+            if (!(b.x > SNIPE7_WIN[0] && b.x < SNIPE7_WIN[1])) return dbg(D, [`the body at x ${b.x.toFixed(1)}`], 'e7');
+            const cu = ABILITIES.sniper.canUse(sn, e7, D.world);
+            if (cu !== true) return dbg(D, [`rifle: ${cu}`], 'e7');
+            // (and still in sight where he will be when the shot goes off, past the parapet's merlons)
+            if (!aimClear(D, sn, e7)) return dbg(D, ['a merlon at the end of the aim'], 'e7');
+            if (!await qrA(D, [], { mode: 'walk', from: [sn.x, sn.z], delay: 0, hold: 2.2, why, margin: [6, 0.5], except: [e7] })) return dbg(D, why, 'e7');
+            // (the body where he will drop, and half a metre either way along the walk: nobody to find it)
+            for (const o of [0, -0.5, 0.5]) {
+              const f = await bsA(D, b.x + Math.cos(b.heading) * o, b.z + Math.sin(b.heading) * o, 300, { except: [e7] });
+              if (f.length) return dbg(D, [`body seen by ${f.join(',')}`], 'e7');
+            }
+            return true;
+          }, 10, 'e7 at the W end of the S wall, nobody to see the shot');
+        } catch (err) {
+          if (!/timeout/.test(err.message) || k >= 6) throw err;
+          D.log(`  E6: no shot on e7's pass (t=${D.t.toFixed(1)}); back to (${SNIPE7_WAIT[0]},${SNIPE7_WAIT[1]})`);
+          await crawl(D, 'sniper', ...SNIPE7_WAIT, { box: 6, hold: 3, crawlPad: 5, keepFrom: { p26: 19, p26b: 19, p26c: 19, p26d: 19 }, label: 'Sniper back' });
+          continue;
+        }
+        break;
+      }
+      const at0 = [e7.x, e7.z, e7.heading];
       D.ability('sniper', 'sniper', e7);
       await D.until(() => !e7.alive, 6, 'e7 shot');
       await D.idle('sniper', 5);
       await D.stance('sniper', 'crawl');
+      D.log(`  e7 shot at (${at0[0].toFixed(2)},${at0[1].toFixed(2)}) h${(at0[2] * 57.3).toFixed(0)}; he lies at (${e7.x.toFixed(2)},${e7.z.toFixed(2)})`);
+      // (back out of Patrol 26's way to where he waits for the others, beyond its eyes)
+      await crawl(D, 'sniper', ...SNIPE7_WAIT, { box: 6, hold: 3, crawlPad: 5, keepFrom: { p26: 19, p26b: 19, p26c: 19, p26d: 19 }, label: 'Sniper back' });
       D.checkpoint('E6 the Sniper shoots e7 on the SW wall');
     }],
   ])],
@@ -1322,10 +1453,19 @@ export const STAGES = [
       await D.stance('greenberet', 'crawl');
       // (a halt the knife cannot take — a glance off the forecast — he lies on for the next: at the hut's corner nobody
       // looks, e24 walking his beat passes it on his right)
+      // (his halt there is 3 s: from a crawl the knife comes too late — 4.9 m crawled, the stand, the stab. He gets to
+      // his feet as e24 walks the last stride into the halt — the hut's corner is past the edge of his cone, NE, and at
+      // the halt he looks E — and walks in from due S, his right side, as he halts)
       for (let k = 0; ; k++) {
-        await D.until(() => e24.brain?.atWait && e24.x > 64, 45, 'e24 halts at the E end of his beat');
-        try { await knife(D, e24, { maxSec: 3, quiet: 6, after: 'crawl', label: 'at his E halt', reach: 6.2, ahead: 1.6, margin: S_MARGIN }); break; } catch (err) { if (!/timeout/.test(err.message) || k >= 1) throw err; }
+        await D.until(() => { if (e24.brain?.atWait || Math.cos(e24.heading) < 0.5) return false; const q = predict(e24, 0.9); return !!q.halt && q.x > 64; }, 60, 'e24 nearly at the E end of his beat');
+        await D.stance('greenberet', 'stand');
+        try {
+          await D.until(() => e24.brain?.atWait && e24.x > 64, 3, 'e24 halts at the E end of his beat');
+          await knife(D, e24, { maxSec: 2.2, quiet: 6, after: 'crawl', label: 'at his E halt', reach: 6.2, ahead: 1.6, margin: S_MARGIN });
+          break;
+        } catch (err) { if (!/timeout/.test(err.message) || k >= 3 || !e24.alive) throw err; }
         D.log(`  e24: not this halt (t=${D.t.toFixed(1)}); the next`);
+        await D.stance('greenberet', 'crawl');
         await D.until(() => !e24.brain?.atWait, 10, 'e24 walks on');
       }
       // (e22 is gone: the body round the hut's N corner the game's own way, the short one)
@@ -1478,22 +1618,31 @@ export const STAGES = [
       D.checkpoint('K1 the Sapper crawls round and up onto the W bastion terrace');
     }],
     ['K2', async (D) => {
-      // up to the NW terrace and the HQ terrace by the stairs at the Flak, along its E edge (out of the turret guard's
-      // sight) into the turret's blind corner against the château: the remote charge there, and back down
+      // up to the NW terrace and the HQ terrace by the stairs at the Flak, along its E edge and the corner's S side (out of
+      // the turret guard's sight) into the turret's blind corner against the château: the remote charge there, and back
+      // down. The charge must lie within the bomb's reach of the château (abilities/explosions: x ≤ ~30.3 here), where the
+      // turret guard looks a moment in each sweep: the last metre, the plant and the metre back are timed between two
       const sa = D.c('sapper');
       D.order('sapper', { type: 'move', x: S_NW1_TOP[0] - 1, z: S_NW1_TOP[1] });
       await D.until(() => !sa.path && !sa.isMoving && Math.abs((sa.y || 0) - 7) < 0.3, 40, 'Sapper on the NW terrace');
       await D.path('sapper', [[50, 60], [44, 66.5], S_NW2_FOOT], { tol: 0.4, max: 60 });
-      await untilA(D, async () => { const why = []; return await qrA(D, [S_NW2_TOP, [37, 58], [36.8, 54.5], HQ_BOMB], { mode: 'crawl', from: [sa.x, sa.z], speed: 0.8, hold: 4, why, margin: [4, 0.4] }) || dbg(D, why, 'Sapper to the HQ'); }, 300, 'the way to the turret\'s blind corner unwatched');
+      await untilA(D, async () => { const why = []; return await qrA(D, [S_NW2_TOP, ...CORNER_IN], { mode: 'crawl', from: [sa.x, sa.z], speed: 0.75, hold: 4, why, margin: [4, 0.4] }) || dbg(D, why, 'Sapper to the HQ'); }, 300, 'the way to the turret\'s blind corner unwatched');
       D.order('sapper', { type: 'move', x: S_NW2_TOP[0], z: S_NW2_TOP[1] });
       await D.until(() => !sa.path && !sa.isMoving && Math.abs((sa.y || 0) - 13) < 0.3, 40, 'Sapper on the HQ terrace');
-      await D.path('sapper', [[37, 58], [36.8, 54.5], HQ_BOMB], { tol: 0.35, max: 40 });
-      await untilA(D, async () => { const why = []; return await qrA(D, [], { mode: 'walk', from: [sa.x, sa.z], delay: 0, hold: 2.5, why, margin: [4, 0.4] }) || dbg(D, why, 'the charge'); }, 120, 'nobody to see the charge set');
+      await D.path('sapper', CORNER_IN, { tol: 0.35, max: 40 });
+      // (in, the plant — a suspicious act: seen as a man on his feet — and out again, in one window of the sweep)
+      const inT = Math.hypot(PLANT_AT[0] - sa.x, PLANT_AT[1] - sa.z) / 0.8 + 0.5, plantT = CONFIG.weapons.remoteBomb.plant + 0.6;
+      await untilA(D, async () => { const why = []; return (await qrA(D, [PLANT_AT], { mode: 'crawl', from: [sa.x, sa.z], speed: 0.8, hold: 0, slack: 0.5, why, margin: [4, 0.4] })
+        && await qrA(D, [], { mode: 'walk', from: PLANT_AT, delay: inT, hold: plantT, slack: 0.5, why, margin: [4, 0.4] })
+        && await qrA(D, [CORNER_IN.at(-1)], { mode: 'crawl', from: PLANT_AT, delay: inT + plantT, speed: 0.8, hold: 1, slack: 0.5, why, margin: [4, 0.4] })) || dbg(D, why, 'the charge'); }, 180, 'nobody to see the charge set');
+      await D.path('sapper', [PLANT_AT], { tol: 0.2, max: 10 });
       D.ability('sapper', 'remoteBomb');
       await D.until(() => D.world.interactables.some((i) => i.interactKind === 'bomb' && i.placed && i.planter === sa), 6, 'charge set');
       await D.idle('sapper', 4);
       await D.stance('sapper', 'crawl');
-      await D.path('sapper', [[36.8, 54.5], [37, 58], S_NW2_TOP], { tol: 0.4, max: 40 });
+      const bomb = D.world.interactables.find((i) => i.interactKind === 'bomb' && i.planter === sa);
+      D.log(`  the charge at (${bomb?.x?.toFixed(2)},${bomb?.z?.toFixed(2)}), ${bomb ? Math.hypot(bomb.x - D.world.byId('hq').x, bomb.z - D.world.byId('hq').z).toFixed(2) : '?'} m from the headquarters' centre`);
+      await D.path('sapper', [...CORNER_IN.slice().reverse(), S_NW2_TOP], { tol: 0.4, max: 40 });
       D.order('sapper', { type: 'move', x: S_NW2_FOOT[0], z: S_NW2_FOOT[1] });
       await D.until(() => !sa.path && !sa.isMoving && Math.abs((sa.y || 0) - 7) < 0.3, 40, 'Sapper back on the NW terrace');
       D.checkpoint('K2 the Sapper sets his remote charge in the turret\'s blind corner against the headquarters');
@@ -1544,13 +1693,13 @@ export const STAGES = [
       // its last man made him out at the very edge of his near band — the planner forecasts a file man by his leader's
       // step, off it round a corner: his plans keep 22 m off each of the four, there and back)
       const K26 = { p26: 22, p26b: 22, p26c: 22, p26d: 22 };
-      for (const [x, z] of [[59.6, 78.8], [66, 76], [73, 73.5], [80, 78.5]]) await crawl(D, 'greenberet', x, z, { box: 5, hold: 4, crawlPad: 5, keepFrom: K26, label: `GB → (${x},${z})` });
+      for (const [x, z] of [YARD_OUT, [66, 76], [73, 73.5], [80, 78.5]]) await crawl(D, 'greenberet', x, z, { box: 5, hold: 4, crawlPad: 5, keepFrom: K26, label: `GB → (${x},${z})` });
       await crawl(D, 'greenberet', ...DECOY_FC, { box: 5, hold: 4, crawlPad: 5, goalOk: dropOk, keepFrom: K26, label: 'GB → the decoy\'s spot' });
       await untilA(D, async () => { const why = []; return await qrA(D, [], { mode: 'crawl', from: [gb.x, gb.z], delay: 0, hold: 2.2, why, margin: [4, 0.4] }) || dbg(D, why, 'the decoy'); }, 10, 'nobody to see the decoy set down');
       D.ability('greenberet', 'decoyDrop');
       await D.idle('greenberet', 3);
       await D.stance('greenberet', 'crawl');
-      for (const [x, z] of [[80, 78.5], [73, 73.5], [66, 76], [59.6, 78.8], YARD_WAIT[0]]) await crawl(D, 'greenberet', x, z, { box: 5, hold: 4, crawlPad: 5, keepFrom: K26, label: `GB → (${x},${z})` });
+      for (const [x, z] of [[80, 78.5], [73, 73.5], [66, 76], YARD_OUT, YARD_WAIT[0]]) await crawl(D, 'greenberet', x, z, { box: 5, hold: 4, crawlPad: 5, keepFrom: K26, label: `GB → (${x},${z})` });
       D.checkpoint('L3 the Green Beret leaves his decoy in the flak court, off Patrol 57\'s way, and crawls back to the yard');
     }],
     ['L4', async (D) => {
@@ -1561,6 +1710,10 @@ export const STAGES = [
       D.ability('greenberet', 'decoyToggle');
       // (the sergeant stares at it; his two men halt in file behind him, looking the same way)
       await D.until(() => p57.brain?.state === 'DECOY' && p57.brain.phase === 'stare' && ['p57b', 'p57c'].every((t) => { const e = D.get(t); return !e.path && !e.isMoving; }), 60, 'Patrol 57 stares at the decoy');
+      // (the decoy beeps on: e53, walking his beat down the court's E side, hears it at its S end and comes to stare too,
+      // his back to the court — the AT gun's corner then has only its posts' eyes on it)
+      const e53 = D.get('e53');
+      try { await D.until(() => !e53.alive || (e53.brain?.state === 'DECOY' && e53.brain.phase === 'stare'), 150, 'e53 stares at the decoy too'); } catch (err) { if (!/timeout/.test(err.message)) throw err; D.log(`  e53 did not come to the decoy (t=${D.t.toFixed(1)})`); }
       D.checkpoint('L4 the decoy beeps: Patrol 57 walks over to it and stares');
     }],
   ])],
@@ -1573,7 +1726,10 @@ export const STAGES = [
         const why = [];
         if (ABILITIES.sniper.canUse(sn, e55, D.world) !== true) return dbg(D, ['rifle'], 'e55');
         if (!await qrA(D, [], { mode: 'walk', from: [sn.x, sn.z], delay: 0, hold: 2.4, why, margin: [5, 0.4], except: [e55] })) return dbg(D, why, 'e55');
-        if (!await qrA(D, [], { mode: 'walk', from: [e55.x, e55.z], delay: 0.4, hold: 1.8, why, margin: [5, 0.4], except: [e55] })) return dbg(D, why, 'e55 falls');
+        // (his fall is judged as the shot lands (enemy-brain notifyKill: the instant he dies, as a body — the gun's sandbags
+        // hide that from the court); here as a man on his feet, the aim's end ± 0.4 s: e46 at the E road court looks
+        // down the gap between the two rockets' trailers at the gun, his head across it every 2.5 s)
+        if (!await qrA(D, [], { mode: 'walk', from: [e55.x, e55.z], delay: CONFIG.weapons.sniper.aim, hold: 0.3, slack: 0.4, why, margin: [5, 0.4], except: [e55] })) return dbg(D, why, 'e55 falls');
         const f = await bsA(D, e55.x, e55.z, 240, { except: [e55] });
         return !f.length || dbg(D, [`body seen by ${f.join(',')}`], 'e55');
       }, 300, 'nobody to see the AT gunner shot');
@@ -1615,12 +1771,12 @@ export const STAGES = [
       const tank = tankOf(D);
       // (leg by leg, the gun clearing the way first: since the alarm men walk the courts, and one in the way stepping
       // aside would know the tank for the enemy's)
-      for (const pt of TANK_OUT) { await clearWay(D, tank, ...pt); await drive(D, tank, [pt]); }
+      for (const pt of TANK_OUT) { await clearWay(D, tank, ...pt); await drive(D, tank, [pt], { guard: DRIVE_GUARD }); }
       // (the castle is up: men come at the tank. One in the way of its slow turns would have to step aside, and would know
       // it for the enemy's: from here its gun takes every man near it before each move)
       // (and round the gate's mouth, where its slow turns and back-and-forth take the most room, a man running up from
       // the courts is taken while he is still coming: 24 m)
-      for (const pt of TANK_GATE) { await clearAround(D, tank, GATE_CLEAR); await drive(D, tank, [pt], { stop: true }); }
+      for (const pt of TANK_GATE) { await clearAround(D, tank, GATE_CLEAR); await drive(D, tank, [pt], { stop: true, guard: DRIVE_GUARD }); }
       // into the mouth, then through the arch and over the bridge in one straight run — the click a player finds with
       // the drive cursor (bridgeClick); none from where it stands (the turn it would take there leaves it off the axis):
       // back out and into the mouth again at the next spot
@@ -1630,10 +1786,10 @@ export const STAGES = [
         // (the mouth click whose stop leaves a straight run through the arch: mouthClick looks ahead; none, the next spot)
         // (sliced: up to ~160 drive plans and runs looked at — ~50 ms of one frame in the live replay)
         const m = (await D.runSliced(mouthClickG(tank)))?.[0] ?? m0;
-        await drive(D, tank, [m], { stop: true });
+        await drive(D, tank, [m], { stop: true, guard: DRIVE_GUARD });
         if ((run = await D.runSliced(bridgeClickG(tank)))) break;
         D.log(`  the tank at the mouth (${tank.x.toFixed(2)},${tank.z.toFixed(2)}) h${Math.round((tank.heading * 180) / Math.PI)}: no straight run through the arch; out and in again`);
-        await drive(D, tank, [TANK_GATE[TANK_GATE.length - 1]], { stop: true });
+        await drive(D, tank, [TANK_GATE[TANK_GATE.length - 1]], { stop: true, guard: DRIVE_GUARD });
       }
       if (!run) throw new Error('the tank finds no straight run through the SW gate');
       // (from the mouth the gun clears the bridge's far end: s25c of the front pair stands where the tank must pass, and a
@@ -1641,8 +1797,8 @@ export const STAGES = [
       const s25c = D.get('s25c');
       await D.until(() => { if (!s25c.alive) return true; try { D.ability('driver', 'vehicleFire', s25c); } catch { /* reloading */ } return false; }, 30, 's25c shot from the tank');
       await clearAround(D, tank, GATE_CLEAR);
-      await drive(D, tank, [run], { stop: true });
-      await drive(D, tank, TANK_ROAD);
+      await drive(D, tank, [run], { stop: true, guard: DRIVE_GUARD });
+      await drive(D, tank, TANK_ROAD, { guard: DRIVE_GUARD });
       for (const role of ['spy', 'diver']) {
         D.ability(role, 'enterVehicle', tank);
         await D.until(() => D.c(role).vehicle === tank, 25, `${role} in the tank`);

@@ -1771,20 +1771,28 @@ export function buildStairField(built, grid, links = []) {
  * (stair-walk besideLinkFlight's reach) — are no way on foot. The pathfinder took them for open ground and the stair
  * walk then shoved a man there back out for ever (sol/m20: stuck by the W quarter's stairs). Its foot and its top
  * stay open; so do cells at its height (a level beside it, its landing).
+ * The floor at its foot's level is closed exactly where the stair walk shoves a man back out — from 0.1 m past its foot
+ * to 0.1 m short of its top (besideLinkFlight) — not only where its line has risen half a metre: by the first treads
+ * the pathfinder still took the floor beside them for a way (sol/m20-v2: M20's re-seated S_ne1, its foot 0.7 m from the
+ * crates by the V2 trailers, left the half-metre beside its first tread as the only way to the court's N end; e53 was
+ * sent along it and walked on the spot for the rest of the mission). The link's own end cells stay open.
  * @returns {number} cells stamped
  */
 export function stampSolidFlights(grid, field) {
   const cells = [], c = grid.cell, OUT = 0.3 + 0.38; // (stair-walk CHEEK + RAIL_BODY.stand)
   for (const f of field?.flights || []) {
     if (!f.solid || !f.link) continue;
-    const reach = f.w / 2 + OUT, b = f.box;
+    const reach = f.w / 2 + OUT, b = f.box, ka = f.link.ka, kb = f.link.kb;
     for (let j = Math.floor((b[1] - reach) / c); j <= Math.floor((b[3] + reach) / c); j++) {
       for (let i = Math.floor((b[0] - reach) / c); i <= Math.floor((b[2] + reach) / c); i++) {
         if (!grid.inBounds(i, j)) continue;
         const x = (i + 0.5) * c, z = (j + 0.5) * c, q = flightLocal(f, x, z);
-        if (q.s < 0.6 || q.s > f.sTop - 0.3 || Math.abs(q.v) >= reach) continue;
-        const k = grid.idx(i, j);
-        if (grid.elev[k] > f.levels[0] + 0.3 || grid.elev[k] > lineAt(f, q.s) - 0.5) continue; // (a level beside it, its height)
+        if (Math.abs(q.v) >= reach) continue;
+        const k = grid.idx(i, j), y = grid.elev[k];
+        // (the floor its foot stands on, beside its run: as far as the stair walk's shove reaches)
+        if (Math.abs(y - f.levels[0]) <= 0.3 && q.s >= 0.1 && q.s <= f.sTop - 0.1 && k !== ka && k !== kb) { cells.push(k); continue; }
+        if (q.s < 0.6 || q.s > f.sTop - 0.3) continue;
+        if (y > f.levels[0] + 0.3 || y > lineAt(f, q.s) - 0.5) continue; // (a level beside it, its height)
         cells.push(k);
       }
     }

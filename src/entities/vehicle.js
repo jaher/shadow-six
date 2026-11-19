@@ -41,6 +41,7 @@ import { createVehicleBrain } from '../ai/vehicle-ai.js';
 import { arcStep, planManeuverGen, planReachGen, pursuitLegs, headingError, drain } from './vehicle-maneuver.js';
 import { canSee as perceptionCanSee } from '../ai/perception.js';
 import { inContact, ramGate, applyRamResponse, bumpGate } from '../world/breakables.js';
+import { gameplayGeometry } from '../engine/gameplay-geometry.js';
 
 /** Minimum spacing (m) between units stepping out of a hull: per-seat exit offset / occupied-spot test. */
 const EXIT_SPACING = 0.9;
@@ -339,7 +340,7 @@ const _hb = new THREE.Box3();
 function hullBox(o, b) {
   eachHullNode(o, (n) => {
     n.updateWorldMatrix(false, false);
-    const g = n.geometry;
+    const g = gameplayGeometry(n.geometry); // (the authored geometry: a visual nudge moves no hull, engine/gameplay-geometry.js)
     if (g === undefined) return;
     if (n.boundingBox !== undefined) { if (n.boundingBox === null) n.computeBoundingBox(); _hb.copy(n.boundingBox); }
     else { if (g.boundingBox === null) g.computeBoundingBox(); _hb.copy(g.boundingBox); }
@@ -348,7 +349,7 @@ function hullBox(o, b) {
   return b;
 }
 function solidTop(n) {
-  const g = n.geometry, P = g?.attributes?.position;
+  const g = gameplayGeometry(n.geometry), P = g?.attributes?.position;
   if (!P || n.isInstancedMesh || n.isSkinnedMesh) { const bb = new THREE.Box3().setFromObject(n); return bb.isEmpty() ? -Infinity : bb.max.y; }
   const I = g.index, cnt = I ? I.count : P.count, m = n.matrixWorld;
   let top = -Infinity;

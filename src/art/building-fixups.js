@@ -14,6 +14,9 @@
  *  - uboat_pen: Fangrost rib tops had their concrete stretched along 50 m ribs (striped) → object-space triplanar
  *  - chimneys: solid stacks / capped pots and stovepipes (snow-capped on the snow variants) → an open, sooty flue at
  *    every smoke anchor (art/chimney-flues.js)
+ *  - coplanar parts (NUDGE_ASSETS; user 2026-11-18 "Make sure there is no z-fighting in the geometry"): sills, plinth
+ *    bands, trims, boards exported flush with the walls / each other → the smaller part a few mm proud
+ *    (art/coplanar-nudge.js; drawn geometry only)
  *  - round roofs (cones, domes: the log / stone towers, domed houses, bunker and pillbox caps, tank tops): 12-28 facet
  *    surfaces of revolution read as polygons from above → re-tessellated on the true circle (with the whole rings that
  *    continue them, a dome's bead), the analytic normal where the file is flat-shaded, the artist's own where it is
@@ -33,6 +36,7 @@ import * as THREE from 'three';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { openChimneyFlues } from './chimney-flues.js';
 import { roundRoofs } from './round-roofs.js';
+import { nudgeCoplanar } from './coplanar-nudge.js';
 import { separateCoplanar } from './coplanar-split.js';
 
 /**
@@ -97,6 +101,21 @@ export function fixCoplanarParts(root, name) {
  * half as bright, crude slabs) → the dam stays on LOD1 when zoomed out.
  */
 export const DROP_LODS = { dam_arch: [2], dam_arch_snow: [2], dam_arch_destroyed: [2], barracks_concrete_1st: [2], barracks_concrete_2st: [2] };
+
+/**
+ * Assets whose coplanar parts are nudged apart at load (art/coplanar-nudge.js; user 2026-11-18 "Make sure there is no
+ * z-fighting in the geometry"): those tools/art/zfight.mjs found fighting — sills flush in their recesses, plinth bands
+ * and trims flush with the walls, corner boards across band trims, ridge / barge trims on the roofs, doubled boards —
+ * in M3 and M12, with the other theatre's twin of each (the LIGHTS OUT colliery's buildings are COPLANAR_SPLIT's: one
+ * mechanism per asset). Render only (gameplay measures the authored geometry; the dam's deck lift too:
+ * world/map-library.js calibrateDeck casts on it).
+ */
+export const NUDGE_ASSETS = new Set([
+  'barracks_c_snow', 'barracks_b', 'barracks_b_snow', 'barn_a', 'barn_a_snow', 'house_timber_b', 'house_timber_b_snow', 'house_timber_c',
+  'house_timber_c_snow', 'log_cabin_a', 'log_cabin_a_snow', 'log_cabin_b', 'log_cabin_b_snow', 'stabbur_no', 'stabbur_no_snow',
+  'hq_colonial_tunis', 'warehouse_harbour_tunis', 'minaret_tunis', 'house_flat_white_a', 'house_flat_white_b',
+  'house_flat_white_c', 'drum_stack_ms', 'crate_stack_ms_c', 'crate_stack_ms_d', 'dam_arch', 'dam_arch_snow',
+]);
 
 /**
  * Drop the grass tufts from a turf primitive (M5 art review: on the snow variants they poked through the roof snow
@@ -246,6 +265,7 @@ export function applyAssetFixups(root, name, lod, base = 'assets/', meta = null)
   if (fixBunkerNet(root, base, name)) out.push('camo-net'); // every kit camo net; the desert/snow bunker hessian drapes
   if (fixPalmFrond(root)) out.push('palm-frond-cutout'); // every desert asset with frond shades/thatch
   if (/^uboat_pen/.test(name) && fixUboatConcrete(root)) out.push('uboat-triplanar');
+  if (NUDGE_ASSETS.has(name)) { const r = nudgeCoplanar(root, { ground: true }); if (r.moved || r.doubled) out.push('coplanar-nudge'); } // after the turf → snow swap
   if (roundRoofs(root, lod)) out.push('round-roofs'); // every cone / dome of every asset (its own LOD's tolerance)
   if (COPLANAR_SPLIT.has(name) && separateCoplanar(root, { crossings: false, ...COPLANAR_SPLIT.get(name) }).moved) out.push('coplanar-split'); // last: on the final faces
   if (fixCoplanarParts(root, name)) out.push('coplanar-near');

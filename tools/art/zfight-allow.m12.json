@@ -1,0 +1,162 @@
+{
+ "note": "M12 findings of tools/art/zfight.mjs left by the shared-geometry z-fighting fix (fix/zfight-shared, 2026-11-19: the kit houses' windows / copings / medina dressing and the library assets are fixed in shared code). What is left here is the mission's own geometry and layout (its platform, flights, quay, precinct walls, street kerbs, buildings and barrels placed overlapping) and the ruin kit's skin — each listed for the lane that owns it; none is shared kit / library geometry.",
+ "entries": [
+  {
+   "mission": "m12",
+   "a": "m12:platform",
+   "reason": "M12 mission geometry (src/missions/scripts/m12 platform): the mosque platform's plaster lies in the plane of the precinct walls' render and of the flights — the mission's own art, not shared code; left for the M12 art lane"
+  },
+  {
+   "mission": "m12",
+   "a": "m12:flights",
+   "reason": "M12 mission geometry (the flights up the roofs) flush with the platform / a house's render — the mission's own art, not shared code; left for the M12 art lane"
+  },
+  {
+   "mission": "m12",
+   "a": "props:edgeRuns",
+   "reason": "M12 quay: the edge runs' wall laid along the quay wall in its plane — the mission's layout (edge runs + quay_n wall data), not shared code"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:wall:quay_n",
+   "reason": "M12 quay wall (mission wall data): its runs overlap where the polyline turns — the mission's layout, not the wall builder"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:wall:mosque_*",
+   "b": "prop:wall:mosque_*",
+   "reason": "two of M12's mosque precinct walls (mission data) meet in one plane at a corner — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "dressing:wall:limewash",
+   "kind": "b",
+   "near": [
+    51.2,
+    50.2
+   ],
+   "r": 1.5,
+   "reason": "an M12 dressing wall whose polyline doubles back on itself (mission data) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "pavement-detail:kerb",
+   "kind": "d",
+   "reason": "M12 street kerbs laid over each other by the mission's street layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:souk",
+   "b": "prop:flat_roof_house:house_e1",
+   "reason": "two M12 houses placed overlapping (joined roofs: their screeds / copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:souk",
+   "b": "prop:flat_roof_house:house_e2",
+   "reason": "two M12 houses placed overlapping (joined roofs: their screeds / copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:house_e1",
+   "b": "prop:flat_roof_house:house_e2",
+   "reason": "two M12 houses placed overlapping (joined roofs: their copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:house_tile",
+   "b": "prop:flat_roof_house:w_block_front",
+   "reason": "two M12 houses placed overlapping (their copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:mid_block",
+   "b": "prop:flat_roof_house:palace",
+   "reason": "two M12 houses placed overlapping (their copings / plinths in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:n_terrace",
+   "b": "prop:flat_roof_house:palace",
+   "reason": "two M12 houses placed overlapping (their copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:mid_block",
+   "b": "prop:flat_roof_house:w_block_rear",
+   "reason": "two M12 houses placed overlapping (their copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:jail_block",
+   "b": "prop:flat_roof_house:w_block_front",
+   "reason": "two M12 houses placed overlapping (their copings in one plane) — the mission's layout, not the kit house"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:flat_roof_house:house_e3",
+   "b": "prop:flat_roof_house:arcade_house",
+   "reason": "two M12 houses placed overlapping (render against the ruin's masonry) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:eq_barrel1",
+   "b": "prop:barrels:eq_barrel3",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:eq_barrel2",
+   "b": "prop:barrels:eq_barrel3",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:eq_barrel1",
+   "b": "prop:barrels:eq_barrel2",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:barrel_t2",
+   "b": "prop:barrels:barrel_t3",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:barrel_t1",
+   "b": "prop:barrels:barrel_t2",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:barrel_t1",
+   "b": "prop:barrels:barrel_t3",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barrels:barrel_c2",
+   "b": "prop:barrels:barrel_c4",
+   "reason": "M12 barrels placed touching (their staves in one plane) — the mission's layout"
+  },
+  {
+   "mission": "m12",
+   "a": "ruin-kit:house:arcade_house:masonry",
+   "b": "ruin-kit:house:arcade_house:skin",
+   "reason": "the ruin kit's render skin (art/ruin-kit.js skinFace, 12 mm over the bulged mud-brick face) crosses the masonry at a small angle where the bulge outgrows it: a ruin-kit class of its own, not this lane's (changing it moves the measured ruin-wall geometry of every ruin mission) — listed for the ruins lane"
+  },
+  {
+   "mission": "m12",
+   "a": "prop:barracks:hq_se",
+   "b": "prop:barracks:hq_se",
+   "kind": "e",
+   "near": [
+    45.92,
+    99.8
+   ],
+   "r": 1.5,
+   "reason": "pre-existing, the same on master (media hq-balcony-decal before / after: 126 px both): hq_colonial_tunis's grime decal (kit:decals_dz) under the balcony slab lies 1-9 mm behind / in front of the ashlar and the slab's underside, and the library loader's decal polygon offset (art/building-library.js prepareScene: every library decal -1/-2) reaches across that gap at zoom 4 — a decal-offset class of the library loader, not the coplanar geometry this lane fixes; listed"
+  }
+ ]
+}

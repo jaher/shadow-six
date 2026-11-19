@@ -145,7 +145,8 @@ export function medinaDoor(g, place, x, w, h, seed) {
   const r = w / 2 + 0.04, spring = Math.max(1.5, h - r * 0.9);
   const parts = [];
   parts.push(tbox(w, spring, 0.06, paint, 0, spring / 2, -0.02, 0.8)); // leaf
-  const head = mesh(archFill(w / 2, 0.06), paint); head.position.set(0, spring, -0.05); parts.push(head);
+  // (the arched head 4 mm behind the leaf's face: its foot overlaps the leaf's top, in one plane they fought)
+  const head = mesh(archFill(w / 2, 0.06), paint); head.position.set(0, spring, -0.054); parts.push(head);
   // the studs: three columns of nail heads + a border row
   // (domed wrought-iron heads catching the light, not flat black squares that read as holes)
   for (let row = 0; row < 7; row++) for (const sx of [-0.3, 0, 0.3]) {
@@ -158,7 +159,8 @@ export function medinaDoor(g, place, x, w, h, seed) {
     const k = tbox(0.13, 0.27, 0.06, m.white, Math.cos(a) * (r + 0.13), spring + Math.sin(a) * (r + 0.13), 0.085, 0.4);
     k.rotation.z = a - Math.PI / 2; parts.push(k);
   }
-  for (const s of [-1, 1]) parts.push(tbox(0.26, spring, 0.1, m.stone, s * (r + 0.13), spring / 2, 0.0, 0.8));
+  // (the jambs 4 mm proud of the kit house's plinth: their faces lay in its plane)
+  for (const s of [-1, 1]) parts.push(tbox(0.26, spring, 0.1, m.stone, s * (r + 0.13), spring / 2, 0.004, 0.8));
   parts.push(tbox(w + 0.7, 0.12, 0.3, m.stone, 0, 0.06, 0.12, 0.8));
   // green glazed-tile hood on two timber brackets (above head height: 2.5 m+)
   const hy = Math.max(2.5, spring + r + 0.42);
@@ -177,16 +179,20 @@ export function medinaWindow(g, place, x, y, w, h, floor, R) {
     const n = Math.max(3, Math.round(w / 0.14));
     for (let k = 0; k <= n; k++) parts.push(tbox(0.025, h + 0.1, 0.025, m.iron, -w / 2 + (w * k) / n, y, 0.14, 0.2));
     for (const dy of [-h / 2, 0, h / 2]) parts.push(tbox(w + 0.06, 0.03, 0.03, m.iron, 0, y + dy, 0.14, 0.2));
-    for (const s of [-1, 1]) for (const dy of [-h / 2, h / 2]) parts.push(tbox(0.03, 0.03, 0.14, m.iron, s * (w / 2 + 0.02), y + dy, 0.07, 0.2));
+    // (the wall brackets 6 mm slimmer than the rails they carry: equal, their tops and undersides lay in one plane)
+    for (const s of [-1, 1]) for (const dy of [-h / 2, h / 2]) parts.push(tbox(0.03, 0.024, 0.14, m.iron, s * (w / 2 + 0.02), y + dy, 0.07, 0.2));
   } else if (y - h / 2 > 2.4 && R() < 0.22) {
     const bw = w + 0.3, bh = h + 0.35, bd = 0.32, by = y + 0.05; // mashrabiya: lattice box on corbels
     parts.push(tbox(bw, 0.08, bd + 0.06, m.beam, 0, by - bh / 2, bd / 2, 0.5), tbox(bw + 0.1, 0.07, bd + 0.12, m.beam, 0, by + bh / 2, bd / 2, 0.5));
     for (let k = 0; k <= 6; k++) parts.push(tbox(0.03, bh, 0.03, m.lattice, -bw / 2 + (bw * k) / 6, by, bd, 0.2));
-    for (let k = 0; k <= 5; k++) parts.push(tbox(bw, 0.03, 0.03, m.lattice, 0, by - bh / 2 + (bh * k) / 5, bd, 0.2));
-    for (const s of [-1, 1]) parts.push(tbox(0.03, bh, bd, m.lattice, s * bw / 2, by, bd / 2, 0.3));
+    // (the rails 8 mm shallower than the stiles, the side panels 8 mm thinner than the corner stiles: flush, their faces
+    // fought at every crossing — z-fighting, tools/art/zfight.mjs)
+    for (let k = 0; k <= 5; k++) parts.push(tbox(bw, 0.03, 0.022, m.lattice, 0, by - bh / 2 + (bh * k) / 5, bd, 0.2));
+    for (const s of [-1, 1]) parts.push(tbox(0.022, bh, bd, m.lattice, s * bw / 2, by, bd / 2, 0.3));
     for (const s of [-1, 1]) { const c = tbox(0.08, 0.3, 0.3, m.beam, s * (bw / 2 - 0.12), by - bh / 2 - 0.15, 0.15, 0.4); c.rotation.x = 0.6; parts.push(c); }
   } else {
-    const head = mesh(archRing(w / 2 + 0.16, 0.13, 0.05), m.stone); head.position.set(0, y + h / 2 + 0.05, 0.0); parts.push(head);
+    // (4 mm proud of the window frame's face, which its feet overlap: in one plane they fought)
+    const head = mesh(archRing(w / 2 + 0.16, 0.13, 0.05), m.stone); head.position.set(0, y + h / 2 + 0.05, 0.004); parts.push(head);
   }
   for (const p of parts) { p.position.x += x; place(p); g.add(p); }
 }
@@ -207,7 +213,8 @@ export function medinaFacade(g, F, o) {
     for (let x = -f.len / 2 + 1.6; x < f.len / 2 - 1.0; x += 3.6 + R() * 1.4) {
       const s = tbox(0.16, 0.14, 0.42, m.stone, x, o.h - 0.12, 0.2, 0.3); add(f, s);
       const sh = Math.min(o.h - 0.6, 1.4 + R() * 1.6), st = mesh(new THREE.PlaneGeometry(0.3 + R() * 0.2, sh), m.streak, false);
-      st.position.set(x, o.h - 0.3 - sh / 2, 0.02); add(f, st);
+      // (6 mm before the window transoms' faces (z 0.02) and the fallen-render patches' (0.02 / 0.024) it runs over)
+      st.position.set(x, o.h - 0.3 - sh / 2, 0.026); add(f, st);
     }
     // fallen render: rubble showing through an irregular patch (1–2 per facade)
     // (kept clear of the facade's doors, windows, shopfronts and tiled dados: o.openings[name], else skipped)
@@ -222,8 +229,9 @@ export function medinaFacade(g, F, o) {
         if (y + ph / 2 < o.h - 0.5 && clear(x, y, pw, ph)) at = [x, y];
       }
       if (!at) continue;
+      // (each patch of a facade 4 mm before the last: two that overlap would lie in one plane)
       const sp = mesh(boxUV(new THREE.ShapeGeometry(s).toNonIndexed(), 0.9), m.rubble, false);
-      sp.position.set(at[0], at[1], 0.02); add(f, sp);
+      sp.position.set(at[0], at[1], 0.02 + 0.004 * k); add(f, sp);
     }
     // a painted dado on some houses (front and one side)
     if (!/palace|mosque|prayer/.test(v) && (name === 'front' || name === 'east') && (o.seed % 3 === 0)) {
@@ -234,8 +242,9 @@ export function medinaFacade(g, F, o) {
       const y = o.fh * (o.floors - 1) + 0.6 + R() * 0.4, x0 = -f.len / 2 + 0.8 + R() * 0.8, x1 = x0 + 2.2 + R() * Math.min(2, f.len - 4);
       add(f, tbox(x1 - x0, 0.012, 0.012, m.iron, (x0 + x1) / 2, y, 0.45, 0.2));
       for (const x of [x0, x1]) add(f, tbox(0.04, 0.04, 0.45, m.iron, x, y, 0.22, 0.2));
-      for (let x = x0 + 0.3; x < x1 - 0.3; x += 0.45 + R() * 0.3) {
-        const ch = 0.4 + R() * 0.35, c = tbox(0.32 + R() * 0.25, ch, 0.01, m.cloth[Math.floor(R() * m.cloth.length)], x, y - ch / 2, 0.45, 0.5);
+      // (every other cloth 6 mm further out: neighbours overlap, in one plane they fought)
+      for (let x = x0 + 0.3, j = 0; x < x1 - 0.3; x += 0.45 + R() * 0.3, j++) {
+        const ch = 0.4 + R() * 0.35, c = tbox(0.32 + R() * 0.25, ch, 0.01, m.cloth[Math.floor(R() * m.cloth.length)], x, y - ch / 2, 0.45 + (j % 2) * 0.006, 0.5);
         c.rotation.z = (R() - 0.5) * 0.1; add(f, c);
       }
     }
@@ -269,8 +278,9 @@ export function medinaAwning(g, place, x, w, y, reach = 1.3) {
 export function medinaShop(g, place, x, w, hs) {
   const m = mats(), parts = [];
   parts.push(tbox(w, hs, 0.04, m.recess, x, hs / 2, 0.005, 1));
-  const head = mesh(archFill(w / 2, 0.04), m.recess); head.position.set(x, hs, -0.015); parts.push(head);
-  const ring = mesh(archRing(w / 2 + 0.2, 0.2, 0.08), m.stone); ring.position.set(x, hs, 0.0); parts.push(ring);
+  // (the head 4 mm behind the recess's face, the ring 4 mm proud of the jambs': their feet overlap, flush they fought)
+  const head = mesh(archFill(w / 2, 0.04), m.recess); head.position.set(x, hs, -0.019); parts.push(head);
+  const ring = mesh(archRing(w / 2 + 0.2, 0.2, 0.08), m.stone); ring.position.set(x, hs, 0.004); parts.push(ring);
   for (const s of [-1, 1]) parts.push(tbox(0.2, hs, 0.08, m.stone, x + s * (w / 2 + 0.1), hs / 2, 0.04, 0.8));
   for (const p of parts) { place(p); g.add(p); }
 }
@@ -315,7 +325,8 @@ export function buildMedinaGoods(p) {
     for (const s of [-1, 1]) { const sh = tbox(w * 0.42, 0.07, 0.07, dressingMaterial('beam'), w * 0.28, 0.6, s * d * 0.28, 0.5); sh.rotation.z = -0.4; g.add(sh); }
     g.add(tbox(0.07, 0.4, 0.07, dressingMaterial('beam'), w * 0.44, 0.2, 0, 0.3));
     if (/barrel/.test(v)) for (const [x, z] of [[-0.45, -0.3], [-0.45, 0.32], [0.2, 0]]) barrel(x * w * 0.4 + bx, bedY + 0.04, z * d * 0.7, 0.26, 0.7);
-    else for (const [x, z, y] of [[-0.3, -0.25, 0], [-0.3, 0.27, 0], [0.25, 0, 0], [0, 0, 0.42]]) bale(x * w * 0.4 + bx, bedY + 0.04 + y, z * d * 0.8, R() * 0.2);
+    // (every other bale 4 mm higher: the turned bales' corners overlap, their tops lay in one plane)
+    else for (const [i, [x, z, y]] of [[-0.3, -0.25, 0], [-0.3, 0.27, 0], [0.25, 0, 0], [0, 0, 0.42]].entries()) bale(x * w * 0.4 + bx, bedY + 0.04 + y + (i % 2) * 0.004, z * d * 0.8, R() * 0.2);
   } else if (v === 'crates_sacks') {
     for (const [x, z] of [[-0.3, -0.2], [0.05, 0.25]]) { const c = tbox(0.75, 0.6, 0.6, wood, x * w, 0.3, z * d, 0.9); c.rotation.y = (R() - 0.5) * 0.4; g.add(c); }
     for (let k = 0; k < 6; k++) sack((R() - 0.35) * w * 0.5, k > 3 ? 0.36 : 0, (R() - 0.5) * d * 0.7, 0.9 + R() * 0.25, R() * 3);
@@ -328,11 +339,13 @@ export function buildMedinaGoods(p) {
     const t = tbox(w * 0.92, 0.05, d * 0.9, paintedMaterial('canvas', 0x8a8466), 0, h * 0.82, 0, 0.8); g.add(t);
     for (const s of [-1, 1]) { const f = tbox(w * 0.92, h * 0.55, 0.04, paintedMaterial('canvas', 0x8a8466), 0, h * 0.55, s * d * 0.45, 0.8); f.rotation.x = s * 0.12; g.add(f); }
   } else if (v === 'bales') {
-    bale(-0.2, 0, -0.15, 0.1); bale(0.15, 0, 0.25, -0.15); bale(0, 0.42, 0.05, 0.3);
+    bale(-0.2, 0, -0.15, 0.1); bale(0.15, 0.004, 0.25, -0.15); bale(0, 0.42, 0.05, 0.3); // (the 2nd 4 mm up: tops apart)
   } else { // cushions_rugs: rolled rugs and a stack of cushions on a reed mat
     g.add(tbox(w, 0.03, d, paintedMaterial('canvas', 0xa88a5a), 0, 0.015, 0, 0.6));
     const cols = [0x8a2a22, 0x2f4f6a, 0xb08a3a, 0x6a3a5a];
-    for (let k = 0; k < 3; k++) { const r = mesh(new THREE.CylinderGeometry(0.16, 0.16, d * 0.9, 10), paintedMaterial('canvas', cols[k % 4])); r.rotation.x = Math.PI / 2; r.position.set(-w * 0.3 + k * 0.34, 0.17 + (k === 2 ? 0.28 : 0), 0); if (k === 2) r.position.x = -w * 0.13; g.add(r); }
+    // (the rolls turned 0, ½ and ¼ facet about their axes and 8 mm shorter each: where they touch, their facets and end
+    // discs lay in each other's planes)
+    for (let k = 0; k < 3; k++) { const r = mesh(new THREE.CylinderGeometry(0.16, 0.16, d * 0.9 - k * 0.008, 10), paintedMaterial('canvas', cols[k % 4])); r.rotation.set(Math.PI / 2, [0, Math.PI / 10, Math.PI / 20][k], 0); r.position.set(-w * 0.3 + k * 0.34, 0.17 + (k === 2 ? 0.28 : 0), 0); if (k === 2) r.position.x = -w * 0.13; g.add(r); }
     for (let k = 0; k < 3; k++) g.add(tbox(0.55, 0.16, 0.55, paintedMaterial('canvas', cols[(k + 1) % 4]), w * 0.25, 0.1 + k * 0.16, 0, 0.5));
   }
   return g;

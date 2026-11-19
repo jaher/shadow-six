@@ -30,8 +30,12 @@ import { libTier, loadLibDensity, setLibPreset } from './lib-tiers.js';
 import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 import { raftFloorFix } from './raft-hull.js';
 import { raftPaddleFix } from './paddle.js';
+import { nudgeCoplanar } from './coplanar-nudge.js';
 
 const DEG = Math.PI / 180;
+/** Models whose coplanar parts are nudged apart as they load (art/coplanar-nudge.js: z-fighting; drawn geometry only —
+ *  a vehicle's hull height is measured on the authored one, entities/vehicle.js). */
+const NUDGE_MODELS = /^(opel_blitz_cargo|kubelwagen)_(grey|dak|winter)(_top)?$/;
 const YAW_KINDS = new Set(['turret', 'turret_yaw', 'gun_yaw', 'weapon_traverse', 'gun_yaw_pitch']);
 const PITCH_KINDS = new Set(['gun', 'gun_pitch', 'weapon_elev']);
 const SPIN_KINDS = new Set(['prop', 'propeller', 'rotor']);
@@ -212,6 +216,7 @@ function loadLod(model, i, swap) {
   const p = loaderFor(swap).loadAsync(url).then((g) => {
     prepareScene(g.scene);
     SCENE_FIXES[model]?.(g.scene);
+    if (NUDGE_MODELS.test(model)) nudgeCoplanar(g.scene);
     V.gltf.set(key, g.scene); V.pending.delete(key);
     const deps = [...(g.parser?.shadowLibKeys || [])];
     V.deps.set(key, deps);

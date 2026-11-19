@@ -1,0 +1,57 @@
+{
+ "note": "M3 findings of tools/art/zfight.mjs left by the shared-geometry z-fighting fix (fix/zfight-shared, 2026-11-19: the library buildings, the dam and the Opel lorry are fixed in shared code). What is left involves snow (frozen: user 2026-11-12 \"Every time you change something about snow you mess up\") or is a class owned by another lane (the cliff builder, the ruin tower).",
+ "entries": [
+  {
+   "mission": "m03",
+   "a": "kit:snow",
+   "reason": "snow is frozen (user 2026-11-12 \"Every time you change something about snow you mess up\"): a fight with snow geometry (the library buildings' snow caps, ledges and drifts, the cabins' turf turned to snow) is left as it is — the nudge (art/coplanar-nudge.js) never moves snow nor a part out of a plane it shares with snow"
+  },
+  {
+   "mission": "m03",
+   "a": "prop:house:farm_house",
+   "b": "prop:house:farm_house",
+   "kind": "b",
+   "near": [
+    80.48,
+    120.47
+   ],
+   "r": 1.5,
+   "reason": "the flicker runs along the snow drift's line on the plinth trim (the corner boards are flush with the snow there): snow geometry, frozen — left"
+  },
+  {
+   "mission": "m03",
+   "a": "prop:house:farm_house",
+   "b": "prop:house:farm_house",
+   "near": [
+    86.8,
+    127.62
+   ],
+   "r": 1.5,
+   "reason": "the farmhouse's roof tiles at the gable apex, under the snow cap (crop m03-1): separating them would move them out of the snow's plane — snow is frozen; left"
+  },
+  {
+   "mission": "m03",
+   "a": "prop:barracks:st_barr1",
+   "b": "prop:barracks:st_barr1",
+   "near": [
+    16.0,
+    85.5
+   ],
+   "r": 1.6,
+   "reason": "the barracks' tarred / grey fascia boards under the snow-laden eaves lie flush with the snow there: separating them would move them out of the snow's plane — snow is frozen; left"
+  },
+  {
+   "mission": "m03",
+   "a": "prop:cliff:*",
+   "b": "prop:cliff:*",
+   "kind": "b",
+   "reason": "the cliff builder's rock (art/dressing.js cliff) overlaps itself where its chunks meet — a terrain-dressing class of its own, not this lane's; listed for the terrain lane"
+  },
+  {
+   "mission": "m03",
+   "a": "prop:ruins:start_tower",
+   "kind": "c",
+   "reason": "the ruin tower's rubble apron (art/ruin-tower.js; gameplay measures it as the heap's ground) lies on M3's terrain: the ruins' class, not this lane's — lifting it moves measured nav geometry; listed for the ruins lane"
+  }
+ ]
+}

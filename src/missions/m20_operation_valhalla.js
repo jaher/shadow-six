@@ -642,7 +642,7 @@ const TANK_MEN = [ // §8.6 the tank corner (Prima Phase 6)
   sentry('e50', 50, 104, 53.5, 0, 270, 30),
   sentry('e51', 51, 99, 59, 0, 0, 40),
   sentry('e52', 52, 100, 45, 0, 180, 40),
-  walker('e53', 53, 0, [P(97.5, 74, 4, 90), P(101.5, 68.2), P(101.4, 66.8), P(88.4, 47.6), P(92.6, 40.7), P(97.5, 40, 4, 270)]), // (round the V2 trailers' ends, as he walked)
+  walker('e53', 53, 0, [P(97.5, 74, 4, 90), P(101.5, 68.2), P(101.4, 66.8), P(88.4, 47.6), P(89.6, 44), P(96.8, 45.2, 4, 270)]), // (round the V2 trailers' ends, as he walked) (sol/m20-v2, 2026-11-18: his N end, (97.5, 40) by way of (92.6, 40.7), lay in the court's NE corner that the re-seated S_n and S_ne1 (user 2026-11-15) and the crates by them now wall in — reachable only up S_e, over the NE terrace and down S_ne1, a 65 m round he searched for each lap (16-18 ms): he halts S of the crates instead, looking N past them)
   sentry('e54', 54, 93, 57, 0, 180, 60), // between the V2s
   { id: 'e55', prima: 55, soldierType: 'gunner', x: ATGUN.x, z: ATGUN.z, heading: deg(294), emplacement: 'atgun', elevated: true, jail: false,
     post: { heading: deg(294), sweep: 40, giro: 180 } }, // the AT gunner: shoot him (knife/syringe refused)

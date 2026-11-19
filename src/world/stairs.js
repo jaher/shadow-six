@@ -250,4 +250,30 @@ export class StairField {
 
   /** The flight of a stair link (by link id), or null. */
   ofLink(id) { return this.flights.find((f) => f.link && f.link.id === id) || null; }
+
+  /**
+   * A point over the treads of a solid stair link (masonry down to the ground: M20's castle-kit flights) is no ground to
+   * walk to: a man not on its link reaches it by one of its ends. That end — the link's lower one (its foot) or its upper
+   * one (its top) — as {x, z, link}: the one on the side of `toward` along the flight (whoever the man is going after:
+   * further up the flight than the point, or past its top → the top), or with no `toward` the one the point is nearer
+   * along it; null when (x, z) is not over such a flight's run (between its first and last risers, within its width and
+   * cheek walls).
+   * (sol/m20-v2: a squad following its leader up M20's S_n aimed at his trail on the treads; the planner took the free
+   * cell nearest that point instead — beside the flight, in the court's corner the re-seated stairs and the crates wall
+   * in — and each follower flooded the map for it every quarter of a second.)
+   */
+  solidEndFor(x, z, toward = null) {
+    const nf = this.near(x, z, 0.5);
+    for (let i = 0; i < nf.length; i++) {
+      const f = nf[i];
+      if (!f.solid || !f.link) continue;
+      const q = flightLocal(f, x, z);
+      if (Math.abs(q.v) > f.w / 2 + 0.3 || q.s <= f.sFoot + 0.2 || q.s >= f.sTop - 0.2) continue;
+      const a = f.link.a, b = f.link.b, lo = (a.y ?? 0) <= (b.y ?? 0) ? a : b, hi = lo === a ? b : a;
+      const up = toward ? flightLocal(f, toward.x, toward.z).s > q.s : q.s > (f.sFoot + f.sTop) / 2;
+      const end = up ? hi : lo;
+      return { x: end.x, z: end.z, link: f.link };
+    }
+    return null;
+  }
 }
