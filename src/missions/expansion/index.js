@@ -13,6 +13,7 @@
 // e01
 
 // e02
+import './e02_curfew.js';
 
 // e03
 

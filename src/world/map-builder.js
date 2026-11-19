@@ -2126,7 +2126,11 @@ export function* buildMapGen(world, mission, opts = {}) {
     for (const r of edgeRuns) {
       if (due()) yield;
       const { type, segments, visualRuns, placementDropped, visualWalkways, walkways, ...params } = r.def;
-      try { g.add(buildProp(type, { ...params, id: r.id, points: r.points }, ctx).object3d); } catch (e) { console.warn('[map-builder] edge run', r.id, e); }
+      try {
+        const o = buildProp(type, { ...params, id: r.id, points: r.points }, ctx).object3d;
+        o.userData.edgeRunOf = r.def.id ?? null; // (a mission's art pass that draws a run on itself can find and hide it)
+        g.add(o);
+      } catch (e) { console.warn('[map-builder] edge run', r.id, e); }
     }
     propsRoot.add(g);
   }

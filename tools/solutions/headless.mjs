@@ -48,6 +48,7 @@ function applyNavCache(world, id) {
   }
   importGrid(g, c.grid, gunzipSync);
   world.cachedSpawns = c.spawns || null;
+  world.cachedSpawnIds = c.spawnIds || null;
   world.cachedExtras = c.extras || null;
   if (c.ground) world.terrain = visibilityTerrain(c.ground, gunzipSync); // (the guards follow prints by the ground's material: ai/footprints.js)
   if (c.ground) for (const fn of ['groundY', 'lyingY']) { const f = groundFn(c.ground, fn, gunzipSync, g); if (f) world[fn] = f; }
@@ -59,19 +60,24 @@ function applyNavCache(world, id) {
  * on the measured surface): the cached spawn point (x, z, y) of unit `i` of kind `kind`, laid over its authored spawn.
  */
 function atCachedSpawn(world, kind, i, spawn) {
-  const p = world.cachedSpawns?.[kind]?.[i];
+  // (a cache that names its units — navcache.mjs `spawnIds` — is read by name: an Easy / Hard variant of a BCD mission
+  // drops or adds units, so the n-th unit of one list is not the n-th of the other; older caches by order)
+  const ids = world.cachedSpawnIds?.[kind], key = spawn.id ?? spawn.tag ?? spawn.role;
+  const k = ids ? ids.indexOf(key) : i;
+  const p = k >= 0 ? world.cachedSpawns?.[kind]?.[k] : null;
   return p ? { ...spawn, x: p[0], z: p[1], y: p[2] } : spawn;
 }
 
 /**
- * @param {{patch?: (def) => def, navCache?: boolean}} [o] navCache: lay the game's cached mesh-measured world over the build
- *   (tools/solutions/navcache.mjs; headlessDriver does, for the solutions). Off by default: the unit tests of the plain build
- *   (M3, M13…) were written against it.
+ * @param {{patch?: (def) => def, navCache?: boolean, difficulty?: 'easy'|'hard'}} [o] navCache: lay the game's cached
+ *   mesh-measured world over the build (tools/solutions/navcache.mjs; headlessDriver does, for the solutions). Off by
+ *   default: the unit tests of the plain build (M3, M13…) were written against it. `difficulty`: a BCD mission's Easy /
+ *   Hard data variant (schema.applyVariant, as Game.loadMission's `difficulty`); the map is the same, so the cache holds.
  */
-export function headlessMission(id, { patch = null, navCache = false } = {}) {
+export function headlessMission(id, { patch = null, navCache = false, difficulty = null } = {}) {
   Entity.nextId = 1;
   // (`patch`: def → def, a variant of the mission for a test — e.g. M3 with its old start wall back, tests/unit/prone-wall)
-  const mission = ownStructures(normalizeMission(patch ? patch(getMission(id)) : getMission(id), { quiet: true }));
+  const mission = ownStructures(normalizeMission(patch ? patch(getMission(id)) : getMission(id), { quiet: true, ...(difficulty ? { difficulty } : {}) }));
   const world = new World({ size: mission.size, scene: new THREE.Scene(), mission, seed: mission.seed ?? CONFIG.sim.seed });
   world.alarm = new Alarm(world);
   buildMap(world, mission, { meshes: false });
@@ -135,7 +141,7 @@ export async function headlessPhysics(s) {
 /** Driver (tools/solutions/driver.mjs) over a headless copy of mission `id` (node only). */
 export async function headlessDriver(id, o = {}) {
   const { makeDriver } = await import('./driver.mjs');
-  const s = headlessMission(id, { navCache: o.navCache ?? true });
+  const s = headlessMission(id, { navCache: o.navCache ?? true, difficulty: o.difficulty ?? null });
   await headlessPhysics(s); // (as Game.loadMission: Rapier over the finished map — corpses, props and gates settle as in the game)
   const D = makeDriver(s.world, { step: s.step, dt: s.dt, skipEscape: s.skipEscape, ...o });
   D.sim = s;

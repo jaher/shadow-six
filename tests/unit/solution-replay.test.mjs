@@ -222,3 +222,32 @@ test('replay: a tick that set off an explosion ends its frame\'s ticks and the n
   for (let i = 0; i < 5 && rp._ready(); i++) rp._tick();
   assert.equal(w.tick, t1 + 5, 'fast-forward: no hold');
 });
+
+test('replay: two flows of a D.parallel that both plan sliced in one frame (as the flows start together) both go on in the next frame', async () => {
+  // (e02's first stage: the Green Beret and the Spy crawl off at once, each flow opening with a sliced sneak plan — both
+  // handed the frame back in the same frame, and the replay kept only the last of them: the first flow never woke)
+  const { SolutionReplay } = await import('../../src/debug/solution-replay.js');
+  const { PLAN_SLICE_MS } = await import('../../tools/solutions/driver.mjs');
+  const { w } = fakeWorld();
+  w.tick = 0;
+  const game = { world: w, input: {}, state: 'playing', step(dt) { w.time += dt; w.tick++; } };
+  const rp = new SolutionReplay(game, { id: 'e02', stages: [] });
+  rp._camera = rp._caption = rp._syncBar = () => {};
+  const D = makeDriver(w, { step: () => rp._step(), pause: () => rp._pause(), quiet: true, log: () => {}, watch: false });
+  rp.driver = D;
+  // a plan of three slices (each step busy for longer than a slice) and the same plan's ticks after it
+  const plan = function* (name, out) {
+    for (let i = 0; i < 3; i++) { const t = performance.now(); while (performance.now() - t < PLAN_SLICE_MS + 2); out.push(`${name}${i}`); yield; }
+    return name;
+  };
+  const flow = (name) => async () => { const out = []; out.push(await D.runSliced(plan(name, out))); await D.wait(3 / 60); return `${out.join(',')}@${w.tick}`; };
+  let on = true;
+  const frames = (async () => { while (on) { rp._frame(1 / 60); await new Promise((r) => setTimeout(r, 2)); } })();
+  let timer = null;
+  try {
+    const res = await Promise.race([D.parallel(flow('gb'), flow('spy')),
+      new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('a flow never woke: its pause was dropped')), 4000); })]);
+    assert.ok(/^gb0,gb1,gb2,gb@\d+$/.test(res[0]) && /^spy0,spy1,spy2,spy@\d+$/.test(res[1]), `both plans ran to their end, and their ticks after (${res})`);
+    assert.equal(res[0].split('@')[1], res[1].split('@')[1], 'on the same ticks (the flows wait on the same steps)');
+  } finally { clearTimeout(timer); on = false; await frames; rp.stop(); }
+});

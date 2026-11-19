@@ -112,8 +112,11 @@ export function damFlights(r) {
   const y0 = r.y0 ?? 0, y1 = r.y1, { N, run, landing } = stairTreads(total, y0, y1, r.landing);
   // tread k (0..N-2) spans [k run, (k+1) run) at y0 + (y1 - y0) k / (N - 1); the landing (k = N-1) from L - landing
   const top = (k) => y0 + ((y1 - y0) * k) / (N - 1);
-  const allR = [], allL = [0];
-  if (y0 > 0.02) { allR.push(0); allL.push(y0); } else allL[0] = y0;
+  // (`floor`: the ground its foot stands on — 0 unless the stair climbs from a raised level, as a salita from one terrace
+  // of a hill town to the next (e02): a foot above its floor is a first riser up from that floor at s 0 (M3's dam
+  // stairs); one on it is none — else the flight's foot ran out along its axis to where its pitch met y 0, 28 m off)
+  const floor = r.floor ?? 0, allR = [], allL = [floor];
+  if (y0 > floor + 0.02) { allR.push(0); allL.push(y0); } else allL[0] = y0;
   for (let k = 1; k < N; k++) { allR.push(k < N - 1 ? k * run : total - landing); allL.push(top(k)); }
   for (const g of segs) {
     const ux = (g.b[0] - g.a[0]) / g.l, uz = (g.b[1] - g.a[1]) / g.l;

@@ -671,7 +671,7 @@ const SCREEN_E = [19, 70.2], SCREEN_W2 = [20.5, 70];
 const DECOY_AT3 = [31.2, 53.3], E37_SIDE = [33.5, 65], B2_W = [34.4, 69.7], B2_WEND = [33.3, 68.6];
 /** behind e37 at his N halt (out of the turret guard's sight); his body round the turret in its blind corner */
 /** the stairs by the flak (S_nw2): its head on T_hq, its foot on T_nw */
-const S_NW2_TOP = [36.8, 62.8], S_NW2_FOOT = [41.6, 66.2];
+const S_NW2_TOP = [37.6, 63], S_NW2_FOOT = [46.6, 63]; // S_nw2 re-seated due W (user 2026-11-15)
 /** the HQ charge: in the turret's blind corner against the château (within the charge's reach of it, out of every eye) */
 const HQ_BOMB = [28.6, 53];
 /** the AT-gun charge (6 m W of the gunner e55, within the charge's reach of him); the N court's NW corner, under the N range */
@@ -784,9 +784,9 @@ const YARD_WAIT = [[58.6, 69.2], [58.2, 66.8], [60.2, 65.6], [59.5, 63.6]], DECO
 /** behind e33 and e34 on T_nw's S edge (they face S) */
 const E33_BACK = [45.6, 68.9], E34_BACK = [51.6, 68.9];
 /** S_nw1 (T_nw <-> T_wb) and S_gw (T_wb <-> the W quarter) */
-const S_NW1_TOP = [54, 50], S_NW1_FOOT = [59.2, 50], S_GW_TOP = [66.2, 67.6];
+const S_NW1_TOP = [55.6, 50], S_NW1_FOOT = [60.6, 50], S_GW_TOP = [62, 61.6]; // stairs re-seated (user 2026-11-15)
 /** S_n3 (T_nw <-> T_n, the N range roof): its foot on T_nw, its head on T_n */
-const S_N3_FOOT = [47.5, 35.2], S_N3_TOP = [47.5, 29.8], NW_WAIT = [42, 42];
+const S_N3_FOOT = [47.5, 36.5], S_N3_TOP = [47.5, 31.6], NW_WAIT = [42, 42];
 /** where the GB lies on the N range roof for e67; behind e67's W halt (he looks S); the Sniper's spot for e66 on T_wb */
 const LURK67 = [66, 14.8], E67_BACK = [59.8, 23.4], SNIPE66 = [57.5, 44];
 /**
@@ -863,7 +863,7 @@ async function roundBarracks(D, role, way, label) {
 /** the far E corridor of the W quarter (x 72-74: only p57 passes) */
 const E_CORR_N = [72.5, 80.5];
 /** behind e32 (on the stairs' lowest steps; he looks W); the stairs up to the gatehouse roof; the bodies up there */
-const S_GW_UP = [[61, 77], [66, 68.5]], S_GW_FOOT = [61, 77];
+const S_GW_UP = [[62, 68], [62, 62.1]], S_GW_FOOT = [62, 68];
 /**
  * the decoy at the gatehouse roof's W corner (only e29 at his E halt hears it); where the GB waits; e32's body, in the
  * yard's N end under the bastion's face (Patrol 26, coming round the barracks' N side, sees the rest of the yard)
@@ -1139,7 +1139,8 @@ export const STAGES = [
         && await qrA(D, [], { mode: 'body', from: [61, 78.8], delay: 14, hold: 8, why, except: [D.get('e32')] }) || dbg(D, why, 'down the stairs'); }, 200, 'the stairs unwatched');
       D.order('greenberet', { type: 'move', x: S_GW_FOOT[0], z: S_GW_FOOT[1] });
       await D.until(() => !gb.path && !gb.isMoving, 30, 'GB at the foot of the stairs');
-      await knife(D, 'e32', { maxSec: 2.5, quiet: 8, after: null, label: 'at the foot of the stairs', reach: 3.4, ahead: 1.3 });
+      await crawl(D, 'greenberet', 63.2, 78.5, { box: 4, keep: 1, hold: 1, keepWalker: 2, horizon: 120, label: 'GB behind e32' });
+      await knife(D, 'e32', { maxSec: 120, quiet: 8, after: null, label: 'at his post', reach: 3.4, ahead: 1.3 }); // (S_gw re-routed 2026-11-15: its foot is now 11 m N of e32's post)
       await carryTo(D, 'greenberet', D.get('e32'), E32_BODY);
       await D.stance('greenberet', 'crawl');
       D.checkpoint('E4 the Green Beret knifes e32 at the foot of the west quarter\'s stairs and hides him in the yard under the W bastion');

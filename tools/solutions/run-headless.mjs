@@ -4,7 +4,8 @@
  * (tools/solutions/navcache/<id>.json: the game's mesh-measured grid, ground, spawns, physics) plays tick for tick as
  * the game does for hundreds of seconds (M3, M4, M13, M17 win at the browser's very time); the others run on the
  * mesh-less build and drift. Reference run: tools/solutions/run-browser.mjs; where they part: headless-diff.mjs.
- *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json] [--until <stage id>]
+ *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json] [--until <stage id>] [--easy]
+ *   (--easy: a BCD mission's Easy data variant; Hard, the default, otherwise)
  * Exit code 0 when every required objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
  */
 import { headlessDriver } from './headless.mjs';
@@ -16,7 +17,7 @@ const id = args.find((a) => !a.startsWith('--')) || 'm03';
 const quiet = args.includes('--quiet');
 const jsonAt = args.indexOf('--json');
 const { solve } = await import(`./${id}.solution.mjs`);
-const D = await headlessDriver(id, { quiet });
+const D = await headlessDriver(id, { quiet, difficulty: args.includes('--easy') ? 'easy' : null });
 const t0 = Date.now();
 let error = null;
 const ji = args.indexOf('--jitter'); // robustness probe: a seeded random hesitation (0–0.6 s) before every move order

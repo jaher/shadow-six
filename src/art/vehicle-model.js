@@ -373,6 +373,10 @@ function buildLamps(lights, container = null) {
       g.add(haloSprite(kind === 'convoy' ? sh.haloConvoy : sh.haloTail, kind === 'convoy' ? 0.25 : 0.4, new THREE.Vector3(0, 0, -1)));
     } else continue;
     g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; o.renderOrder = 3; });
+    // (hidden until the lamps come on — at night, crewed or moving — but drawn by the load's warm-up frame, after every
+    // light of the map is in: a mission's own lights come after the vehicles' warm-up, and the lamps' programs compiled
+    // on first sight in play — e02's DF van on Via Marina: Game._warmFrame `warmShow`)
+    g.userData.warmShow = true;
     L.object.add(g);
     // lamps on the hull live on the instance root, so they stay visible when the LOD2 mesh is shown
     if (container && !MOVING_LAMP_NODES.test(L.node || '')) { L.object.updateMatrixWorld(true); container.attach(g); }

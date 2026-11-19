@@ -655,6 +655,9 @@ export function walking(e) {
 export function postHeadings(e) {
   const ph = e.post?.heading;
   if (ph == null) return null;
+  // (opt-in `w.sneakHeld`: a post held by the Spy's talk — DISTRACTED — faces him until the talk ends, and the solution
+  // ends it itself: his heading now, not his post's — abilities/spy.js distractTask turns him round and holds him there)
+  if (e.world?.sneakHeld && e.brain?.state === 'DISTRACTED') return [e.heading];
   // (opt-in `w.sneakLures`: a post turned to a decoy still pulsing within his hearing keeps facing it — each pulse
   // holds him round for another 8 s; he turns back only once it stops)
   if (e.world?.sneakLures && e.brain?.noiseTurnT > 0 && !e.brain?.turn
@@ -1106,6 +1109,9 @@ export function stepMemo(cells, KS, fresh) {
 
 /** planSneak's search as a generator (it yields every few hundred states). */
 export function* planSneakGen(D, tx, tz, o = {}) {
+  // (`o.disguise`, opt-in: a Spy in that uniform — 'soldier', 'sergeant', 'officer' — is a man only to those who see
+  // through it (BCD ranks: ai/bcd-ranks recognises; canSee's target class); everyone else's cones let him by)
+  const dummyOf = (x, z) => { const d = dummyAt(D.world, o.mode || 'boat', x, z); if (o.disguise) { d.disguised = true; d.uniformType = o.disguise; } return d; };
   const t0v = __verify ? performance.now() : 0;
   const w = D.world, mode = o.mode || 'boat', boat = mode === 'boat' ? (o.boat || teamBoat(w)) : null, u = boat || D.c(o.role);
   if (!u) throw new Error(`planSneak: no ${mode === 'boat' ? 'boat' : o.role}`);
@@ -1125,6 +1131,14 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   const statics = [], walkers = [];
   for (const e of views) (walking(e) ? walkers : statics).push(e);
   const walkOpt = { crawl: mode === 'crawl' };
+  // (opt-in `w.sneakRunAxis`: a crawler keeps to a stair or ramp run's axis — pathfinding alignRuns centres him on it,
+  // he comes on and goes off it head-on — so a cell on a run's band more than 0.6 m off its axis is none he can lie in)
+  const axisRuns = mode === 'crawl' && w.sneakRunAxis ? (g.runs || []).filter((R) => R.align) : null;
+  const offAxis = (x, z) => axisRuns.some((R) => {
+    if (x < R.box[0] || x > R.box[2] || z < R.box[1] || z > R.box[3]) return false;
+    const q = g.runLocal(R, x, z), v = Math.abs(q.v);
+    return q.s >= 0 && q.s <= R.L && v <= R.w / 2 && v > 0.6;
+  });
   const passMemo = new Int8Array(W * H);
   const mates = w.commandos.filter((m) => m !== u && m.alive && !m.vehicle);
   const pass = (c) => {
@@ -1133,6 +1147,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     let ok;
     if (mode === 'boat') ok = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].every(([a, b]) => boat.passableAt(x + a, z + b));
     else { const t = g.terrainAt(x, z); ok = g.walkableAt(x, z, walkOpt) && (o.wade || (t !== T.WATER && t !== T.SHALLOW) || onDeck(g, x, z)); }
+    if (ok && axisRuns?.length && offAxis(x, z)) ok = false;
     if (ok) ok = !statics.some((e) => hypot2(e.x - x, e.z - z) < keep) && !(o.avoid || []).some(([ax, az, r]) => hypot2(ax - x, az - z) < r)
       && !(o.forbid || []).some((poly) => inPoly(poly, x, z)) // (`forbid`: polygons [[x, z], …] never entered, as driver.planSneak)
       && (mode === 'boat' || !mates.some((m) => hypot2(m.x - x, m.z - z) < 1.2));
@@ -1232,7 +1247,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       if (!walkerNearAt(wi, kk, x, z)) continue; // (out of his reach at this step)
       const q = predAt(e, kk), dd = hypot2(q.x - x, q.z - z), far = e.vision?.far ?? 36;
       if (dd > far + walkerPad + 3 + hull) continue;
-      const d = cDummy ? (cDummy[c] ??= dummyAt(w, mode, x, z)) : dummyFor(w, mode, x, z, q.x, q.z);
+      const d = cDummy ? (cDummy[c] ??= dummyOf(x, z)) : dummyFor(w, mode, x, z, q.x, q.z);
       // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
       // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
       if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w, o.coneMargin)) { s = true; break walk; }
@@ -1240,7 +1255,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'boat' ? 2 : 0;
       const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
       if (pad > 0 && dd > pad) {
-        const f = pad / dd, d2 = dummyAt(w, mode, x + (q.x - x) * f, z + (q.z - z) * f);
+        const f = pad / dd, d2 = dummyOf(x + (q.x - x) * f, z + (q.z - z) * f);
         if (seesAny(headViews(e, kk, -1), d2, w)) { s = true; break walk; }
       }
     }
@@ -1249,7 +1264,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   };
   const fresh = (c, k) => {
     work++;
-    const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0, dc = cDummy ? (cDummy[c] ??= dummyAt(w, mode, x, z)) : null;
+    const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0, dc = cDummy ? (cDummy[c] ??= dummyOf(x, z)) : null;
     let s = false;
     for (const i of statCand(c)) {
       if (s) break;
@@ -1265,7 +1280,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
         // at the edge of the band that matters the unit's own path may wander a little: the cell `edgePad` m nearer too
         const bandEdge = mode === 'crawl' ? near : far;
         if (sub === 0 && dd > bandEdge - edgePad && dd < bandEdge + edgePad) {
-          const f = edgePad / dd, d2 = dummyAt(w, mode, x + (e.x - x) * f, z + (e.z - z) * f);
+          const f = edgePad / dd, d2 = dummyOf(x + (e.x - x) * f, z + (e.z - z) * f);
           if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
         }
       }

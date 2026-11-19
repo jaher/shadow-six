@@ -1,0 +1,4 @@
+{
+ "note": "Intended coincident surfaces for tools/art/zfight.mjs (z-fighting detector). Same format as tools/art/intersection-allow.*.json: {mission ('*' or omitted = every mission), a, b? (id, item, part, mesh or material name of either side, '*' wildcards), kind? (a|b|c|d|e), near?: [x, z], r? (m, default 3), reason}. An entry without a reason never matches. Mission-specific entries can also go in tools/art/zfight-allow.<mission>.json. Allowing is for surfaces the player cannot see flicker (e.g. drawn in one colour on both sides); a visible flicker is fixed, not allowed.",
+ "entries": []
+}

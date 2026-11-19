@@ -40,10 +40,12 @@ try {
     const { browserExtras } = await import('/tools/solutions/world-snap.mjs');
     const w = G.game.world, gr = w.grid;
     return { cols: gr.cols, rows: gr.rows, grid: await exportGrid(gr), extras: browserExtras(w), ground: await exportGround(w),
-      spawns: { commandos: w.commandos.map((u) => [u.x, u.z, u.y]), enemies: w.enemies.map((u) => [u.x, u.z, u.y]) } };
+      spawns: { commandos: w.commandos.map((u) => [u.x, u.z, u.y]), enemies: w.enemies.map((u) => [u.x, u.z, u.y]) },
+      // (the units by name too: a BCD mission's Easy variant has other units than the Hard one this cache is taken on)
+      spawnIds: { commandos: w.commandos.map((u) => u.spawn?.id ?? u.tag ?? u.role), enemies: w.enemies.map((u) => u.spawn?.id ?? u.tag) } };
   }, id);
   if (b.cols !== g.cols || b.rows !== g.rows) throw new Error(`grid size differs: browser ${b.cols}x${b.rows}, headless ${g.cols}x${g.rows}`);
-  out = { mission: id, fingerprint: gridPrint(g), cols: g.cols, rows: g.rows, grid: b.grid, spawns: b.spawns, ground: b.ground, extras: diffExtras(s.world, b.extras) };
+  out = { mission: id, fingerprint: gridPrint(g), cols: g.cols, rows: g.rows, grid: b.grid, spawns: b.spawns, spawnIds: b.spawnIds, ground: b.ground, extras: diffExtras(s.world, b.extras) };
   mkdirSync(join(here, 'navcache'), { recursive: true });
   writeFileSync(join(here, 'navcache', `${id}.json`), JSON.stringify(out));
   console.log(`${id}: whole grid snapshot (${Object.keys(b.grid.arrays).length} layers, ${b.grid.links.length} links) → tools/solutions/navcache/${id}.json`);

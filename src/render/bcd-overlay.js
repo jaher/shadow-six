@@ -88,6 +88,18 @@ export class BcdOverlay {
     m.geometry.computeBoundingSphere();
   }
 
+  /**
+   * The pools' first range disc, puppet ring and knock-out arc made now (hidden): the load's program warm-up frame draws
+   * them (`userData.warmShow`, Game._warmFrame), so the first stunned man's arc links no program in play (e02's first
+   * knock-out, a double-sided decal: two programs, one per side's pass).
+   */
+  prewarm() {
+    const d = this._pool(this.discs, 0, () => this._flat(this.discGeo, DISC, 0.12));
+    const r = this._pool(this.rings, 0, () => this._flat(this.ringGeo, BLUE, 0.9));
+    const a = this._pool(this.arcs, 0, () => this._flat(this._arc(1), KO, 0.85));
+    for (const m of [d, r, a]) m.userData.warmShow = true;
+  }
+
   update(world) {
     const ctl = world ? world.commandos.filter((c) => c.alive && c.puppet?.puppetOf === c) : [];
     const ko = world ? world.enemies.filter((e) => e.alive && e.ko === 'stunned' && e.state !== 'carried') : [];

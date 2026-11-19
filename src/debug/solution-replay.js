@@ -246,6 +246,7 @@ export class SolutionReplay {
     this._safe = null;
     this._safeAt = 0;
     this._waiter = null;
+    this._pauseWaiters = []; // (sliced plans handed the frame back: they go on in the next frame, in the order they paused)
     /** The late-call queue's length before the last tick (-1: looked at), the frames still to run no tick after an
      * explosion's tick (_blastHold) and when the last one was held (wall ms). */
     this._lateFrom = -1;
@@ -386,7 +387,9 @@ export class SolutionReplay {
     if (this.stopped) return Promise.reject(new this.sol.SolutionAborted());
     if (this.pacer.turbo && this.pacer.canTick(performance.now())) return Promise.resolve();
     this._thinking = true;
-    return new Promise((res, rej) => { this._pauseWaiter = { res, rej }; });
+    // (every flow of a D.parallel that is planning goes on: two hand the frame back in one frame when the flows start
+    // together, each with a sliced plan — e02's Green Beret and Spy crawling off at once — and both go on in the next)
+    return new Promise((res, rej) => { this._pauseWaiters.push({ res, rej }); });
   }
 
   _onOrder(role, u, o) {
@@ -552,8 +555,8 @@ export class SolutionReplay {
     // (where this frame's picture falls between the last two ticks: the draw and the camera's points — _at)
     this.renderAlpha = this.pacer.alpha();
     // a sliced plan goes on in this frame (after its draw, like the ticks)
-    const pw = this._pauseWaiter;
-    if (pw) { this._pauseWaiter = null; pw.res(); }
+    const pw = this._pauseWaiters;
+    if (pw.length) { this._pauseWaiters = []; for (const p of pw) p.res(); }
     const w = this._waiter;
     if (w && (this._ready() || g.state === 'won' || g.state === 'lost')) {
       this._waiter = null;
@@ -727,9 +730,9 @@ export class SolutionReplay {
     const w = this._waiter;
     this._waiter = null;
     w?.rej(new this.sol.SolutionAborted());
-    const pw = this._pauseWaiter;
-    this._pauseWaiter = null;
-    pw?.rej(new this.sol.SolutionAborted());
+    const pw = this._pauseWaiters;
+    this._pauseWaiters = [];
+    for (const p of pw) p.rej(new this.sol.SolutionAborted());
     this._release();
   }
 

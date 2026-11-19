@@ -451,6 +451,11 @@ export class Selection {
     setRing(m.mesh.material, ringShape(m.t, CHESS_MARKER, MARKER_SCALE, still), Math.min(1, (MARKER_LIFE - m.t) / MARKER_FADE));
   }
 
+  /** A BCD world (`rules.puppet`): its ground overlay made now, its first decals drawn by the load's warm-up frame. */
+  prewarmBcd(world) {
+    if (world?.rules?.puppet) (this.bcd ||= new BcdOverlay(this.group, () => this.world)).prewarm();
+  }
+
   dispose() {
     this.bcd?.dispose();
     this.noise.dispose();

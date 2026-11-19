@@ -18,7 +18,7 @@ import { Commando } from '../../src/entities/commando.js';
 import { Entity } from '../../src/entities/entity.js';
 import { stairTopAt, stairTreads } from '../../src/art/dam-stairs.js';
 import { stairOf } from '../../src/art/access-platform.js';
-import { STAIR_PACE, levelAt, levelSpan, lineAt, flightLocal, flightWorld } from '../../src/world/stairs.js';
+import { STAIR_PACE, levelAt, levelSpan, lineAt, flightLocal, flightWorld, damFlights } from '../../src/world/stairs.js';
 import { footholdOnFlight, swingLevel, swingClear, cadenceFor, GAIT } from '../../src/art/stair-gait.js';
 import { rungPairs } from '../../src/art/ladder-climb.js';
 import { CONFIG } from '../../src/config.js';
@@ -286,4 +286,20 @@ test('stairs: a man is not dragged up a flight (the move is refused with a messa
       assert.equal(c.carrying, body);
     }
   }
+});
+
+test('damFlights: a stair that climbs from a raised level (`floor`, an e02 salita from the y 4 terrace to y 8) starts on its floor', () => {
+  // (without `floor` a foot above y 0 is a first riser up from y 0 at s 0 — M3's dam stairs — and the nosing line of a long
+  // shallow flight then meets y 0 far out along its axis: the phantom foot that bent every crawler's path near e02's salite)
+  const [f] = damFlights({ points: [[0, 0], [0, -29.4]], width: 3.5, y0: 4, y1: 8, floor: 4 });
+  assert.equal(f.levels[0], 4, 'the level before the first riser is the floor');
+  assert.ok(f.risers[0] > 1, `no riser at the foot (first at s ${f.risers[0].toFixed(2)})`);
+  near(f.sFoot, 0, 0.05, 'the nosing line meets the floor at the foot');
+  const [g] = damFlights({ points: [[0, 0], [0, -29.4]], width: 3.5, y0: 4, y1: 8 });
+  assert.equal(g.levels[0], 0, 'by default the floor is y 0');
+  assert.equal(g.risers[0], 0, 'and the raised foot is a first riser at s 0');
+  // a stair from the ground is the same with or without it
+  const a = damFlights({ points: [[0, 0], [0, -6]], width: 1.6, y0: 0, y1: 3 })[0], b = damFlights({ points: [[0, 0], [0, -6]], width: 1.6, y0: 0, y1: 3, floor: 0 })[0];
+  assert.deepEqual(b.risers, a.risers);
+  assert.deepEqual(b.levels, a.levels);
 });
