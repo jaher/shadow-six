@@ -118,10 +118,10 @@ export class Geo {
   /** Quad with explicit per-corner UVs in metres ([u, v] per corner, same order as the vertices). */
   quadUV(mat, a, b, c, d, uv, tone = 1) { this.tri(mat, a, b, c, tone, [uv[0], uv[1], uv[2]]); this.tri(mat, a, c, d, tone, [uv[0], uv[2], uv[3]]); }
   /** Hexahedron from 8 corners: bottom ring p0..p3 (CCW from above), top ring p4..p7. */
-  hexa(mat, p, tone = 1, { bottom = false } = {}) {
+  hexa(mat, p, tone = 1, { bottom = false, top = true } = {}) {
     const [a, b, c, d, e, f, g, h] = p;
     if (bottom) this.quad(mat, a, d, c, b, tone);
-    this.quad(mat, e, f, g, h, tone);
+    if (top) this.quad(mat, e, f, g, h, tone);
     this.quad(mat, a, b, f, e, tone); this.quad(mat, b, c, g, f, tone);
     this.quad(mat, c, d, h, g, tone); this.quad(mat, d, a, e, h, tone);
   }
@@ -251,15 +251,16 @@ export function segFrame(a, b, inside) {
   return { t, n, L, rot: Math.atan2(t[1], t[0]), at: (u, w) => [a[0] + t[0] * u + n[0] * w, a[1] + t[1] * u + n[1] * w] };
 }
 
-/** Box aligned to a segment frame: along u0..u1, across w0..w1 (outward +), y0..y1. */
-export function segBox(G, mat, F, u0, u1, w0, w1, y0, y1, tone = 1, { taperOut = 0 } = {}) {
+/** Box aligned to a segment frame: along u0..u1, across w0..w1 (outward +), y0..y1. `noTop`: skip the top face (the caller lays it with explicit UVs). */
+export function segBox(G, mat, F, u0, u1, w0, w1, y0, y1, tone = 1, { taperOut = 0, noTop = false } = {}) {
   const P = (u, w, y) => { const [x, z] = F.at(u, w); return [x, y, z]; };
   const wt = w1 + taperOut;
   // ring CCW from above in three.js terms (see Geo.hexa): u0w0, u0w1, u1w1, u1w0 when n = right of t
   const r0 = [P(u0, w0, y0), P(u0, wt, y0), P(u1, wt, y0), P(u1, w0, y0)];
   const r1 = [P(u0, w0, y1), P(u0, w1, y1), P(u1, w1, y1), P(u1, w0, y1)];
   const cross = (F.t[0] * F.n[1] - F.t[1] * F.n[0]);
-  if (cross > 0) G.hexa(mat, [...r0, ...r1], tone); else G.hexa(mat, [r0[3], r0[2], r0[1], r0[0], r1[3], r1[2], r1[1], r1[0]], tone);
+  const top = noTop ? { top: false } : {};
+  if (cross > 0) G.hexa(mat, [...r0, ...r1], tone, top); else G.hexa(mat, [r0[3], r0[2], r0[1], r0[0], r1[3], r1[2], r1[1], r1[0]], tone, top);
 }
 
 // 2D line intersection: line P + s*d meets line Q + t*e. Null if parallel.
@@ -330,7 +331,27 @@ export function buildCurtain(points, o = {}) {
     const Fnext = k + 2 < points.length ? segFrame(points[k + 1], points[k + 2], o.inside) : null;
     const e0 = k > 0 ? -half * 0.6 : 0, e1 = F.L + (k + 2 < points.length ? half * 0.6 : 0); // overlap at joints
     // core + battered talus (outer face) + cordon roll at the talus top
-    segBox(G, 'ashlar', F, e0, e1, -half, half, base, h, 1);
+    // (walk-top UVs, user 2026-11-17: "the pavement should line up with the direction of the walls" — the core
+    // box's top is the walk surface, and its box-projected world UVs run the ashlar courses along world +x, so on
+    // a diagonal wall the courses sit 15-45 deg off the wall (probe-walltex-uv.mjs: cw_sw 45.0, cw_s seg 1 38.1,
+    // cw_e2 seg 0 90.0 deg). The core is built without its top; the top is laid separately as one quad per segment
+    // with explicit UVs (u along the wall, v across), so the courses follow the wall. The quad is mitred at the
+    // joints (the same mitre the kerbs use): the two tops meet along the joint bisector with no overlap and no gap
+    // — a square cut would double the strip at a turn, and two coplanar tops with different UVs would shimmer.
+    // Fallback (near-collinear joint / degenerate mitre): a square quad over the core span in the same frame.
+    // Same material, same tone, same height y = h: only the UVs change, so dropInside's flat-at-h tests still apply.)
+    segBox(G, 'ashlar', F, e0, e1, -half, half, base, h, 1, { noTop: true });
+    {
+      const topPoly = mitredKerbPoly(F, Fprev, Fnext, -half, half);
+      const corners = topPoly || [F.at(e0, -half), F.at(e0, half), F.at(e1, half), F.at(e1, -half)];
+      const o = F.at(0, 0);
+      const P = ([x, z]) => [x, h, z];
+      const UV = ([x, z]) => [((x - o[0]) * F.t[0] + (z - o[1]) * F.t[1]), ((x - o[0]) * F.n[0] + (z - o[1]) * F.n[1])];
+      const cross = F.t[0] * F.n[1] - F.t[1] * F.n[0];
+      const ord = cross > 0 ? [0, 1, 2, 3] : [3, 2, 1, 0]; // same winding rule as segBox's hexa top
+      G.quadUV('ashlar', P(corners[ord[0]]), P(corners[ord[1]]), P(corners[ord[2]]), P(corners[ord[3]]),
+        [UV(corners[ord[0]]), UV(corners[ord[1]]), UV(corners[ord[2]]), UV(corners[ord[3]])], 1);
+    }
     segBox(G, 'rubble', F, e0, e1, half - 0.02, half + 0.02, base, 2.4, 0.95, { taperOut: tal });
     segBox(G, 'dressed', F, e0, e1, half - 0.05, half + 0.18, 2.35, 2.6, 1.02);
     // string course under the corbels, then the corbel table and the projecting parapet.

@@ -14,6 +14,7 @@ import { test, assert } from './lib.mjs';
 import { getMission } from '../../src/missions/index.js';
 import { MOAT_RING, BR_W, RANGE_LANES, RANGE_NCO } from '../../src/missions/m20_operation_valhalla.js';
 import { towerPlan, BAILEY_PLAN } from '../../src/art/m20-castle.js';
+import { buildCurtain } from '../../src/art/castle-kit.js';
 import { rangeTick, atPractice, RANGE_POSE } from '../../src/missions/scripts/m20-range.js';
 import { rangeAtPractice } from '../../src/missions/setpieces-hazards.js';
 
@@ -420,4 +421,47 @@ test('m20 flags: the period flags fly where an occupied HQ has them, all from th
   assert.equal(flag.getObjectByName('flag_cloth').material.name, 'flag_cloth');
   assert.equal(banner.getObjectByName('flag_banner').material, bannerMaterial(undefined));
   assert.equal(bannerMaterial(undefined).userData.flagKind, 'banner');
+});
+
+// (user 2026-11-17: the walk pavement must run longitudinally along the wall — the curtain core's
+// box-projected world UVs ran the ashlar courses along world +x, 15-90 deg off the wall on the
+// diagonal curtains. The core top is now laid with explicit UVs, u along the wall.)
+test('m20 castle: the outer-wall walk tops run their ashlar courses along the wall (not world +x)', () => {
+  const WALLS = {
+    cw_sw: [[33, 91], [52.3, 110.3]],
+    cw_s: [[61.5, 117.5], [99, 128], [112, 117.8]],
+    cw_e2: [[139, 80.9], [139, 50], [134, 46], [106, 20.2]],
+  };
+  for (const [name, points] of Object.entries(WALLS)) {
+    const g = buildCurtain(points, { seed: name, width: 5, h: 7, inside: [88, 72], name: `curtain:${name}` });
+    const mesh = g.children.find((m) => m.name.endsWith(':ashlar'));
+    assert.ok(mesh, `${name}: ashlar mesh`);
+    const pos = mesh.geometry.attributes.position, uv = mesh.geometry.attributes.uv, nor = mesh.geometry.attributes.normal;
+    const seen = new Set();
+    for (let t = 0; t < pos.count; t += 3) {
+      let top = true;
+      for (let k = 0; k < 3; k++) if (Math.abs(pos.getY(t + k) - 7) > 0.01 || nor.getY(t + k) < 0.9) { top = false; break; }
+      if (!top) continue;
+      const d = (a, b) => [pos.getX(b) - pos.getX(a), pos.getZ(b) - pos.getZ(a), uv.getX(b) - uv.getX(a)];
+      const [dx1, dz1, du1] = d(t, t + 1), [dx2, dz2, du2] = d(t, t + 2);
+      const det = dx1 * dz2 - dx2 * dz1;
+      if (Math.abs(det) < 1e-9) continue;
+      let gx = (du1 * dz2 - du2 * dz1) / det, gz = (dx1 * du2 - dx2 * du1) / det;
+      const gl = Math.hypot(gx, gz) || 1; gx /= gl; gz /= gl;
+      const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, cz = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+      let seg = 0, bd = Infinity;
+      for (let k = 0; k + 1 < points.length; k++) {
+        const [ax, az] = points[k], [bx, bz] = points[k + 1], L2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1;
+        const tt = Math.max(0, Math.min(1, ((cx - ax) * (bx - ax) + (cz - az) * (bz - az)) / L2));
+        const dd = Math.hypot(cx - (ax + (bx - ax) * tt), cz - (az + (bz - az) * tt));
+        if (dd < bd) { bd = dd; seg = k; }
+      }
+      const [ax, az] = points[seg], [bx, bz] = points[seg + 1], L = Math.hypot(bx - ax, bz - az) || 1;
+      const tx = (bx - ax) / L, tz = (bz - az) / L;
+      const ang = Math.abs(Math.atan2(gx * tz - gz * tx, gx * tx + gz * tz)) * 180 / Math.PI;
+      assert.ok(ang < 1, `${name} seg ${seg}: u-axis ${ang.toFixed(2)} deg off the wall`);
+      seen.add(seg);
+    }
+    assert.ok(seen.size === points.length - 1, `${name}: ${seen.size}/${points.length - 1} segments checked`);
+  }
 });
