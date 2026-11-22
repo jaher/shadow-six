@@ -253,8 +253,10 @@ function deadPush(b, inner, edge) {
  *  - 'keep'  the acting men are inside the dead zone (DEAD_ZONE of the free rect) and the zoom is near enough: nothing moves
  *            — a new subject already in the picture included, and a new subject that is still on screen, not urgent, while
  *            the framing is younger than `hold` (SHOT_HOLD_MS);
- *  - 'push'  the same men walked out of the dead zone: the framing slides just enough to keep them inside it (a man
- *            walking is followed, never re-centred step by step);
+ *  - 'push'  the same men walked out of the dead zone: the framing slides to bring the lead man back to the
+ *            middle of the free rect (a man walking is followed, not re-centred step by step — but a push that
+ *            only just got him back inside the dead zone left him riding its edge for the whole walk, user
+ *            2026-11-20); a push for another man still slides just enough
  *  - 'frame' the shot's own framing: a new subject outside the dead zone (at once when `urgent` — an action watched, a
  *            blast — or the hold is up, or an acting man is off screen), the men spread past the held zoom, a framing
  *            far wider than needed, or the shot's other points off screen once the hold is up. Its zoom is the held one
@@ -284,7 +286,15 @@ export function calmFrame(held, want, pts, must, view, rect, { now = 0, key = nu
     return { ...held, kind: 'keep' };
   }
   if (out) {
-    const t = shiftTarget(held, dead.dx, dead.dy, view, held.zoom);
+    // (user 2026-11-20: the selected man rode the dead zone's edge — a push put him just inside it, so a walking
+    // man spent the whole walk at the screen's edge. A push now centres the lead man instead, so he walks out of the
+    // middle and is brought back to it; the camera still only moves when he leaves the dead zone. A push for
+    // another man — the lead still inside — slides just enough, as before.)
+    const lead = boxPx(pts, 0, 1, view, held, held.zoom);
+    const d = outside(lead, inner)
+      ? { dx: (lead.x0 + lead.x1) / 2 - (rect.x + rect.w / 2), dy: (lead.y0 + lead.y1) / 2 - (rect.y + rect.h / 2) }
+      : dead;
+    const t = shiftTarget(held, d.dx, d.dy, view, held.zoom);
     return { ...held, x: t.x, z: t.z, kind: 'push' };
   }
   if (aged) {

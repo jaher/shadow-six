@@ -3,8 +3,9 @@
  * waits boost, src/debug/solution-replay.js): framing puts every point inside the free rectangle, centred; the acting
  * men win when everything does not fit; the free rectangle avoids the HUD's corner block; the spring settles. The calm
  * camera (user 2026-11-09: "Debug solutions dont need the camera to be moving around so much, it used to be more static
- * before"): a framing held while the acting men stay in its dead zone, slid (never re-centred) as a man walks out of
- * it, a new subject taken at once only when it matters or is off screen, fewer zoom moves, an acting man never past the
+ * before"): a framing held while the acting men stay in its dead zone, slid as a man walks out of
+ * it — a push centres the lead man (user 2026-11-20: a push that only just got him back inside the dead zone left
+ * him riding its edge for the whole walk), a new subject taken at once only when it matters or is off screen, fewer zoom moves, an acting man never past the
  * safe edge; the focus hysteresis (no ping-pong between men acting by turns); the yaw swung only for a lasting
  * occlusion and kept for the rest of the shot; smoke and other see-through meshes hide nobody.
  */
@@ -124,26 +125,26 @@ test('calm camera: a man moving inside the dead zone moves nothing (shot hold)',
   }
 });
 
-test('calm camera: a man walking out of the dead zone slides the framing just enough (followed, not re-centred)', () => {
+test('calm camera: a man walking out of the dead zone is brought back to the middle (followed, centred on a push)', () => {
   const p0 = { x: 50, y: 0, z: 40 }, held = heldOn(p0, 0);
   const inner = insetRect(RECT, DEAD_ZONE);
+  const cx = RECT.x + RECT.w / 2, cy = RECT.y + RECT.h / 2;
   let h = held, pushes = 0;
-  for (let i = 1; i <= 60; i++) {
-    const p = { x: p0.x + i * 0.5, y: 0, z: p0.z }; // (walking 30 m east)
+  for (let i = 1; i <= 120; i++) {
+    const p = { x: p0.x + i * 0.5, y: 0, z: p0.z }; // (walking 60 m east)
     const f = calmFrame(h, want([p]), [p], 1, VIEW, RECT, { now: i * 16, key: 'gb' });
     assert.ok(f.kind === 'keep' || f.kind === 'push', `step ${i}: ${f.kind}`);
     if (f.kind === 'push') {
       pushes++;
       const q = screenPx(p, VIEW, f, f.zoom);
       assert.ok(inRect(q, inner), `step ${i}: back inside the dead zone (${q.x.toFixed(1)}, ${q.y.toFixed(1)})`);
-      const onEdge = Math.min(Math.abs(q.x - inner.x), Math.abs(q.x - inner.x - inner.w), Math.abs(q.y - inner.y), Math.abs(q.y - inner.y - inner.h));
-      assert.ok(onEdge < 0.5, `step ${i}: on its edge, not re-centred (${onEdge.toFixed(2)} px)`);
+      assert.ok(Math.abs(q.x - cx) < 1 && Math.abs(q.y - cy) < 1, `step ${i}: centred, not on the dead zone's edge (${q.x.toFixed(1)}, ${q.y.toFixed(1)})`);
       assert.equal(f.zoom, held.zoom, 'no zoom move');
       assert.equal(f.at, held.at, 'a push is no new framing (the hold runs on)');
     }
     h = f;
   }
-  assert.ok(pushes > 20 && pushes < 60, `the first steps inside the dead zone moved nothing, then it followed (${pushes} pushes)`);
+  assert.ok(pushes >= 2 && pushes <= 5, `the first steps inside the dead zone moved nothing, then it followed, a few centred pushes (${pushes} pushes)`);
 });
 
 test('calm camera: a new subject — in the picture already: no move; on screen: held SHOT_HOLD_MS; off screen or urgent: at once', () => {
