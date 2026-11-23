@@ -100,7 +100,16 @@ export const PARAPETS = [
   // places (35.40-36.60, 37.30-38.00); the cut still opens only where the stair is. NOTE: the base wall under
   // the first merlon slot stays (see m20-art.js) — it is what hides the bastion from the BAT-level watcher at
   // (40, 98); the parapets test pins that sightline, and the bare base wall is what blocks it.)
-  ['t_par_sw_s', [[31.5, 90.4], [38, 90.4], [38, 91], [31.5, 91]], Y.SW],
+  // (user 2026-11-23: NOT fixed — that bare base wall (x 31.5-33.03) still reaches mid landing: its east end
+  // sits at the middle of S_sw's top edge. So the VISIBLE strip now starts at the stair gap (x 33.03) and the
+  // wall ends where the jog starts, with nothing between the jog and the exit. The west stub survives ONLY as
+  // t_par_sw_s_w, a grid-only cliff with no visual (m20-art.js skips it): removing it from the grid opens the
+  // (40, 98) -> (31, 89.5) sightline (probe: that one assertion fails, all others hold). lineOfSight
+  // blocks on grid elev > max(viewerY, targetY) + 1.0 = 11.0, so the blocker must stay at full parapet
+  // height (grid elev 11.4) — a lowered stub does not block it. Trade-off, stated plainly: the stub is invisible in
+  // the render but still blocks sight and movement in the grid for that 1.5 m of terrace edge.)
+  ['t_par_sw_s', [[33.03, 90.4], [38, 90.4], [38, 91], [33.03, 91]], Y.SW],
+  ['t_par_sw_s_w', [[31.5, 90.4], [33.03, 90.4], [33.03, 91], [31.5, 91]], Y.SW],
   // (user 2026-11-17: the merlon at u 9.6-10.8 in t_par_sw_s stood in the middle of S_sw's exit, past the
   // top tread — shifting it along the strip is impossible (neighbours both sides), so it moved OFF the strip
   // onto the triangular deck's N-S jog as a short parapet return: buildParapet lays one 1.2 m merlon centred

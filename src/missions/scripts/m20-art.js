@@ -266,19 +266,21 @@ function* levels(w, m) {
   for (const s of m.structures || []) {
     if (due()) yield;
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
+    // (t_par_sw_s_w, user 2026-11-23: the west stub of the SW parapet survives ONLY as a grid cliff — it
+    // blocks the (40, 98) -> (31, 89.5) sightline the parapets test pins, but it has NO visual: the user
+    // said the bare base wall still reached mid landing, so the visible strip now starts at the stair gap
+    // and this stub must not render. See m20_operation_valhalla.js for the trade-off.)
+    if (s.id === 't_par_sw_s_w') continue;
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt screen (t_par_hq_b*) BALUSTRADE_H, a solid
     // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
     // (t_par_sw_s, user 2026-11-22: the parapet opened ~3.9 m for a 2.4 m stair — the exit through-cut
     // (exitOver, removed 17106856) cleared merlons 2 m past the top tread, past where the flight is. The cut
-    // is now only the stairsOver overlap region, so the wall opens only where the stair is, and the strip
-    // itself is shortened to end at the stair (x 31.5) — the stick is gone because the wall ends there. The
-    // first merlon slot of the shortened wall (x 31.6-32.8) is still cut merlon-only: the merlon itself is
-    // the stick the user had removed, but the base wall under it must stay — it is the only thing hiding the
-    // SW bastion from the BAT-level watcher at (40, 98) (parapets test), so the wall ends merlon-free at the
-    // stair rather than bare. 306a8335's cut kept for that slot only; the perpendicular jog return is restored
-    // in m20_operation_valhalla.js, untouched, per the user's "leave the other perpendicular wall untouched".)
-    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points), ...(s.id === 't_par_sw_s' ? { merlonThrough: [[[31.6, 90.4], [32.8, 90.4], [32.8, 91.0], [31.6, 91.0]]] } : {}) }); }
+    // is now only the stairsOver overlap region, so the wall opens only where the stair is. User 2026-11-23:
+    // the visible strip itself now starts at the stair gap (x 33.03) — the west stub is grid-only, no visual
+    // (see the skip above) — so there is no merlon cut to keep here; the perpendicular jog return stays
+    // untouched, per the user's "leave the other perpendicular wall untouched".)
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points) }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m), dressing: s.dressing });
     if (swapVisual(w, s.id, v)) n++;
   }
