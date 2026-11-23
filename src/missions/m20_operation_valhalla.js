@@ -93,12 +93,15 @@ export const PARAPETS = [
   ['t_par_sw_e', [[37.4, 78], [38, 78], [38, 91], [37.4, 91]], Y.SW],
   ['t_par_sw_s', [[22, 90.4], [38, 90.4], [38, 91], [22, 91]], Y.SW],
   // (user 2026-11-17: the merlon at u 9.6-10.8 in t_par_sw_s stood in the middle of S_sw's exit, past the
-  // top tread — shifting it along the strip is impossible (neighbours both sides), so it moves OFF the strip
-  // onto the triangular deck's N-S jog as a short parapet return: buildParapet lays one 1.2 m merlon centred
-  // on the jog (31.72, 91.69), clear of the walk band; the exit through-cut below removes it from the strip.
-  // Flush inside the deck (west face on the jog edge, x 31.50) so its 0.44 m width still covers the 0.5 m
-  // grid's cell centre (31.75, 91.75) — a straddling return read as deck level in the grid, not parapet.)
-  ['t_par_sw_jog', [[31.5, 91], [31.5, 92.38], [31.94, 92.38], [31.94, 91]], Y.SW],
+  // top tread — shifting it along the strip is impossible (neighbours both sides), so it moved OFF the strip
+  // onto the triangular deck's N-S jog as a short parapet return, and the exit through-cut removed it from the
+  // strip. User 2026-11-22: the exit cut is gone (the cut is only the stairsOver overlap now, so that merlon
+  // stands again in the strip) and the jog merlon read as a stray block beside the exit — the return moves
+  // further SW, west along the deck's S edge clear of the exit sightline: one 1.2 m merlon centred (30.2,
+  // 90.78), flush inside the deck (its 0.44 m width covers the 0.5 m grid's cell centres (29.75, 90.75) and
+  // (30.75, 90.75) — a straddling return read as deck level in the grid, not parapet. The jog triangle itself
+  // has no room for a SW shift — it is 1.38 m long and the merlon 1.2 m — so the return goes west onto the deck.)
+  ['t_par_sw_jog', [[29.5, 90.56], [31.0, 90.56], [31.0, 91.0], [29.5, 91.0]], Y.SW],
   // (user 2026-11-14: the SW bastion's moat-facing west face was bare — a flat top edge with no merlons — while the
   // terrace's south parapet beside it carries a full row. The west edge never had a strip: the S and E edges do.)
   ['t_par_sw_w', [[22, 78], [22.6, 78], [22.6, 91], [22, 91]], Y.SW],

@@ -1084,8 +1084,12 @@ export function buildStairFlight(a, b, o = {}) {
     segBox(G, tread, F, u0 - 0.04, u0 + tr + 0.02, -W / 2, W / 2, top - 0.06, top, 0.95 + ((i * 7) % 5) * 0.03);
     for (const s of o.cheeks ?? [-1, 1]) {
       const w0 = s < 0 ? -W / 2 - 0.3 : W / 2, w1 = s < 0 ? -W / 2 : W / 2 + 0.3;
-      segBox(G, body, F, u0, Math.min(u0 + tr + 0.02, stop), w0, w1, y0, top + 0.55, 0.97);
-      segBox(G, tread, F, u0 - 0.02, Math.min(u0 + tr + 0.04, stop), w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
+      // (o.flushTop: the final steps' cheek walls end at the destination paving (b.y) instead of step-top + 0.55
+      // with a coping cap — the exit reads flush instead of a stub wall across the landing; S_sw, user 2026-11-22:
+      // the top-step cheeks stood 0.65 m proud of the terrace.)
+      const flush = o.flushTop && i >= n - o.flushTop;
+      segBox(G, body, F, u0, Math.min(u0 + tr + 0.02, stop), w0, w1, y0, flush ? b.y : top + 0.55, 0.97);
+      if (!flush) segBox(G, tread, F, u0 - 0.02, Math.min(u0 + tr + 0.04, stop), w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
     }
   }
   return o.G ? G : G.build(o.name || 'stairs', { ground: y0 });
