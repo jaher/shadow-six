@@ -216,7 +216,15 @@ export function roundTower(G, o) {
   G.cyl('rubble', x, y0, z, r + 0.75, r, Math.min(3.6, top - y0 - 2), seg, 0.92, { caps: false });   // battered foot
   G.cyl('dressed', x, y0 + Math.min(3.6, top - y0 - 2) - 0.05, z, r + 0.1, r + 0.1, 0.22, seg, 1.03, { caps: false });
   G.cyl('ashlar', x, y0, z, r, r, top - y0 - 0.9, seg, 1, { caps: false });
-  for (const f of [0.42, 0.7]) G.cyl('dressed', x, y0 + (top - y0) * f, z, r + 0.09, r + 0.09, 0.2, seg, 1.04, { caps: false });
+  // (user 2026-11-22: the 0.9 m machicolation band between the shaft top and the gallery floor read as a slice
+  // across the tower — the gallery looked separated. A flush ashlar cylinder closes it; the corbels stay as
+  // decoration on the solid band.)
+  G.cyl('ashlar', x, top - 0.9, z, r, r, 0.9, seg, 1, { caps: false });
+  // (user 2026-11-22: the string courses read as slices cut across the drum — the 0.09 m step cast a shadowed
+  // edge. Flush now: same ashlar as the shaft, a hair proud (1 cm, sub-pixel at range) so the band never goes
+  // coplanar with the shaft and z-fights; the tone step reads as a course change, not a cut. The loop tiers
+  // stay centred in the same three sections.)
+  for (const f of [0.42, 0.7]) G.cyl('ashlar', x, y0 + (top - y0) * f, z, r + 0.01, r + 0.01, 0.2, seg, 1.03, { caps: false });
   // cross loops in staggered tiers, facing outwards (the castle side has none) — one tier centred in each of the
   // three shaft sections the string courses cut (user 2026-11-17: the old even spacing sat every tier ~2 m low,
   // the top tier right on the upper course)
@@ -252,11 +260,16 @@ export function dTower(G, F, u, r, o = {}) {
   const arc = Math.PI, a0 = face - Math.PI / 2;
   G.cyl('rubble', cx, y0, cz, r + 0.7, r, 3.4, seg, 0.92, { caps: false, a0, arc });
   G.cyl('ashlar', cx, y0, cz, r, r, top - y0 - 0.9, seg, 1, { caps: false, a0, arc });
+  // (user 2026-11-22: as on the round towers — the 0.9 m machicolation band read as a slice, so a flush ashlar
+  // cylinder closes it and the corbels stay as decoration on the solid band.)
+  G.cyl('ashlar', cx, top - 0.9, cz, r, r, 0.9, seg, 1, { caps: false, a0, arc });
   for (const s of [-1, 1]) segBox(G, 'ashlar', F, u + s * r - (s > 0 ? 0.6 : 0), u + s * r + (s > 0 ? 0 : 0.6), back, half + 0.02, y0, top - 0.9, 0.97);
   // its floor (closing the top over the parapet line) and the tower's inner face above the walk
   segBox(G, 'ashlar', F, u - r, u + r, back, back + 0.5, 9.0, top + 1.75, 0.95);
-  G.cyl('dressed', cx, top - 0.12, cz, r + 0.5, r + 0.5, 0.14, seg, 1.02, { a0, arc });
-  for (const f of [0.45, 0.72]) G.cyl('dressed', cx, y0 + (top - y0) * f, cz, r + 0.08, r + 0.08, 0.2, seg, 1.04, { caps: false, a0, arc });
+  G.cyl('dressed', cx, top - 0.12, cz, r + 0.2, r + 0.2, 0.14, seg, 1.02, { a0, arc });
+  // (user 2026-11-22: the D towers carry the same string courses as the round towers (0.45/0.72, +0.08 m) —
+  // the earlier read that they had none was wrong. Flush, same as the round towers.)
+  for (const f of [0.45, 0.72]) G.cyl('ashlar', cx, y0 + (top - y0) * f, cz, r + 0.01, r + 0.01, 0.2, seg, 1.03, { caps: false, a0, arc });
   // cross loops, one tier centred in each of the two lower shaft sections the string courses cut
   // (user 2026-11-17: the old y0+3.6 / y0+7.0 sat both tiers low in their sections)
   const Hd = top - y0, dRing1 = y0 + 0.45 * Hd, dRing2 = y0 + 0.72 * Hd;
@@ -267,9 +280,11 @@ export function dTower(G, F, u, r, o = {}) {
     const a = a0 + (k / nC) * arc;
     G.box('dressed', cx + Math.cos(a) * (r + 0.22), top - 0.55, cz + Math.sin(a) * (r + 0.22), 0.36, 0.95, 0.24, a + Math.PI / 2, 0.95, 0.35);
   }
-  G.cyl('ashlar', cx, top, cz, r + 0.45, r + 0.45, 1.75, seg, 0.98, { caps: false, a0, arc });
-  for (const s of [-1, 1]) segBox(G, 'ashlar', F, u + s * (r + 0.45) - (s > 0 ? 0.5 : 0), u + s * (r + 0.45) + (s > 0 ? 0 : 0.5), back, half, top, top + 1.75, 0.98);
-  for (let k = 0; k < 3; k++) { const a = face + (k - 1) * 0.7; G.box('iron', cx + Math.cos(a) * (r + 0.47), top + 0.95, cz + Math.sin(a) * (r + 0.47), 0.04, 0.55, 0.42, a + Math.PI / 2, 0.1); }
+  // (user 2026-11-22: the gallery stepped out +0.45 m from the shaft and read as a slice just below it — the
+  // step-out is now +0.15 m; the eave band, the gallery flanks and the little windows move in with it.)
+  G.cyl('ashlar', cx, top, cz, r + 0.15, r + 0.15, 1.75, seg, 0.98, { caps: false, a0, arc });
+  for (const s of [-1, 1]) segBox(G, 'ashlar', F, u + s * (r + 0.15) - (s > 0 ? 0.5 : 0), u + s * (r + 0.15) + (s > 0 ? 0 : 0.5), back, half, top, top + 1.75, 0.98);
+  for (let k = 0; k < 3; k++) { const a = face + (k - 1) * 0.7; G.box('iron', cx + Math.cos(a) * (r + 0.17), top + 0.95, cz + Math.sin(a) * (r + 0.17), 0.04, 0.55, 0.42, a + Math.PI / 2, 0.1); }
   // the roof: a half cone on the round and a hipped back to the wall line
   const yE = top + 1.75, rr = r + 0.75, h = rr * (o.cone ?? 2.0);
   G.cyl('slate', cx, yE, cz, rr, 0.06, h, seg, 1.0, { a0, arc, caps: false });

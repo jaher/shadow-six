@@ -91,13 +91,34 @@ export const PARAPETS = [
   ['t_par_hq_e', [[37.4, 72.5], [38, 72.5], [38, 78], [37.4, 78]], Y.HQ],
   ['t_par_hq_s', [[22, 77.5], [37.4, 77.5], [37.4, 78], [22, 78]], Y.HQ],
   ['t_par_sw_e', [[37.4, 78], [38, 78], [38, 91], [37.4, 91]], Y.SW],
-  ['t_par_sw_s', [[22, 90.4], [38, 90.4], [38, 91], [22, 91]], Y.SW],
+  // (user 2026-11-22: shorten the wall with merlons parallel to the end of the stairs — the strip no longer
+  // runs west past the stair exit at all. It ends at x 31.5, at the stair's west side, where its west end meets
+  // the restored N-S jog return at the corner (31.5, 91) — the stick that jutted off the stair's SW cheek (the
+  // merlon at x 31.6-32.8, and the whole west run to x 22) is gone because the wall ends at the stair, not
+  // because one merlon was deleted mid-wall (306a8335 reverted in that sense). The west vertex 31.5 is
+  // grid-aligned (31.5 = 22 + 5 x 1.9, the merlon pitch) so the two merlons east of the exit keep their exact
+  // places (35.40-36.60, 37.30-38.00); the cut still opens only where the stair is. NOTE: the base wall under
+  // the first merlon slot stays (see m20-art.js) — it is what hides the bastion from the BAT-level watcher at
+  // (40, 98); the parapets test pins that sightline, and the bare base wall is what blocks it.)
+  // (user 2026-11-23: NOT fixed — that bare base wall (x 31.5-33.03) still reaches mid landing: its east end
+  // sits at the middle of S_sw's top edge. So the VISIBLE strip now starts at the stair gap (x 33.03) and the
+  // wall ends where the jog starts, with nothing between the jog and the exit. The west stub survives ONLY as
+  // t_par_sw_s_w, a grid-only cliff with no visual (m20-art.js skips it): removing it from the grid opens the
+  // (40, 98) -> (31, 89.5) sightline (probe: that one assertion fails, all others hold). lineOfSight
+  // blocks on grid elev > max(viewerY, targetY) + 1.0 = 11.0, so the blocker must stay at full parapet
+  // height (grid elev 11.4) — a lowered stub does not block it. Trade-off, stated plainly: the stub is invisible in
+  // the render but still blocks sight and movement in the grid for that 1.5 m of terrace edge.)
+  ['t_par_sw_s', [[33.03, 90.4], [38, 90.4], [38, 91], [33.03, 91]], Y.SW],
+  ['t_par_sw_s_w', [[31.5, 90.4], [33.03, 90.4], [33.03, 91], [31.5, 91]], Y.SW],
   // (user 2026-11-17: the merlon at u 9.6-10.8 in t_par_sw_s stood in the middle of S_sw's exit, past the
-  // top tread — shifting it along the strip is impossible (neighbours both sides), so it moves OFF the strip
+  // top tread — shifting it along the strip is impossible (neighbours both sides), so it moved OFF the strip
   // onto the triangular deck's N-S jog as a short parapet return: buildParapet lays one 1.2 m merlon centred
-  // on the jog (31.72, 91.69), clear of the walk band; the exit through-cut below removes it from the strip.
-  // Flush inside the deck (west face on the jog edge, x 31.50) so its 0.44 m width still covers the 0.5 m
-  // grid's cell centre (31.75, 91.75) — a straddling return read as deck level in the grid, not parapet.)
+  // on the jog (31.72, 91.69), clear of the walk band. Flush inside the deck (west face on the jog edge,
+  // x 31.50) so its 0.44 m width still covers the 0.5 m grid's cell centre (31.75, 91.75) — a straddling
+  // return read as deck level in the grid, not parapet. User 2026-11-22: the 17106856 move of this return
+  // west onto the deck made the perpendicular wall disappear — restored here to its pre-17106856 geometry,
+  // untouched ("left the other perpendicular wall untouched"); the strip shortening above is what removes
+  // the stick now, not a change to this return.)
   ['t_par_sw_jog', [[31.5, 91], [31.5, 92.38], [31.94, 92.38], [31.94, 91]], Y.SW],
   // (user 2026-11-14: the SW bastion's moat-facing west face was bare — a flat top edge with no merlons — while the
   // terrace's south parapet beside it carries a full row. The west edge never had a strip: the S and E edges do.)

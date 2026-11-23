@@ -260,31 +260,27 @@ function stairsOver(m, poly) {
   return out;
 }
 
-/** Where a stair flight's exit corridor (its swept width extended 2 m past the top edge) crosses a parapet strip:
- * the inside samples per stair — buildParapet cuts the whole parapet through there (o.through), as with
- * stairsOver. (S_sw, user 2026-11-17: the t_par_sw_s merlon at u 9.6-10.8 stands in the exit past the top
- * tread, outside the flight rect stairsOver covers, so the flight cut alone leaves it standing.) */
-function exitOver(m, poly) {
-  const out = [];
-  for (const l of (m.ladders || []).filter((x) => x.kind === 'stairs')) {
-    const a = [l.x, l.z], b = [l.top[0], l.top[1]];
-    const F = segFrame(a, b, null), pts = [];
-    for (let u = F.L; u <= F.L + 2; u += 0.1) for (let w = -1.24; w <= 1.24; w += 0.1) { const [x, z] = F.at(u, w); if (inPoly([x, z], poly)) pts.push([+x.toFixed(2), +z.toFixed(2)]); }
-    if (pts.length) out.push(pts);
-  }
-  return out;
-}
-
 /** The raised levels (`cliff` ids t_*): masonry terraces; the 1-cell parapet strips: balustrades / crenels. */
 function* levels(w, m) {
   let n = 0;
   for (const s of m.structures || []) {
     if (due()) yield;
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
+    // (t_par_sw_s_w, user 2026-11-23: the west stub of the SW parapet survives ONLY as a grid cliff — it
+    // blocks the (40, 98) -> (31, 89.5) sightline the parapets test pins, but it has NO visual: the user
+    // said the bare base wall still reached mid landing, so the visible strip now starts at the stair gap
+    // and this stub must not render. See m20_operation_valhalla.js for the trade-off.)
+    if (s.id === 't_par_sw_s_w') continue;
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt screen (t_par_hq_b*) BALUSTRADE_H, a solid
     // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
-    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points), merlonThrough: s.id === 't_par_sw_s' ? exitOver(m, s.points) : [] }); }
+    // (t_par_sw_s, user 2026-11-22: the parapet opened ~3.9 m for a 2.4 m stair — the exit through-cut
+    // (exitOver, removed 17106856) cleared merlons 2 m past the top tread, past where the flight is. The cut
+    // is now only the stairsOver overlap region, so the wall opens only where the stair is. User 2026-11-23:
+    // the visible strip itself now starts at the stair gap (x 33.03) — the west stub is grid-only, no visual
+    // (see the skip above) — so there is no merlon cut to keep here; the perpendicular jog return stays
+    // untouched, per the user's "leave the other perpendicular wall untouched".)
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points) }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m), dressing: s.dressing });
     if (swapVisual(w, s.id, v)) n++;
   }
@@ -434,7 +430,7 @@ function* links(w, m) { // eslint-disable-line require-yield
     const run = Math.hypot(b.x - a.x, b.z - a.z);
     let stopAt;
     for (let k = 1; k <= 200; k++) { const t = k / 200; if (onLevel(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, b.y)) { stopAt = run * t; break; } }
-    buildStairFlight(a, b, { G, width: 1.8, stopAt });
+    buildStairFlight(a, b, { G, width: 1.8, stopAt, ...(l.id === 'S_sw' ? { flushTop: 2 } : null) });
     n++;
   }
   // the GB's climbs: the cast-iron downpipe of `cl_in` ("down the drainpipe" [fd]) with its hopper and brackets
