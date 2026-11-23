@@ -271,9 +271,11 @@ function* levels(w, m) {
     // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
     // (t_par_sw_s, user 2026-11-22: the parapet opened ~3.9 m for a 2.4 m stair — the exit through-cut
     // (exitOver, removed with this change) cleared merlons 2 m past the top tread, past where the flight is.
-    // The cut is now only the stairsOver overlap region, so the wall opens only where the stair is; the merlon
-    // it used to remove stands again in the strip — the after-shot is the check on whether it clips the step-off.)
-    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points) }); }
+    // The cut is now only the stairsOver overlap region, so the wall opens only where the stair is. The merlon
+    // it used to remove stood again in the strip, jutting off the top of the stair's SW cheek as the stick of
+    // an L (user 2026-11-22: "you have a |- ... remove the stick that makes it an L") — so that one merlon
+    // (x 31.6-32.8, u 9.6-10.8) is cut merlon-only, the base wall continuing across it; the rest of the run stays.)
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points), through: stairsOver(m, s.points), ...(s.id === 't_par_sw_s' ? { merlonThrough: [[[31.6, 90.4], [32.8, 90.4], [32.8, 91.0], [31.6, 91.0]]] } : {}) }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m), dressing: s.dressing });
     if (swapVisual(w, s.id, v)) n++;
   }
