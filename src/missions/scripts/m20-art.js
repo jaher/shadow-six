@@ -425,7 +425,7 @@ function* links(w, m) { // eslint-disable-line require-yield
     const run = Math.hypot(b.x - a.x, b.z - a.z);
     let stopAt;
     for (let k = 1; k <= 200; k++) { const t = k / 200; if (onLevel(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, b.y)) { stopAt = run * t; break; } }
-    buildStairFlight(a, b, { G, width: 1.8, stopAt, ...(l.id === 'S_sw' ? { flushTop: 2 } : null) });
+    buildStairFlight(a, b, { G, width: 1.8, stopAt, ...(l.id === 'S_sw' ? { flushTop: 3 } : null) });
     n++;
   }
   // the GB's climbs: the cast-iron downpipe of `cl_in` ("down the drainpipe" [fd]) with its hopper and brackets
