@@ -350,8 +350,15 @@ test('m20 fix: parapets — the W quarter, T_nw and the SW battlements do not se
   const bastion = [[24, 84], [30, 85], [36, 86], [27, 89.5], [31, 89.5], [35, 89.2]];
   for (const v of watchers) {
     for (const [x, z] of strip) assert.ok(!sees(g, v, x, z), `(${v.x},${v.z}) does not see the HQ strip at (${x},${z})`);
-    for (const [x, z] of bastion) assert.ok(!sees(g, v, x, z), `(${v.x},${v.z}) does not see the SW bastion at (${x},${z})`);
+    for (const [x, z] of bastion) {
+      // (user 2026-11-23 clean removal: the grid-only west stub is gone, so the BAT watcher at (40,98) now
+      // sees the bastion at (31,89.5) — that sightline is intentionally open; every other watcher/point pair
+      // stays hidden, and the open sightline is pinned positively below.)
+      if (v.x === 40 && v.z === 98 && x === 31 && z === 89.5) continue;
+      assert.ok(!sees(g, v, x, z), `(${v.x},${v.z}) does not see the SW bastion at (${x},${z})`);
+    }
   }
+  assert.ok(sees(g, { x: 40, z: 98, y: Y.BAT }, 31, 89.5), 'the BAT watcher at (40,98) now sees the SW bastion at (31,89.5) — clean removal, user 2026-11-23');
   // T_nw (y 7) looks over the E edge's open N part: its two sentries face away from the strip at every sweep
   for (const id of ['e33', 'e34']) {
     const e = spawnOf(id), reachDeg = 35 + e.post.sweep; // half the 70° cone + the sweep amplitude
