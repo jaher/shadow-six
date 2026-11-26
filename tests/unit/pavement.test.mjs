@@ -170,3 +170,32 @@ test('3p BEL networks: M1-M3 author roads / pavements / furniture without touchi
   }
   assert.equal(normalizeRoadNetwork(m03).areas.length, 2);
 });
+
+// ---------------------------------------------------------------- quay copings at a corner (zfight: e06's berth quay)
+import { extrudeProfile, copingProfile, polygonEdgePath, polygonMitre } from '../../src/art/pavement/road-mesh.js';
+import { triOverlap } from '../../src/art/coplanar-split.js';
+import * as THREE from 'three';
+
+test('3p quay copings: two quay edges meeting at a corner are mitred on its bisector — their top faces never lie over each other', () => {
+  // e06's berth quay: a convex corner (160, 56) and reflex ones (160, 66), (176, 56) between kerbed quay edges
+  const P = [[16, 66], [160, 66], [160, 56], [176, 56], [176, 32], [180, 32], [180, 74], [16, 74]];
+  const Q = new Set([0, 1, 2, 3]), N = P.length;
+  const tops = (i, mitred) => {
+    const { line, side } = polygonEdgePath(P, i);
+    const [g] = extrudeProfile(line, copingProfile(0.1), { side, y: () => 0, uvScale: 1, ...(mitred ? { mitre: polygonMitre(P, i, (j) => Q.has(((j % N) + N) % N)) } : {}) });
+    const pos = g.getAttribute('position'), idx = g.index, out = [];
+    for (let t = 0; t < idx.count; t += 3) {
+      const v = [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(pos, idx.getX(t + k)));
+      const n = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0]));
+      if (n.lengthSq() > 1e-12 && Math.abs(n.normalize().y) > 0.999 && Math.abs(v[0].y - 0.17) < 1e-6) out.push(v);
+    }
+    return out;
+  };
+  const overlap = (A, B) => { let s = 0; for (const a of A) for (const b of B) s += triOverlap(a, b, new THREE.Vector3(0, 1, 0)); return s; };
+  for (const [i, j] of [[0, 1], [1, 2], [2, 3]]) {
+    if (i === 1) assert.ok(overlap(tops(i, false), tops(j, false)) > 0.05, `edges ${i}/${j} unmitred: the copings' tops overlap at the convex corner (the fight)`);
+    assert.ok(overlap(tops(i, true), tops(j, true)) < 1e-6, `edges ${i}/${j} mitred: no overlap (${overlap(tops(i, true), tops(j, true))})`);
+  }
+  assert.equal(polygonMitre(P, 3, (j) => Q.has(((j % N) + N) % N))[1], 0, 'an edge without a quay neighbour is not mitred at that end');
+  assert.equal(polygonMitre(P, 0, (j) => Q.has(((j % N) + N) % N))[0], 0);
+});

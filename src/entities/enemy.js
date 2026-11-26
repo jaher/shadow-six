@@ -52,6 +52,8 @@ export class Enemy extends Unit {
     this.squad = spawn.squad ?? null;
     this.partner = spawn.partner ?? null;
     this.jail = spawn.jail ?? null;
+    /** A man made during play (a barracks squad's): {squad, flags, jail} to build him from again after a load. */
+    this.respawnSpec = null;
     this.vel = spawn.route?.vel ?? spawn.vel ?? CONFIG.ai.defaultVel;
     if (spawn.y !== undefined) this.y = spawn.y;
     /** @type {{x:number, z:number, wait?:number, look?:number}[] | null} */
@@ -156,6 +158,8 @@ export class Enemy extends Unit {
       lastHurtBy: this.lastHurtBy ? { ...this.lastHurtBy } : null,
       brain: this.brain.serialize?.() ?? null,
       ...(this.world?.rules?.id === 'BCD' ? { bcd: bcdSerialize(this) } : null),
+      // a man made during play (a barracks squad's): what save.js respawn builds him from again
+      ...(this.respawnSpec ? { respawn: this.respawnSpec } : null),
     };
   }
 
@@ -184,6 +188,7 @@ export class Enemy extends Unit {
     if (d.lastHurtBy !== undefined) this.lastHurtBy = d.lastHurtBy ? { ...d.lastHurtBy } : null;
     if (d.brain) this.brain.deserialize?.(d.brain);
     if (d.bcd) bcdDeserialize(this, d.bcd);
+    if (d.respawn) this.respawnSpec = d.respawn;
   }
 }
 

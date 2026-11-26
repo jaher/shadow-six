@@ -106,6 +106,8 @@ export function areaGeometry(a, y, step = 0.5) {
  * Extrude a cross-section profile along a path. Profile points are [out, up] (m) relative to the path point
  * offset `t` across the path; `side` (+1 / -1) flips "out". Each profile segment is its own strip (crisp edges).
  * Optional `group(sMid)` → 0/1 splits the result into two geometries (e.g. blackout-painted kerb bands).
+ * Optional `mitre: [k0, k1]`: the path's first / last point slides along the path by `out × k` for each profile point
+ * (polygonMitre: two extrusions meeting at a polygon corner end on its bisector instead of overlapping there).
  * @returns {THREE.BufferGeometry[]} [group 0, group 1]
  */
 export function extrudeProfile(line, profile, o) {
@@ -113,8 +115,10 @@ export function extrudeProfile(line, profile, o) {
   const uvS = o.uvScale ?? 1;
   const plen = [0];
   for (let k = 1; k < profile.length; k++) plen.push(plen[k - 1] + Math.hypot(profile[k][0] - profile[k - 1][0], profile[k][1] - profile[k - 1][1]));
+  const first = line[0], last = line[line.length - 1], mk = o.mitre;
   const at = (p, q) => {
-    const nx = -p.tz * o.side, nz = p.tx * o.side, bx = p.x - p.tz * (o.t ?? 0), bz = p.z + p.tx * (o.t ?? 0);
+    const m = mk ? (p === first ? mk[0] : p === last ? mk[1] : 0) * q[0] : 0;
+    const nx = -p.tz * o.side, nz = p.tx * o.side, bx = p.x - p.tz * (o.t ?? 0) + p.tx * m, bz = p.z + p.tx * (o.t ?? 0) + p.tz * m;
     const base = o.y(bx, bz);
     return [bx + nx * q[0], base + q[1], bz + nz * q[0]];
   };
@@ -146,6 +150,32 @@ export const skirtProfile = (h) => [[0, h], [0.02, h - 0.02], [0.02, -0.12]];
 /** Quay edge: granite coping proud of the slabs, overhanging the wall face, wall down below the water line. */
 export const copingProfile = (top) => [[-0.5, top + 0.005], [-0.5, top + 0.07], [0.08, top + 0.07], [0.12, top + 0.03], [0.12, top - 0.28], [0.04, top - 0.3]];
 export const quayWallProfile = (top, bottom = -2.2) => [[0.04, top - 0.3], [0.04, bottom]];
+
+/**
+ * The mitre of polygon edge `i` against its neighbours, for extrudeProfile's `mitre`: [k0, k1] such that a profile point
+ * `out` m off the edge (on its extrusion side) slides `out × k` along it at the edge's start / end, so that the edge's
+ * extrusion and its neighbour's end on the bisector of their corner (a quay's copings at a corner: one stone mitred,
+ * not two laid over each other — their tops in one plane fought). `joined(j)`: is edge j extruded too (only those
+ * corners are mitred; 0 elsewhere).
+ * @returns {[number, number]}
+ */
+export function polygonMitre(P, i, joined = () => true) {
+  const n = P.length, edge = (j) => {
+    const { line, side } = polygonEdgePath(P, ((j % n) + n) % n);
+    const { tx, tz } = line[0];
+    return { tx, tz, nx: -tz * side, nz: tx * side };
+  };
+  const e = edge(i);
+  const k = (f) => {
+    // the bisector of the two extrusions' normals; a point d·s + n·u lies on it when s = -u·cross(n, b) / cross(d, b)
+    const bx = e.nx + f.nx, bz = e.nz + f.nz;
+    if (Math.hypot(bx, bz) < 1e-6) return 0;
+    const cr = (ax, az) => ax * bz - az * bx, dd = cr(e.tx, e.tz);
+    if (Math.abs(dd) < 1e-6) return 0; // (a straight run on through the corner: nothing to mitre)
+    return -cr(e.nx, e.nz) / dd; // (the same formula at either end: s along the edge's own direction from its corner)
+  };
+  return [joined(i - 1) ? k(edge(i - 1)) : 0, joined(i + 1) ? k(edge(i + 1)) : 0];
+}
 
 /**
  * Polygon edge `i` of an area as a path (samples every ~0.5 m) with the outward side sign for extrudeProfile.

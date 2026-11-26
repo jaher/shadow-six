@@ -899,7 +899,11 @@ export class WaterSystem {
         rc.setViewOffset(R.rt.width, R.rt.height, win.x, R.rt.height - win.y - win.h, win.w, win.h);
         rc.updateProjectionMatrix();
       }
-      if (rc.isOrthographicCamera) obliqueNear(rc, level - 0.05, rc.far - rc.near);
+      // (the oblique row's depth is the height over the water, spread over `range` m: the game camera's far - near
+      // (~700 m) leaves surfaces a few cm apart in height on one depth step in the mirror, where a depth-only change
+      // re-rolls them — LIGHTS OUT e06 verifier r2: its searchlight tower's reflection. A mission whose tallest
+      // reflected thing stands well under that opts into a tighter range: opts.mirrorRange, mission.water.mirrorRange)
+      if (rc.isOrthographicCamera) obliqueNear(rc, level - 0.05, this.opts.mirrorRange > 0 ? this.opts.mirrorRange : rc.far - rc.near);
       else r.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -(level - 0.05))];
       R.rt.viewport.set(win.x, win.y, win.w, win.h); R.rt.scissor.copy(R.rt.viewport); R.rt.scissorTest = true;
       r.setRenderTarget(R.rt); r.clear();

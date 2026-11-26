@@ -113,7 +113,9 @@ export function dressStaticVehicles(world, def) {
     }
     const build = !s.def?.wreck ? WRECK_BUILDERS[asset] : null;
     const groundY = typeof world.groundY === 'function' ? (x, z) => world.groundY(x, z) : null;
-    const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck,
+    // (`vehicleArtTheater`: this one model in another theatre's skin — e06's frozen-in boats and tug take the temperate
+    // skin under the scene's own prop snow, the snow skin's doubled snow layers fighting their decks)
+    const vis = createVehicleVisual(asset, { theater: s.def?.vehicleArtTheater || theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck,
       ...(build ? { wreckBuilder: (inst) => build(inst, { id, charge: chargePoint(world, s.def), groundY,
         barrelDrop: !Array.isArray(s.def?.destroyFx) || s.def.destroyFx.includes('barrelDrop') }) } : null) });
     if (!vis) continue;

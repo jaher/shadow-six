@@ -26,6 +26,9 @@ const CAM_PITCH = (40 * Math.PI) / 180; // engine/camera.js: the game camera's f
 const NQ = 50;        // normal quantization (1/50 per component ≈ 1.1°)
 const DQ = 0.004;     // plane offset bucket (m)
 
+/** Faces the game camera can see (pitch 40°, any yaw): a soffit, an arch's intrados, an underside never shows. */
+const seen = (n) => Math.hypot(n.x, n.z) * Math.cos(CAM_PITCH) + n.y * Math.sin(CAM_PITCH) > 0.05;
+
 /** 2D area of the overlap of two coplanar triangles (Sutherland-Hodgman), in the plane with normal n. */
 export function triOverlap(a, b, n) {
   return clipOverlap(a, b, n).area;
@@ -100,6 +103,22 @@ function gather(root) {
   return { T, meshes };
 }
 
+/** Connected pieces of gather()'s triangles: per triangle, a piece id (triangles of one mesh and material sharing a
+ *  corner — the same position to 0.1 mm — are one piece). */
+function componentsOf(T) {
+  const par = T.map((_, i) => i);
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  const at = new Map();
+  T.forEach((tr, i) => {
+    for (const v of tr.v) {
+      const k = `${tr.mi}|${tr.mat}|${Math.round(v.x * 1e4)},${Math.round(v.y * 1e4)},${Math.round(v.z * 1e4)}`;
+      const j = at.get(k);
+      if (j === undefined) at.set(k, i); else { const a = find(i), b = find(j); if (a !== b) par[a] = b; }
+    }
+  });
+  return T.map((_, i) => find(i));
+}
+
 /**
  * Overlapping coplanar same-facing triangle pairs [{i, j, ov}] of gather()'s list.
  * @param {{cos?:number, gap?:number, minOverlap?:number}} [o]
@@ -158,8 +177,6 @@ function boxGrid(T, pad, keep = () => true) {
 export function crossingPairs(T, o = {}) {
   const cosLo = Math.cos(((o.maxDeg ?? 8) * Math.PI) / 180), gap = o.gap ?? 0.002, reach = o.reach ?? 0.03, minOv = o.minOverlap ?? 1e-4;
   const out = [];
-  // only faces the game camera can see (pitch 40°, any yaw): a soffit, an arch's intrados, an underside never shows
-  const seen = (n) => Math.hypot(n.x, n.z) * Math.cos(CAM_PITCH) + n.y * Math.sin(CAM_PITCH) > 0.05;
   const near = boxGrid(T, reach, (t) => seen(t.n));
   for (let i = 0; i < T.length; i++) {
     const a = T[i];
@@ -183,7 +200,7 @@ export function crossingPairs(T, o = {}) {
 }
 
 /** Move a set of triangles of one mesh by root-space offsets, one per triangle or [3] per vertex (copies of their vertices). */
-function liftTriangles(o, M, moves) {
+export function liftTriangles(o, M, moves) {
   const g = o.geometry; // (a geometry shared by several meshes was cloned by the caller)
   const Minv = new THREE.Matrix4().copy(M).invert();
   const P = g.getAttribute('position');
@@ -235,10 +252,12 @@ function liftTriangles(o, M, moves) {
 /**
  * Separate the coplanar overlapping faces under `root` (see module doc).
  * @param {THREE.Object3D} root a freshly loaded asset scene (before it is cloned)
- * @param {{lift?:number, cos?:number, gap?:number, minOverlap?:number}} [o]
+ * @param {{lift?:number, cos?:number, gap?:number, minOverlap?:number, crossings?:boolean, reach?:number, fixed?:RegExp,
+ *   pieces?:boolean, near?:number, passes?:number}} [o] (`pieces`: the overlapping-pieces mode instead — separatePieces)
  * @returns {{pairs:number, patches:number, moved:number}} counts (moved = triangles lifted)
  */
 export function separateCoplanar(root, o = {}) {
+  if (o.pieces) return separatePieces(root, o);
   // coplanar pairs pass after pass (a lift can bring a face within `gap` of a third surface that was 6-8 mm away),
   // then a pass of near-coplanar crossings (each crossing patch moved only where the move makes no new fight), then
   // the coplanar passes again
@@ -434,6 +453,12 @@ function separatePass(root, o, mode = 'coplanar') {
     if (!moved) return { pairs: 0, patches: 0, moved: 0 };
     pairs.push(...cross);
   }
+  applyMoves(meshes, per);
+  return { pairs: pairs.length, patches, moved };
+}
+
+/** Apply per-mesh triangle moves (mesh index → Map(triangle start → offset)) to gather()'s meshes. */
+function applyMoves(meshes, per) {
   // geometries shared by several meshes of the scene: each moved mesh gets its own copy
   const users = new Map();
   for (const { o: m } of meshes) users.set(m.geometry, (users.get(m.geometry) || 0) + 1);
@@ -444,5 +469,81 @@ function separatePass(root, o, mode = 'coplanar') {
     m.geometry.computeBoundingBox();
     m.geometry.computeBoundingSphere();
   }
-  return { pairs: pairs.length, patches, moved };
+}
+
+/**
+ * Overlapping PIECES of one merged mesh (opt-in, `o.pieces`: art/coplanar-baked.js's snow-twin stage). A snow twin's
+ * kit:snow mesh is every cap, blanket and drift of the asset merged into one, each sculpted with its own noise: where
+ * two caps lie on one sill (the sill's and the ledge's), their tops wander within a millimetre or two of each other and
+ * cross at a fraction of a degree — too far off one plane for the coplanar pass, too flat for the crossing pass, and one
+ * patch for both (one mesh, one material, one plane), so neither can part them. Here a piece is one connected bit of
+ * the mesh (triangles sharing corners), and the smaller of two overlapping pieces whose camera-facing faces come within
+ * `near` of each other goes WHOLE (its sides and underside with it: it keeps its shape and stays closed) to the side of
+ * the larger it mostly lies on, `lift` past the larger's surface everywhere over their overlap: under it, hidden where
+ * the larger cap's snow covers it; over it, a few mm proud. A move longer than `reach` is no fight (two drifts crossing
+ * at a real angle meet along a line) and is left. Pass after pass, as a moved piece can meet a third.
+ * @returns {{pairs:number, patches:number, moved:number, passes:number}} (patches: pieces moved)
+ */
+function separatePieces(root, o) {
+  // (`near` under `lift`: a piece put `lift` past its neighbour is no longer near it)
+  const lift = o.lift ?? 0.003, near = Math.min(o.near ?? 0.002, lift * 0.75), reach = o.reach ?? 0.01, minOv = o.minOverlap ?? 1e-4;
+  const cosLo = Math.cos(((o.maxDeg ?? 8) * Math.PI) / 180);
+  const out = { pairs: 0, patches: 0, moved: 0, passes: 0 };
+  const total = new Map(); // piece (by its first triangle: mesh|start) → how far it has moved, all passes (≤ reach)
+  for (let pass = 0; pass < (o.passes ?? 6); pass++) {
+    const { T, meshes } = gather(root);
+    const comp = componentsOf(T), area = new Map();
+    T.forEach((tr, i) => { if (seen(tr.n)) area.set(comp[i], (area.get(comp[i]) || 0) + tr.area); });
+    const size = (i) => area.get(comp[i]) || 0;
+    const grid = boxGrid(T, near, (t) => seen(t.n));
+    // per smaller piece: the overlap area it lies above / below its larger neighbours, the move that puts it `lift` over
+    // (up) or under (dn) all of them, their mean normal (the direction it moves), and who they are
+    const side = new Map();
+    let pairs = 0;
+    for (let i = 0; i < T.length; i++) {
+      const a = T[i];
+      if (!seen(a.n)) continue;
+      for (const j of grid(a.lo, a.hi)) {
+        if (j <= i || comp[i] === comp[j]) continue;
+        const b = T[j];
+        if (a.mi !== b.mi || a.mat !== b.mat || a.n.dot(b.n) < cosLo) continue;
+        const [s, l] = size(i) < size(j) || (size(i) === size(j) && comp[i] > comp[j]) ? [i, j] : [j, i];
+        const g = overlapGap(T[l].v, T[l].n, T[l].d, T[s].v, T[s].n, T[s].d); // the smaller one's height over the larger's face
+        if (!(g.area > minOv) || g.lo > near || g.hi < -near) continue; // more than `near` apart all over the overlap
+        pairs++;
+        let e = side.get(comp[s]);
+        if (!e) side.set(comp[s], e = { above: 0, below: 0, up: 0, dn: 0, n: new THREE.Vector3(), with: new Set() });
+        if (g.lo + g.hi >= 0) e.above += g.area; else e.below += g.area;
+        e.up = Math.max(e.up, lift - g.lo);
+        e.dn = Math.max(e.dn, g.hi + lift);
+        e.n.addScaledVector(T[l].n, g.area);
+        e.with.add(comp[l]);
+      }
+    }
+    if (!pairs) break;
+    // the larger pieces first; a piece whose larger neighbour moved this pass waits for the next (gathered anew)
+    const go = new Map();
+    for (const [p, e] of [...side].sort((x, y) => (area.get(y[0]) || 0) - (area.get(x[0]) || 0) || x[0] - y[0])) {
+      if ([...e.with].some((q) => go.has(q))) continue;
+      const up = e.above >= e.below, dist = up ? e.up : e.dn;
+      const id = `${T[p].mi}|${T[p].t}`, off = e.n.normalize().multiplyScalar(up ? dist : -dist);
+      const sum = (total.get(id) || new THREE.Vector3()).clone().add(off);
+      if (sum.length() > reach) continue; // (wedged between two neighbours: left where it is)
+      total.set(id, sum);
+      go.set(p, off);
+    }
+    if (!go.size) break;
+    const per = new Map();
+    let moved = 0;
+    T.forEach((tr, i) => {
+      const off = go.get(comp[i]);
+      if (!off) return;
+      let m = per.get(tr.mi); if (!m) per.set(tr.mi, m = new Map());
+      m.set(tr.t, off);
+      moved++;
+    });
+    applyMoves(meshes, per);
+    out.pairs += pairs; out.patches += go.size; out.moved += moved; out.passes++;
+  }
+  return out;
 }

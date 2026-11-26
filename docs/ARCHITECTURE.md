@@ -198,6 +198,8 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `lift:arrived` | `{lift, at, riders}` | BCD lift (entities/bcd-interactables.js) → mission scripts (e04 incline) |
 | `documents:taken` | `{item, by}` | BCD mission papers (bcd-interactables.js Documents) → mission scripts (e04 archive, o1) |
 | `e04:shaft` | `{stage}` | e04 shaft script (missions/scripts/e04.js) → ui, tests: office, shaft, ring, down |
+| `pushable:drop` | `{pushable, x, z, heading}` | BCD rail wagon tipped off its rail's `drop` point (bcd-interactables.js Pushable: e06 link-span) → mission scripts (e06 o1 message), art (the splash) |
+| `pushable:hauled` | `{pushable, x, z}` | BCD pushable's scripted haul ended (a shunting engine run up / pulled out, e06) → mission scripts, tests |
 | `vehicle:enter`/`vehicle:exit` | `{vehicle, unit}` | vehicles → ui, AI (tainted §3.7) |
 | `vehicle:move` / `vehicle:stop` | `{vehicle, speed}` / `{vehicle}` | vehicles → audio |
 | `vehicle:gear` | `{vehicle, reverse}` | vehicles → audio (a change of gear in a multi-point turn) |

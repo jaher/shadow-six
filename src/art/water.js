@@ -88,7 +88,8 @@ export function waterBodyDescriptors(grid, mission = {}, theater = 'temperate', 
   return bodies.map((b) => {
     const d = { ...b, preset: waterPreset(theater, b.type, mission) };
     if (frozen) d.frozen = true;
-    else d.ice = iceShelfWidth(theater, b.raised ? 0 : W?.velocity || 0);
+    // (a mission's own shelf width, m: e06's channel, broken by an ice-breaker a day ago, keeps only a thin rim)
+    else d.ice = W?.ice ?? iceShelfWidth(theater, b.raised ? 0 : W?.velocity || 0);
     if (b.type === 'sea' && !frozen && theater !== 'snow') d.surf = { amp: 0.18, length: 7, period: 6.4 };
     if (b.type === 'river') d.sheen = 1.6;
     if (W?.iceFree?.length && !b.raised) d.iceFree = W.iceFree; // open water where a fall lands (M3 dam foot)
@@ -515,7 +516,7 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
   const t0 = performance.now();
   const system = mod.createWater(R, R.scene, R.camera, {
     quality: Q, terrain: o.terrain ? [o.terrain, o.apron?.mesh].filter(Boolean) : undefined, lateDecals: true,
-    ...windSpectra(world.wind),
+    ...windSpectra(world.wind), ...(mission.water?.mirrorRange > 0 ? { mirrorRange: mission.water.mirrorRange } : {}),
   });
   // bridge piers / trestle bents of the library buildings (map-builder → world.waterObstacles) shape the flow
   const obst = o.obstacles || world.waterObstacles || [];

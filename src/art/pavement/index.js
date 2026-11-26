@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { SURFACES, sampleCenterline } from '../../world/roads.js';
 import { pavementMaterial, setPavementQuality, tierOf } from './pavement-material.js';
-import { ribbonGeometries, areaGeometry, extrudeProfile, kerbProfile, skirtProfile, copingProfile, quayWallProfile, polygonEdgePath, groundFn, LIFT } from './road-mesh.js';
+import { ribbonGeometries, areaGeometry, extrudeProfile, kerbProfile, skirtProfile, copingProfile, quayWallProfile, polygonEdgePath, polygonMitre, groundFn, LIFT } from './road-mesh.js';
 import { detailMaterial, drainGeometries, manholeGeometries, bollardGeometry, ringGeometry, instanced } from './details.js';
 import { wireGeometry } from '../furniture/street-props.js';
 import { applySway } from '../cloth-wind.js';
@@ -111,9 +111,12 @@ export function buildPavement(net, ctx = {}) {
     a.points.forEach((_, i) => {
       const { line, side, length } = polygonEdgePath(a.points, i);
       if (quayEdges.has(i)) {
-        const [c] = extrudeProfile(line, copingProfile(top + LIFT), { side, y: Y, uvScale: 2.24 });
+        // (two quay edges meeting at a corner: their copings mitred on its bisector — laid over each other there, their
+        // tops in one plane fought: e06's berth quay corner)
+        const N = a.points.length, mitre = polygonMitre(a.points, i, (j) => quayEdges.has(((j % N) + N) % N));
+        const [c] = extrudeProfile(line, copingProfile(top + LIFT), { side, y: Y, uvScale: 2.24, mitre });
         add(c, kerbMat, { shadow: true });
-        const [w] = extrudeProfile(line, quayWallProfile(top + LIFT), { side, y: () => 0, uvScale: 3 });
+        const [w] = extrudeProfile(line, quayWallProfile(top + LIFT), { side, y: () => 0, uvScale: 3, mitre });
         add(w, detailMaterial('wall', tier));
         const R = rnd(a.seed + i);
         const nx = -line[0].tz * side, nz = line[0].tx * side;

@@ -25,6 +25,7 @@ import './e04_black_rain.js';
 // e05
 
 // e06
+import './e06_thin_ice.js';
 
 // e07
 

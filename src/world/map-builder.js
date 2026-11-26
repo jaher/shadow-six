@@ -1865,6 +1865,13 @@ export function* buildMapGen(world, mission, opts = {}) {
     const hw = Math.max(...[].concat(t.widths ?? t.width ?? 3)) / 2, e = pastEdge(t.points, t.widths, hw, hw + 2);
     applyTerrainFeature(grid, { ...t, points: e.points, ...(e.widths ? { widths: e.widths } : {}) });
   }
+  // 1a. features with `flat: true` (e06's sea and harbour ice): the terrain keeps them level (grid.flatExtra → the
+  // flat mask): no undulation under a frozen surface. Visual only; the grid's walking layers are untouched
+  for (const t of mission.terrain || []) {
+    if (!t?.flat || t.type !== 'poly' || !Array.isArray(t.points)) continue;
+    grid.flatExtra ||= new Uint8Array(grid.cols * grid.rows);
+    grid.fillPoly(t.points, 'flatExtra', 1);
+  }
   // 1b. step 3p road network: roads / pavements → grid codes; one spatial index for surface / raise queries
   const roadNet = normalizeRoadNetwork(mission);
   // (soft roads without street lamps: the lamps are spaced from the road's start)

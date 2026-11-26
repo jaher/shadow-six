@@ -132,3 +132,36 @@ export function giveHeap(h) { if (HEAPS.length < POOL_N && h.f.length <= POOL_MA
 export function takeSet() { const s = SETS.pop() || new StateSet(); s.reset(); return s; }
 /** Give a StateSet back (the planner no longer reads it). */
 export function giveSet(s) { if (SETS.length < POOL_N && s.keys.length <= POOL_MAX) SETS.push(s); }
+
+/**
+ * Scratch buffers for a plan's tables (sneak.mjs planSneakGen: the walkers' verdict per (cell, step), the step memo's
+ * bit words, the cells' pass and heuristic values, the walkers' heads — ViewTable). Each was a fresh typed array per
+ * plan, up to ~16 MB for a long crawl in a wide box, its memory outside the JS heap: plan after plan they built up the
+ * external memory V8 answers with major GCs (LIGHTS OUT e06's stage A: ~0.5 GB of them in four minutes of play). Here a
+ * table is a view of a buffer kept from plan to plan. takeScratch(Type, n, fill) → a Type view of exactly n elements,
+ * every one `fill` (what a fresh array holds: 0, or the NaN a memo starts with; null: left as it is, for a table every
+ * slot of which is written before it is read); giveScratch(view) → its buffer back to the pool, once nothing reads the
+ * view again. The pool keeps at most SCRATCH_N buffers, SCRATCH_TOTAL bytes in all (the smaller ones go first: a big
+ * buffer serves any smaller plan); a buffer over SCRATCH_MAX is left to the GC.
+ */
+const SCRATCH = [], SCRATCH_N = 16, SCRATCH_MAX = 64 << 20, SCRATCH_TOTAL = 256 << 20;
+/** Bytes rounded up to an eighth of their power of two (a plan a little bigger than the last reuses its buffer). */
+function scratchBytes(b) { const q = 2 ** Math.max(16, Math.floor(Math.log2(Math.max(b, 1))) - 3); return Math.ceil(b / q) * q; }
+export function takeScratch(Type, n, fill = 0) {
+  const bytes = n * Type.BYTES_PER_ELEMENT;
+  let bi = -1;
+  for (let i = 0; i < SCRATCH.length; i++) if (SCRATCH[i].byteLength >= bytes && (bi < 0 || SCRATCH[i].byteLength < SCRATCH[bi].byteLength)) bi = i;
+  const buf = bi >= 0 ? SCRATCH.splice(bi, 1)[0] : new ArrayBuffer(scratchBytes(bytes));
+  const a = new Type(buf, 0, n);
+  if (fill !== null) a.fill(fill);
+  return a;
+}
+export function giveScratch(a) {
+  const buf = a?.buffer;
+  if (!buf || buf.byteLength > SCRATCH_MAX || SCRATCH.includes(buf)) return;
+  SCRATCH.push(buf);
+  SCRATCH.sort((x, y) => y.byteLength - x.byteLength);
+  let total = 0, k = 0;
+  for (; k < SCRATCH.length && k < SCRATCH_N; k++) { if (total + SCRATCH[k].byteLength > SCRATCH_TOTAL) break; total += SCRATCH[k].byteLength; }
+  SCRATCH.length = k;
+}

@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { test, assert } from './lib.mjs';
-import { addDepthMerge, inDepthPass, instancedProxies, DepthProxyMesh, installShadowDepthPass, setDepthMerge } from '../../src/engine/depth-merge.js';
+import { addDepthMerge, inDepthPass, instancedProxies, DepthProxyMesh, installShadowDepthPass, setDepthMerge, remergeDepthGroup } from '../../src/engine/depth-merge.js';
 import { readGlbArrayBuffer } from '../../tools/glb-io.mjs';
 import { GLTFLoader } from '../../src/engine/glb-gzip.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -162,6 +162,31 @@ test('depth merge: a group falls back to its members in a pass where one changed
   assert.deepEqual(drawnIn('ao', [...members, p]), [true, true, true, false]);
   undo();
   assert.deepEqual(drawnIn('shadow', [...members, p]), [false, false, false, true], 'the shadow pass is unaffected');
+});
+
+test('depth merge: a group re-merged after one instance\'s members got geometries of their own (a baked plan) stands in for them again', () => {
+  const { root, node } = building(3);
+  addDepthMerge(root);
+  const inst = root.clone(true), inode = inst.children[0]; // (an instance: proxy and members share the template's geometries)
+  const p = proxyOf(inode), tp = proxyOf(node), members = inode.children.filter((c) => !c.isDepthProxy);
+  const shared = p.geometry;
+  // a coplanar plan's move on this instance only: member 1 gets its own copy, one vertex lifted 6 mm
+  members[1].geometry = members[1].geometry.clone();
+  members[1].geometry.attributes.position.setY(0, members[1].geometry.attributes.position.getY(0) + 0.006);
+  assert.deepEqual(drawnIn('shadow', [...members, p]), [true, true, true, false], 'stale: the members draw themselves');
+  assert.equal(remergeDepthGroup(p), true);
+  assert.deepEqual(drawnIn('shadow', [...members, p]), [false, false, false, true], 'the proxy stands in again');
+  assert.notEqual(p.geometry, shared, 'a geometry of the instance\'s own');
+  assert.equal(tp.geometry, shared, 'the template\'s proxy untouched');
+  // its positions are the members' as they are now (the lifted vertex included), in order
+  const P = p.geometry.attributes.position, n0 = members[0].geometry.attributes.position.count;
+  assert.equal(P.getY(n0), members[1].geometry.attributes.position.getY(0));
+  assert.equal(P.count, members.reduce((s, m) => s + m.geometry.attributes.position.count, 0));
+  // the template still draws through its own proxy
+  assert.deepEqual(drawnIn('shadow', [...node.children.filter((c) => !c.isDepthProxy), tp]), [false, false, false, true]);
+  // a group no longer whole under the proxy is left as it was
+  members[2].removeFromParent();
+  assert.equal(remergeDepthGroup(p), false);
 });
 
 test('depth merge: the proxy is culled by its own bounds, which hold every member: drawn whenever a member would be', () => {

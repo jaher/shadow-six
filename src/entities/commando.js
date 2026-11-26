@@ -38,6 +38,17 @@ export { dropCarried };
 /** Items whose knapsack icon stays (greyed) at 0. */
 const KEEP_AT_ZERO = new Set(['sniperRifle', 'smg']);
 
+/**
+ * A mission that names its open water (`waterRefusal`, BCD e06: "The ice ends here."): is (x, z) such water — deep
+ * water no walker enters (not the walkable shallows at its edge, not a deck over it)? A man who cannot swim, ordered
+ * there, refuses in the mission's words. Missions without the line: never (their clicks keep the nearest-cell plan).
+ */
+export function openWaterRefusal(world, x, z) {
+  if (!world?.mission?.waterRefusal) return false;
+  const g = world.groundAt?.(x, z);
+  return !!(g?.water && !g.bridge && !g.walkable);
+}
+
 /** Resolve an ability target into a world point. */
 export function targetPoint(target, from = null) {
   if (!target) return null;
@@ -267,6 +278,10 @@ export class Commando extends Unit {
   moveTo(x, z, opts = {}) {
     if (this.hidden || this.state === 'hidden' || this.state === 'jailed') return false;
     if (this.cannotWalk && !this.downed) return false; // §C.8: only transport moves him
+    // a mission's own word for open water a man cannot swim (BCD e06: "The ice ends here."): a walk onto it is refused
+    // outright — never planned to the nearest dry cell instead, which may lie on the far bank of a channel and a long
+    // walk round (e06 verifier r2: a click mid-channel sent the Driver 138 m round the lead to the other side)
+    if (!this.canSwim && openWaterRefusal(this.world, x, z)) { this._moveRefusal = this.world.mission.waterRefusal; return false; }
     const run = !!opts.run && !this.carrying;
     let ok = super.moveTo(x, z, { ...opts, run });
     if (!ok && this.diving) { this._diveFallback = true; try { ok = super.moveTo(x, z, { ...opts, run }); } finally { this._diveFallback = false; } }
@@ -318,7 +333,10 @@ export class Commando extends Unit {
           w.events.emit('message', { text: `${this.nickname}: holster the pistol first (right-click).`, kind: 'warn', unit: this });
           break;
         }
-        if (this.puppet?.puppetOf === this) { ok = this.puppet.moveTo(order.x, order.z, { run: !!order.run }); break; } // BCD §1.3
+        if (this.puppet?.puppetOf === this) { // BCD §1.3: the soldier on strings walks; he cannot swim either
+          if (openWaterRefusal(w, order.x, order.z)) { w.events.emit('message', { text: `${this.nickname}: ${w.mission.waterRefusal}`, kind: 'warn', unit: this }); break; }
+          ok = this.puppet.moveTo(order.x, order.z, { run: !!order.run }); break;
+        }
         if (this.buried) { ok = this._riseThenMove(order); break; } // §3.4: a move order digs him out first
         if (this.hidden || this.state === 'inVehicle') break;
         if (!this.cancelAction()) break;

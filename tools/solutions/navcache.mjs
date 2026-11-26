@@ -2,6 +2,8 @@
 /**
  * The game's mesh-measured world for one mission, cached for the headless sim (tools/solutions/headless.mjs).
  *   node tools/solutions/navcache.mjs m07        (CHROME=<a GPU chrome> as for any browser tool)
+ *   node tools/solutions/navcache.mjs e06 --easy (a BCD mission's Easy variant, when its map differs from Hard's:
+ *                                                 navcache/<id>.easy.json, read by headless.mjs for --easy runs)
  *
  * The headless sim builds the map without meshes; the game measures a good deal on its drawn art, and a headless man
  * that walked, saw or fell on the mesh-less build left the game's run within seconds (M3, M4, M13, M17, M19 never won
@@ -24,8 +26,9 @@ import { diffExtras } from './world-snap.mjs';
 import { headlessMission, gridPrint } from './headless.mjs';
 
 const id = process.argv[2] || 'm07';
+const variant = process.argv.includes('--easy') ? 'easy' : null;
 const here = dirname(fileURLToPath(import.meta.url));
-const s = headlessMission(id, { navCache: false });
+const s = headlessMission(id, { navCache: false, difficulty: variant });
 const g = s.world.grid;
 const h = await startHarness();
 let out = null;
@@ -33,8 +36,9 @@ try {
   const page = await h.newPage({ width: 640, height: 360 });
   page.setDefaultTimeout(0);
   await h.openGame(page, '?test=1');
-  const b = await page.evaluate(async (mid) => {
+  const b = await page.evaluate(async ([mid, variant]) => {
     const G = window.__game;
+    if (variant) G.game.difficulty = variant; // (the BCD Easy variant: built before the load, as the career's Skill)
     await G.loadMission(mid); G.start();
     const { exportGrid, exportGround } = await import('/tools/solutions/grid-snap.mjs');
     const { browserExtras } = await import('/tools/solutions/world-snap.mjs');
@@ -43,12 +47,13 @@ try {
       spawns: { commandos: w.commandos.map((u) => [u.x, u.z, u.y]), enemies: w.enemies.map((u) => [u.x, u.z, u.y]) },
       // (the units by name too: a BCD mission's Easy variant has other units than the Hard one this cache is taken on)
       spawnIds: { commandos: w.commandos.map((u) => u.spawn?.id ?? u.tag ?? u.role), enemies: w.enemies.map((u) => u.spawn?.id ?? u.tag) } };
-  }, id);
+  }, [id, variant]);
   if (b.cols !== g.cols || b.rows !== g.rows) throw new Error(`grid size differs: browser ${b.cols}x${b.rows}, headless ${g.cols}x${g.rows}`);
-  out = { mission: id, fingerprint: gridPrint(g), cols: g.cols, rows: g.rows, grid: b.grid, spawns: b.spawns, spawnIds: b.spawnIds, ground: b.ground, extras: diffExtras(s.world, b.extras) };
+  out = { mission: id, ...(variant ? { variant } : null), fingerprint: gridPrint(g), cols: g.cols, rows: g.rows, grid: b.grid, spawns: b.spawns, spawnIds: b.spawnIds, ground: b.ground, extras: diffExtras(s.world, b.extras) };
   mkdirSync(join(here, 'navcache'), { recursive: true });
-  writeFileSync(join(here, 'navcache', `${id}.json`), JSON.stringify(out));
-  console.log(`${id}: whole grid snapshot (${Object.keys(b.grid.arrays).length} layers, ${b.grid.links.length} links) → tools/solutions/navcache/${id}.json`);
+  const name = variant ? `${id}.${variant}.json` : `${id}.json`;
+  writeFileSync(join(here, 'navcache', name), JSON.stringify(out));
+  console.log(`${id}${variant ? ` (${variant})` : ''}: whole grid snapshot (${Object.keys(b.grid.arrays).length} layers, ${b.grid.links.length} links) → tools/solutions/navcache/${name}`);
 } finally {
   await h.close();
 }

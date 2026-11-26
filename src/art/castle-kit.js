@@ -187,10 +187,11 @@ export class Geo {
   }
   /**
    * Merge into meshes. opts.ground: y of the local ground (rising-damp band); opts.damp: band height (m);
-   * opts.streaks: rain-streak strength on walls; opts.moss: green tint on up-facing stone.
+   * opts.streaks: rain-streak strength on walls; opts.moss: green tint on up-facing stone; opts.weather: a RegExp of
+   * further material keys to weather like stone (damp band, streaks, moss).
    * @returns {THREE.Group}
    */
-  build(name = 'castle', { ground = 0, damp = 1.1, streaks = 0.22, moss = 0.35, shadow = true } = {}) {
+  build(name = 'castle', { ground = 0, damp = 1.1, streaks = 0.22, moss = 0.35, shadow = true, weather = null } = {}) {
     const g = new THREE.Group(); g.name = name;
     const s = this.seed;
     for (const [mat, A] of this.parts) {
@@ -201,7 +202,8 @@ export class Geo {
       geo.computeVertexNormals();
       const N = geo.attributes.normal, n = pos.length / 3, tile = (CASTLE_SETS[mat] || CASTLE_SETS.ashlar)[3];
       const uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
-      const stone = /ashlar|rubble|field|dressed|flags|setts|plaster/.test(mat), amp = /flags|setts/.test(mat) ? 0.22 : 0.1; // walk tops: worn / damp patches
+      // (`weather`: a RegExp of further material keys weathered like stone — e06's brick and concrete)
+      const stone = /ashlar|rubble|field|dressed|flags|setts|plaster/.test(mat) || !!weather?.test(mat), amp = /flags|setts/.test(mat) ? 0.22 : 0.1; // walk tops: worn / damp patches
       const tk = TONE?.[mat] ?? 1;
       for (let i = 0; i < n; i++) {
         const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];

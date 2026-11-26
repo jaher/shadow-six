@@ -73,7 +73,7 @@ export function bcdDeserialize(e, d) {
 /**
  * Second pass after save.restore has respawned / restored every entity (BCD worlds only): links that point at
  * entities restored later than their owner — the puppet ↔ controller pair, brain goal refs (cigarette pack,
- * victim, guard), Grethe's lipstick target, a reviver's claim on the man on the ground.
+ * victim, guard), Grethe's lipstick target, a reviver's claim on the man on the ground, a pushable's haul and pusher.
  */
 export function bcdPostRestore(world) {
   const byId = (id) => (id != null ? world.byId(id) ?? null : null);
@@ -89,6 +89,8 @@ export function bcdPostRestore(world) {
     if (b?.state === 'REVIVE' && b.goal?.victim) b.goal.victim._reviver = e;
     if (b?.state === 'CIGS' && b.goal?.pack) b.goal.pack.claimedBy = e;
   }
+  // pushables: a haul's coupled cars and the man pushing, both restored after the body itself (Pushable.postRestore)
+  for (const i of world.interactables || []) if (i.interactKind === 'pushable') i.postRestore?.(world);
   for (const c of world.commandos) {
     const r = c._bcdRefs;
     if (!r) continue;

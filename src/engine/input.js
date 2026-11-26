@@ -24,6 +24,7 @@ import { CONFIG } from '../config.js';
 import { abilitiesForKey, codeOf } from './hotkeys.js';
 import { TouchGame } from '../input/touch-game.js';
 import { shotTarget } from '../abilities/weapons.js';
+import { openWaterRefusal } from '../entities/commando.js';
 
 /** Action → list of KeyboardEvent.code. Edit here to rebind. Chords (Ctrl+S/L/B) are in CTRL_BINDINGS. */
 export const KEY_BINDINGS = {
@@ -127,6 +128,65 @@ export function hotkeyToCode(h) {
  */
 export function multiSelectable(c) {
   return !!c && !c.held && c.state !== 'held' && c.state !== 'captured' && c.state !== 'jailed';
+}
+
+/**
+ * A group move and a mission's open water (`waterRefusal`, BCD e06: "The ice ends here."): the refusal belongs to the
+ * click, never to a formation slot (e06 verifier r3: a group clicked on the ice by the channel left the Spy standing,
+ * refused, because his slot 1.2 m out fell on the water). A click on the open water: every man who cannot swim is
+ * ordered to the click itself, so the whole group refuses there in the mission's words (none walks to the edge on a
+ * ring slot the click left on the ice). A click on the ice: a non-swimmer's slot on the open water turns round the click
+ * on its own ring to the nearest angle that is ice, reached from the click by a straight line over ice (the click's
+ * side of the water, never the far bank) and clear of every other man's slot; failing that it is drawn in along its own
+ * line to the last point on the ice before the water. Missions without the line, and single men: unchanged.
+ * @param {object} world
+ * @param {object[]} sel the selection, in orderMove's order (sel[0] stands on the click)
+ * @param {number} x click
+ * @param {number} z click
+ * @param {number[][]} offs each man's [dx, dz] from the click; fitted in place
+ * @param {number} spacing the formation spacing (m)
+ * @returns {number[][]} offs
+ */
+export function fitWaterSlots(world, sel, x, z, offs, spacing) {
+  if (!world?.mission?.waterRefusal || sel.length < 2) return offs;
+  const wet = (px, pz) => openWaterRefusal(world, px, pz);
+  if (wet(x, z)) {
+    sel.forEach((c, k) => { if (!c.canSwim) offs[k] = [0, 0]; });
+    return offs;
+  }
+  // the straight line from the click to (dx, dz) off it keeps off the open water (sampled every 0.2 m, end included)
+  const overIce = (dx, dz) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.2));
+    for (let i = 1; i <= n; i++) if (wet(x + (dx * i) / n, z + (dz * i) / n)) return false;
+    return true;
+  };
+  const free = (dx, dz) => world.grid?.walkableAt ? world.grid.walkableAt(x + dx, z + dz) : true;
+  const taken = offs.filter((o, k) => k === 0 || sel[k].canSwim || !wet(x + o[0], z + o[1]));
+  const clear = (dx, dz) => taken.every((t) => Math.hypot(dx - t[0], dz - t[1]) >= 0.8 * spacing);
+  for (let k = 1; k < sel.length; k++) {
+    const [ox, oz] = offs[k];
+    if (sel[k].canSwim || !wet(x + ox, z + oz)) continue;
+    const r = Math.hypot(ox, oz), a0 = Math.atan2(oz, ox);
+    let fit = null;
+    for (let i = 1; i <= 12 && !fit; i++) {
+      for (const sg of [1, -1]) {
+        const a = a0 + sg * i * (Math.PI / 12), dx = Math.cos(a) * r, dz = Math.sin(a) * r;
+        if (overIce(dx, dz) && free(dx, dz) && clear(dx, dz)) { fit = [dx, dz]; break; }
+      }
+    }
+    if (!fit) { // drawn in along its own line: the last point on the ice before the water
+      fit = [0, 0];
+      const n = Math.max(1, Math.ceil(r / 0.1));
+      for (let i = 1; i <= n; i++) {
+        const dx = (ox * i) / n, dz = (oz * i) / n;
+        if (wet(x + dx, z + dz)) break;
+        fit = [dx, dz];
+      }
+    }
+    offs[k] = fit;
+    taken.push(fit);
+  }
+  return offs;
 }
 
 export class Input {
@@ -471,7 +531,8 @@ export class Input {
    * Move the selection to a ground point (§5.2): each man paths independently; a group spreads around
    * the click point with 1.2 m formation offsets (first man on the point, the rest on 1.2 m rings; the ring is
    * turned to straddle the group's approach and its slots go far-side-first to the men nearest the point, so
-   * nobody forms up in another man's way).
+   * nobody forms up in another man's way). On a mission that names its open water the slots fit the click's side of it
+   * (fitWaterSlots).
    * @returns {object[]} the orders issued
    */
   orderMove(x, z, run = false) {
@@ -500,6 +561,8 @@ export class Input {
       const ring = offs.slice(1).map((o, i) => ({ o, d: Math.hypot(x + o[0] - cx, z + o[1] - cz), i })).sort((a, b) => b.d - a.d || a.i - b.i);
       men.forEach((m, k) => { offs[m.i] = ring[k].o; });
     }
+    // a mission's open water (BCD e06): the click is refused or taken for the whole group, never one man's slot
+    fitWaterSlots(this.world, sel, x, z, offs, s);
     sel.forEach((c, k) => {
       const [ox, oz] = offs[k];
       const order = { type: 'move', x: x + ox, z: z + oz, run };

@@ -174,7 +174,8 @@ export function restoreFencePower(w, saved) {
 function respawn(world, d) {
   let e = null;
   if (d.kind === 'commando') e = new Commando({ role: d.role, x: d.x, z: d.z, heading: d.heading, id: d.tag });
-  else if (d.kind === 'enemy') e = new Enemy({ soldierType: d.soldierType, x: d.x, z: d.z, heading: d.heading, id: d.tag });
+  // (a barracks squad's man: his squad, flags and jail too — `respawn`, Enemy.serialize)
+  else if (d.kind === 'enemy') e = new Enemy({ soldierType: d.soldierType, x: d.x, z: d.z, heading: d.heading, id: d.tag, ...(d.respawn || null) });
   else if (d.kind === 'vehicle' && d.vehicleType && world.vehicleFactory) {
     // spawned during play (deployed raft, scripted evac truck): same factory as the mission's vehicles
     e = world.vehicleFactory({ vehicleType: d.vehicleType, x: d.x, z: d.z, heading: d.heading, id: d.tag ?? undefined });

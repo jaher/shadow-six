@@ -38,12 +38,16 @@ export function gridPrint(g) {
  * (grid-snap.mjs, world-snap.mjs), so the headless men path, see, fall and are seen as in the game. Returns whether it
  * was applied. (Only the cached missions: M3, M4, M7, M13, M17, M19; the rest run on the plain build as before.)
  */
-function applyNavCache(world, id) {
-  const f = new URL(`./navcache/${id}.json`, import.meta.url);
+function applyNavCache(world, id, variant = null) {
+  // (a BCD mission's Easy variant whose map differs from Hard's — Hard-only structures or mines that stamp the grid —
+  // has a cache of its own, navcache/<id>.easy.json: tools/solutions/navcache.mjs <id> --easy; else the Hard one)
+  const fv = variant ? new URL(`./navcache/${id}.${variant}.json`, import.meta.url) : null;
+  const f = fv && existsSync(fv) ? fv : new URL(`./navcache/${id}.json`, import.meta.url);
   if (!existsSync(f)) return false;
   const c = JSON.parse(readFileSync(f, 'utf8')), g = world.grid;
   if (c.cols !== g.cols || c.rows !== g.rows || c.fingerprint !== gridPrint(g)) {
-    console.warn(`headless ${id}: tools/solutions/navcache/${id}.json is stale (the map changed): re-run tools/solutions/navcache.mjs ${id}`);
+    const rel = f.pathname.split('/tools/solutions/')[1] ?? `navcache/${id}.json`;
+    console.warn(`headless ${id}: tools/solutions/${rel} is stale (the map changed): re-run tools/solutions/navcache.mjs ${id}${variant && f === fv ? ` --${variant}` : ''}`);
     return false;
   }
   importGrid(g, c.grid, gunzipSync);
@@ -72,7 +76,8 @@ function atCachedSpawn(world, kind, i, spawn) {
  * @param {{patch?: (def) => def, navCache?: boolean, difficulty?: 'easy'|'hard'}} [o] navCache: lay the game's cached
  *   mesh-measured world over the build (tools/solutions/navcache.mjs; headlessDriver does, for the solutions). Off by
  *   default: the unit tests of the plain build (M3, M13…) were written against it. `difficulty`: a BCD mission's Easy /
- *   Hard data variant (schema.applyVariant, as Game.loadMission's `difficulty`); the map is the same, so the cache holds.
+ *   Hard data variant (schema.applyVariant, as Game.loadMission's `difficulty`); an Easy run lays navcache/<id>.easy.json
+ *   when the mission has one (its Easy map differs: Hard-only structures or mines stamp the grid), else the Hard cache.
  */
 export function headlessMission(id, { patch = null, navCache = false, difficulty = null } = {}) {
   Entity.nextId = 1;
@@ -82,7 +87,7 @@ export function headlessMission(id, { patch = null, navCache = false, difficulty
   world.alarm = new Alarm(world);
   buildMap(world, mission, { meshes: false });
   // (the game's drawn models close a few more cells to walking: the cached browser stamps, when there are some)
-  world.navCached = !patch && navCache && applyNavCache(world, id);
+  world.navCached = !patch && navCache && applyNavCache(world, id, difficulty === 'easy' ? 'easy' : null);
   if (world.cachedExtras) applyExtras(world, world.cachedExtras); // (after the map, before the units: the units' own spawn spots are cached)
   world.vehicleFactory = (s) => new Vehicle(s);
   const medic = firstAidCarrier(mission.commandos.map((c) => c.role));

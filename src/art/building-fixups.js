@@ -48,6 +48,9 @@ export const COPLANAR_SPLIT = new Map([
   ['hut_brick_be', { crossings: true, reach: 0.12, fixed: /corrugated/ }], ['station_rail_goods', {}], ['shed_tarred_be', {}], ['lock_control_shack', {}],
   ['garage_brick', {}], ['barracks_c', {}], ['guard_hut_b', {}], ['water_tower_legs_ms', {}],
 ]);
+// (LIGHTS OUT e06's harbour village — its church, half-timbered houses, net sheds and naval barracks — is separated by
+// baked plans on its own placed instances instead: art/coplanar-baked.js. The split at load froze the loading screen
+// for seconds and changed those assets in the base missions too)
 
 const C = { net: null, netNor: null };
 

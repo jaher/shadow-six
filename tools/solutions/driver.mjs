@@ -208,7 +208,7 @@ export function seesAnyHeads(L, d, w, see) {
   return false;
 }
 /** One guard at one eye? → {x, z, far2: the longest reach squared}; else null (seesAnyHeads asks head by head). */
-function headsSummary(L) {
+export function headsSummary(L) {
   let c0 = null, proto, far2 = 0, lo = 0, hi = 0, half = 0, arc = true;
   for (let i = 0; i < L.length; i += 2) {
     const g = L[i], c = L[i + 1];

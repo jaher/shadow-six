@@ -1,7 +1,8 @@
 /**
  * art/coplanar-split.js (user 2026-11-18: "Make sure there is no z-fighting in the geometry"): coplanar overlapping
  * faces of a library asset are separated at load — a synthetic sill on a ledge, a doubled face, a shared geometry —
- * and the shipped LIGHTS OUT kit buildings (building-fixups COPLANAR_SPLIT) load with no coplanar overlap left.
+ * and the shipped LIGHTS OUT kit buildings (building-fixups COPLANAR_SPLIT) load with no coplanar overlap left; the
+ * pieces mode (the snow twins' bake) parts two caps sculpted on one sill, whole, and leaves a real crossing alone.
  */
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
@@ -10,7 +11,8 @@ import { readGlbArrayBuffer } from '../../tools/glb-io.mjs';
 import { GLTFLoader } from '../../src/engine/glb-gzip.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeManifest, EXTRA_MANIFESTS } from '../../src/art/building-library.js';
-import { separateCoplanar, coplanarPairs, triOverlap } from '../../src/art/coplanar-split.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { separateCoplanar, coplanarPairs, triOverlap, overlapGap } from '../../src/art/coplanar-split.js';
 import { COPLANAR_SPLIT } from '../../src/art/building-fixups.js';
 
 /** Coplanar overlapping pairs left under root (same test as the split's own). */
@@ -104,6 +106,45 @@ test('coplanar-split: a pier top through a 7° roof sheet ends wholly under it (
   const after = Array.from(I.array, (i) => Q.getY(i) + Q.getZ(i) * tilt);
   assert.ok(after.every((h) => h < 0) || after.every((h) => h > 0), `one side of the roof: ${after.map((h) => h.toFixed(4))}`);
   assert.ok(Math.max(...after.map(Math.abs)) < 0.05, 'a small move');
+});
+
+test('coplanar-split: two snow caps sculpted on one sill (pieces of one merged mesh) come apart whole; a drift crossing at 10° stays', () => {
+  // one merged snow mesh: the sill's cap A, the ledge's cap B over it (tops within a mm, crossing at a third of a
+  // degree), and a drift C crossing A's top at 10° (a real crossing: they meet along a line)
+  const A = new THREE.BoxGeometry(1.0, 0.1, 0.2).rotateX(0.005).translate(0, 1.55, 0).toNonIndexed();
+  const B = new THREE.BoxGeometry(1.12, 0.09, 0.14).rotateX(-0.006).translate(0.01, 1.5552, -0.02).toNonIndexed();
+  const C = new THREE.BoxGeometry(0.3, 0.05, 0.3).rotateX(0.17).translate(0.3, 1.6, 0.02).toNonIndexed();
+  for (const g of [A, B, C]) { g.deleteAttribute('uv'); g.deleteAttribute('normal'); }
+  const snow = new THREE.Mesh(mergeGeometries([A, B, C]), new THREE.MeshStandardMaterial({ name: 'kit:snow' }));
+  const root = new THREE.Group().add(snow);
+  const nA = A.getAttribute('position').count, nB = B.getAttribute('position').count;
+  const pos = () => Array.from(snow.geometry.getAttribute('position').array);
+  /** Over A's and B's overlapping tops: B's height over A (min, max). */
+  const tops = () => {
+    const X = snow.geometry.getAttribute('position'), tri = (t) => [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(X, t + k));
+    const up = (v) => new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0])).normalize();
+    let lo = Infinity, hi = -Infinity;
+    for (let a = 0; a < nA; a += 3) for (let b = nA; b < nA + nB; b += 3) {
+      const va = tri(a), vb = tri(b), na = up(va), nb = up(vb);
+      if (na.y < 0.9 || nb.y < 0.9) continue;
+      const g = overlapGap(va, na, na.dot(va[0]), vb, nb, nb.dot(vb[0]));
+      if (g.area > 1e-5) { lo = Math.min(lo, g.lo); hi = Math.max(hi, g.hi); }
+    }
+    return { lo, hi };
+  };
+  const t0 = tops(), before = pos();
+  assert.ok(t0.lo < 0.0003 && t0.hi > -0.0003, `the caps' tops come within 0.3 mm of each other (${(t0.lo * 1e3).toFixed(2)}..${(t0.hi * 1e3).toFixed(2)} mm)`);
+  const r = separateCoplanar(root, { pieces: true, lift: 0.003, near: 0.002, reach: 0.01 });
+  assert.equal(r.patches, 1, 'one piece moved');
+  const t1 = tops(), after = pos();
+  assert.ok(t1.lo >= 0.0029 || t1.hi <= -0.0029, `B wholly a lift off A over their overlap (${(t1.lo * 1e3).toFixed(2)}..${(t1.hi * 1e3).toFixed(2)} mm)`);
+  assert.deepEqual(after.slice(0, nA * 3), before.slice(0, nA * 3), 'the larger cap stays where it was sculpted');
+  assert.deepEqual(after.slice((nA + nB) * 3), before.slice((nA + nB) * 3), 'the drift crossing at 10° is left alone');
+  // B moved rigidly (its shape kept), by under a centimetre
+  const d0 = [after[nA * 3] - before[nA * 3], after[nA * 3 + 1] - before[nA * 3 + 1], after[nA * 3 + 2] - before[nA * 3 + 2]];
+  for (let k = nA * 3; k < (nA + nB) * 3; k++) assert.ok(Math.abs(after[k] - before[k] - d0[(k - nA * 3) % 3]) < 1e-6, 'B moves as one');
+  assert.ok(Math.hypot(...d0) > 0.0029 && Math.hypot(...d0) < 0.01, `a few millimetres (${(Math.hypot(...d0) * 1e3).toFixed(2)} mm)`);
+  assert.deepEqual(separateCoplanar(root, { pieces: true, lift: 0.003, near: 0.002, reach: 0.01 }).patches, 0, 'nothing left to part');
 });
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);

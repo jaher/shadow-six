@@ -94,7 +94,9 @@ export class AIDirector {
     const w = this.world;
     const zonesHeard = new Set();
     for (const e of w.enemies) {
-      if (!e.alive || e.removed || !hears(e, n)) continue;
+      // (BCD: a man out cold, cuffed or on puppet strings reacts to nothing — he hears no noise and trips no zone's
+      // onHeard sensor; `incapacitated` is always false under BEL)
+      if (!e.alive || e.removed || e.incapacitated || !hears(e, n)) continue;
       e.brain?.hear?.(n);
       if ((n.level ?? 0) >= CONFIG.stealth.zoneHeardLevel && w.alarm) {
         const z = w.alarm.zoneAt(e.x, e.z);

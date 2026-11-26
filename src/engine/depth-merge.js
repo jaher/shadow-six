@@ -127,6 +127,24 @@ function mergedGeometry(list) {
   return geo;
 }
 
+/**
+ * A group some of whose members got geometries of their own on one instance (art/coplanar-baked.js: a baked plan moved
+ * a few of their triangles, on that instance's copies): its proxy merged again from the members as they are now — a
+ * geometry of this instance's own (the template's, shared by every other instance, stays) — and the members tagged with
+ * their geometries, so the proxy stands in for them again in the shadow map and the AO prepass (else groupOk turns it
+ * down and every member draws itself in both passes), the moved triangles where the colour pass draws them.
+ * @returns {boolean} false when the group is not whole under the proxy's parent (left as it was)
+ */
+export function remergeDepthGroup(proxy) {
+  const par = proxy?.parent, g = proxy?.userData?.depthGroup;
+  if (!par || g === undefined || proxy.isInstancedMesh) return false;
+  const list = par.children.filter((c) => c !== proxy && !c.isDepthProxy && c.userData.depthGroup === g);
+  if (list.length !== proxy.userData.depthCount || list.some((c) => !c.geometry?.attributes?.position || !c.geometry.attributes.normal)) return false;
+  proxy.geometry = mergedGeometry(list);
+  for (const o of list) o.userData.depthGeo = o.geometry.uuid;
+  return true;
+}
+
 /** Proxy materials, one per drawn side (never drawn in colour; colorWrite / depthWrite off in case one ever is). */
 const MATS = new Map();
 function proxyMaterial(side, shadowSide) {

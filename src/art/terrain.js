@@ -36,6 +36,7 @@ import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/plac
 import { polyDist } from '../world/placement-geom.js';
 import { polygonSetTest } from '../core/math.js';
 import { vegetationWetAt, onDryLand } from '../world/veg-shore.js';
+import { fbm } from './terrain/noise.js';
 
 /** Base colour per terrain code, per theater tint. */
 const TERRAIN_RGB = {
@@ -454,6 +455,74 @@ export function buildMaskedWater(grid, theater) {
 /** Chain splat painters (forest floor first, roads over it); undefined when none. */
 const composePaint = (...fs) => { fs = fs.filter(Boolean); return fs.length ? (x, z, w) => { for (const f of fs) f(x, z, w); } : undefined; };
 
+/** Signed distance (m) from (x, z) to polygon P ([[x, z], ...]): negative inside. */
+function polySignedDist(P, x, z) {
+  let inside = false, d2 = Infinity;
+  for (let a = 0, b = P.length - 1; a < P.length; b = a++) {
+    const [ax, az] = P[a], [bx, bz] = P[b];
+    if ((az > z) !== (bz > z) && x < ((bx - ax) * (z - az)) / (bz - az) + ax) inside = !inside;
+    const ex = bx - ax, ez = bz - az, L = ex * ex + ez * ez || 1e-9;
+    const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / L)), qx = ax + t * ex - x, qz = az + t * ez - z;
+    d2 = Math.min(d2, qx * qx + qz * qz);
+  }
+  return inside ? -Math.sqrt(d2) : Math.sqrt(d2);
+}
+
+/** The terrain features that paint a palette layer (`paint`), as polygons: [{type, points, paint, edge?, keep?}]. */
+export function paintFeatures(mission) {
+  const out = [];
+  for (const f of mission?.terrain || []) {
+    if (!f?.paint) continue;
+    if (f.type === 'poly' && Array.isArray(f.points)) out.push({ ...f, points: f.points.map((q) => (Array.isArray(q) ? q : [q.x, q.z])) });
+    else if (f.type === 'rect') out.push({ ...f, points: [[f.x, f.z], [f.x + f.w, f.z], [f.x + f.w, f.z + f.d], [f.x, f.z + f.d]] });
+  }
+  return out;
+}
+
+/**
+ * Splat painter for terrain features with `paint: '<layer>'` (a layer of the theatre's palette): inside the feature
+ * that layer takes over the ground's weights, blended over `edge` m (default 0.8) at its border, keeping `keep` (0..1,
+ * default 0.15) of what lies under it. Visual only: the grid codes are the feature's `terrain`. Undefined when no
+ * feature names a layer of this palette.
+ * `patches` lays the layer in irregular patches instead of all over (e06's sea ice: the wind scours the snow off the ice
+ * in streaks; the theatre's own snow stays everywhere else): {cover 0..1 (share of the area, default 0.35), scale m
+ * (default 12), stretch (along the wind, default 2.5), angle (degrees, the wind's line, default 0), feather (default
+ * 0.025), seed}.
+ */
+export function featurePainter(mission, layers) {
+  const feats = paintFeatures(mission).filter((f) => layers.includes(f.paint));
+  if (!feats.length) return undefined;
+  const P = feats.map((f) => {
+    const xs = f.points.map((q) => q[0]), zs = f.points.map((q) => q[1]), e = f.edge ?? 0.8, pa = f.patches;
+    const patch = pa ? { c: Math.cos(((pa.angle ?? 0) * Math.PI) / 180), s: Math.sin(((pa.angle ?? 0) * Math.PI) / 180), sc: pa.scale ?? 12,
+      st: pa.stretch ?? 2.5, th: 1 - (pa.cover ?? 0.35), fe: pa.feather ?? 0.025, seed: pa.seed ?? 7 } : null;
+    return { pts: f.points, k: layers.indexOf(f.paint), e, keep: f.keep ?? 0.15, patch, x0: Math.min(...xs) - e, x1: Math.max(...xs) + e, z0: Math.min(...zs) - e, z1: Math.max(...zs) + e };
+  });
+  // (fbm's values bunch round 0.5: a cover share maps to a threshold through this rough quantile table)
+  const Q = (c) => 0.5 + (c - 0.5) * 0.34;
+  const patchAt = (p, x, z) => {
+    const u = (x * p.c + z * p.s) / (p.sc * p.st), v = (-x * p.s + z * p.c) / p.sc;
+    const n = fbm(u, v, 3, p.seed) * 0.82 + fbm(x / 2.1, z / 2.1, 2, p.seed + 31) * 0.18; // (ragged edges: a fine octave of its own)
+    const t = Q(p.th);
+    return n <= t - p.fe ? 0 : n >= t + p.fe ? 1 : ((n - t + p.fe) / (2 * p.fe)) ** 2 * (3 - 2 * ((n - t + p.fe) / (2 * p.fe)));
+  };
+  return (x, z, w) => {
+    for (const f of P) {
+      if (x < f.x0 || x > f.x1 || z < f.z0 || z > f.z1) continue;
+      const d = polySignedDist(f.pts, x, z);
+      if (d >= f.e) continue;
+      const u = Math.min(1, Math.max(0, 0.5 - d / (2 * f.e)));
+      let t = u * u * (3 - 2 * u);
+      if (f.patch) { t *= patchAt(f.patch, x, z); if (t <= 0) continue; }
+      let s = 0;
+      for (let i = 0; i < 8; i++) s += w[i];
+      const keep = 1 - t * (1 - f.keep);
+      for (let i = 0; i < 8; i++) w[i] *= keep;
+      w[f.k] += t * Math.max(1, s);
+    }
+  };
+}
+
 const presetOf = (renderer) => QUALITY_OF[renderer?.presetName] || 'medium';
 /** The HD queue's upload of the terrain's new arrays: each on a pause of its own (engine/hd-textures.js hdPause). */
 async function uploadEach(textures) { for (const t of textures) { await hdPause(); uploadNow(t); } }
@@ -476,7 +545,7 @@ function netKey(net) {
 function paintKeyOf(ctx) {
   const roads = ctx.roads ? netKey(ctx.roads.net) : '-';
   if (roads === undefined) return undefined;
-  try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); h.str(JSON.stringify(ctx.mission?.carves || null)); }); } catch { return undefined; }
+  try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); h.str(JSON.stringify(ctx.mission?.carves || null)); const pf = paintFeatures(ctx.mission); if (pf.length) h.str(JSON.stringify(pf.map((f) => [f.paint, f.points, f.edge ?? null, f.keep ?? null]))); }); } catch { return undefined; }
 }
 
 export function buildTerrain(grid, theater = 'temperate', ctx = {}) { return runSync(buildTerrainG(grid, theater, ctx)); }
@@ -534,6 +603,7 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   const dry = missionCarves(mission); // dry wadis cut into the ground (art/terrain/carve.js): rock banks, gravel bed
   const paint = composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
     carvePainter(dry, (PALETTES[theater] || PALETTES.temperate).layers),
+    featurePainter(mission, (PALETTES[theater] || PALETTES.temperate).layers),
     ctx.roads ? terrainPainter(drawn, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
   // the road look (world/roads.js roadLookPainter: crowned carriageways, wheel lanes, verges, desire lines, ruts' beds)
   // is laid over the map splat's GPU bytes once it is built, and over the scenery apron's (overlayApronLookG): the

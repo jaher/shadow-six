@@ -128,6 +128,17 @@ export class SeaMine extends Interactable {
   serialize() { return { ...super.serialize(), exploded: this.exploded }; }
 }
 
+/**
+ * Pushable rail wagon / fuel tank. Mission data beyond the catalogue's (all optional, BCD-only by construction: a
+ * pushable exists only where a BCD mission places one):
+ *   size: [length, width]         the body (m), length along its heading
+ *   roles: [...]                  who may push it (default GB and Driver; [] = nobody: a locomotive)
+ *   drop: {at: [x, z], noise?}    a rail wagon whose centre passes `at` (beyond the end of a lowered span, e06) tips off
+ *                                 the rail: destroyed (a `destroy` objective counts it), a level-2 splash noise
+ *   bombable: true                a charge destroys it (not bullets): a shunting engine
+ * A drawbridge that is not fully down closes the rail across it: the push (or a haul) stops with the wagon's nose at the
+ * span's edge (e06 link-span). `haul(to, speed, train)` moves it with nobody pushing (a locomotive coupling up).
+ */
 export class Pushable extends Interactable {
   constructor(o) {
     const tank = o.variant === 'tank';
@@ -140,6 +151,9 @@ export class Pushable extends Interactable {
     this.bulletHits = 0;
     this._noiseT = 0;
     this.roles = o.roles ?? ['greenberet', 'driver'];
+    this.dropped = false;
+    this._haul = null; // scripted move {x, z, speed, train: [{p, dx, dz}]}
+    this._hauledBy = null; // the pushable hauling this one (coupled)
   }
   get speed() { return this.variant === 'tank' ? CONFIG.bcd.push.tank : CONFIG.bcd.push.wagon; }
   /** Where a unit at `u` stands to push: just outside the body on its side (the body itself is solid). */
@@ -149,8 +163,96 @@ export class Pushable extends Interactable {
   _navRest() {
     const g = this.world?.grid;
     if (!g?.navStamp) return;
-    g.navStamp(`push:${this.id}`, this.destroyed || this.goal ? [] : g.rectCells(this.x, this.z, this.size[0] + 2 * RULES.bodyNav, this.size[1] + 2 * RULES.bodyNav, this.heading ?? 0));
+    const moving = this.goal || this._haul || this._hauledBy;
+    g.navStamp(`push:${this.id}`, this.destroyed || moving ? [] : g.rectCells(this.x, this.z, this.size[0] + 2 * RULES.bodyNav, this.size[1] + 2 * RULES.bodyNav, this.heading ?? 0));
     this._navAt = { x: this.x, z: this.z };
+  }
+  /**
+   * A drawbridge that is not fully down (raised, or rising / lowering) across the way of this body moving to (x, z)
+   * heading `h`: the middle and corners of its leading face are tested against every span's rect. @returns the span or null
+   */
+  spanAhead(x, z, h) {
+    const spans = this.world?._drawbridges;
+    if (!spans?.length) return null;
+    const L = this.size[0] / 2 + 0.05, W = this.size[1] / 2 - 0.05, c = Math.cos(h), s = Math.sin(h);
+    for (const b of spans) {
+      if (b.down || b.removed) continue;
+      const R = b.rect, rc = Math.cos(R.rot ?? 0), rs = Math.sin(R.rot ?? 0);
+      for (const v of [0, W, -W]) {
+        const px = x + L * c - v * s, pz = z + L * s + v * c, dx = px - R.x, dz = pz - R.z;
+        if (Math.abs(dx * rc + dz * rs) <= R.w / 2 && Math.abs(-dx * rs + dz * rc) <= R.d / 2) return b;
+      }
+    }
+    return null;
+  }
+  /** Does this body (where it stands now) lie over the rect of drawbridge `b`? (A span with a wagon on it stays down.) */
+  overSpan(b) {
+    const R = b.rect, rc = Math.cos(R.rot ?? 0), rs = Math.sin(R.rot ?? 0), h = this.heading ?? 0, c = Math.cos(h), s = Math.sin(h);
+    const L = this.size[0] / 2, W = this.size[1] / 2;
+    for (const [u, v] of [[0, 0], [L, W], [L, -W], [-L, W], [-L, -W]]) {
+      const dx = this.x + u * c - v * s - R.x, dz = this.z + u * s + v * c - R.z;
+      if (Math.abs(dx * rc + dz * rs) <= R.w / 2 && Math.abs(-dx * rs + dz * rc) <= R.d / 2) return true;
+    }
+    return false;
+  }
+  /**
+   * Scripted move with nobody pushing (a shunting engine coupling up and pulling out, e06): rolls to `to` at `speed`
+   * m/s, with `train` (other pushables) coupled at their present offsets. A span that is up still stops it.
+   */
+  haul(to, speed, train = []) {
+    if (this.destroyed || this.removed) return false;
+    this.goal = null; this.pusher = null;
+    this._haul = { x: to.x ?? to[0], z: to.z ?? to[1], speed, train: train.filter((p) => p && p !== this && !p.destroyed).map((p) => ({ p, dx: p.x - this.x, dz: p.z - this.z })) };
+    for (const t of this._haul.train) { t.p.goal = null; t.p.pusher = null; t.p._hauledBy = this; t.p._navRest(); }
+    this._navRest();
+    this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'haul', x: this.x, z: this.z, on: true });
+    return true;
+  }
+  /** Is it being hauled, or hauling? */
+  get hauling() { return !!(this._haul || this._hauledBy); }
+  _endHaul() {
+    const H = this._haul;
+    this._haul = null;
+    for (const t of H?.train || []) { t.p._hauledBy = null; t.p._navRest(); }
+    this._navRest();
+    this.world?.events.emit('pushable:hauled', { pushable: this, x: this.x, z: this.z });
+  }
+  _haulStep(dt) {
+    const H = this._haul, dx = H.x - this.x, dz = H.z - this.z, d = Math.hypot(dx, dz);
+    if (d <= 0.02) { this._endHaul(); return; }
+    const step = Math.min(d, H.speed * dt), h = Math.atan2(dz, dx);
+    const nx = this.x + (dx / d) * step, nz = this.z + (dz / d) * step;
+    // the leading body of the consist: a span that is up stops it, a man on the rails holds it (it never runs him down)
+    for (const q of [this, ...H.train.map((t) => t.p)]) {
+      const qx = nx + (q === this ? 0 : q.x - this.x), qz = nz + (q === this ? 0 : q.z - this.z);
+      if (q.spanAhead(qx, qz, h)) { this._endHaul(); return; }
+      if (q._bodyInWay(qx, qz, q.heading ?? h)) return; // waits for the man to step off the track
+    }
+    this.x = nx; this.z = nz;
+    for (const t of H.train) { t.p.x = this.x + t.dx; t.p.z = this.z + t.dz; }
+    if ((this._noiseT -= dt) <= 0) { this._noiseT = 1; this.world?.emitNoise(this.x, this.z, CONFIG.bcd.push.noiseRadius, 'push', this); }
+    if (d - step <= 0.02) this._endHaul();
+  }
+  /** The rail wagon's `drop` point: passed by the centre between `(px, pz)` and where it stands now (the push's heading). */
+  _dropPassed(px, pz) {
+    const D = this.params.drop;
+    if (!D || this.variant !== 'wagon') return false;
+    const ax = D.at?.[0] ?? D.x, az = D.at?.[1] ?? D.z, h = this.heading ?? 0, c = Math.cos(h), s = Math.sin(h);
+    const before = (px - ax) * c + (pz - az) * s, now = (this.x - ax) * c + (this.z - az) * s;
+    return before < 0 && now >= 0 && Math.abs(-(this.x - ax) * s + (this.z - az) * c) <= Math.max(1.5, this.size[1]);
+  }
+  /** Tip off the end of the rail into the water (e06): gone for good; a heavy splash, not a bang. */
+  _drop() {
+    const w = this.world, p = this.pusher;
+    this.goal = null; this.pusher = null;
+    this.dropped = true; this.destroyed = true;
+    this._navRest();
+    p?.stop?.();
+    if (w) {
+      w.emitNoise(this.x, this.z, this.params.drop?.noise ?? 20, 'splash', this, 2);
+      w.events.emit('pushable:drop', { pushable: this, x: this.x, z: this.z, heading: this.heading ?? 0 });
+      w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: 'pushable', owner: this.owner, cause: 'drop' });
+    }
   }
   canUse(c) {
     if (!this.world?.rules?.pushables) return "Can't use that.";
@@ -175,9 +277,29 @@ export class Pushable extends Interactable {
     this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'push', x: this.x, z: this.z, on: true });
     return true;
   }
+  /**
+   * After a load, once every entity is restored (save.js → bcdPostRestore): a haul saved mid-way re-couples its cars,
+   * a push saved mid-way takes its man again — the state right after the load is the state that was saved, and a save
+   * made straight after a load (still paused) keeps both. `update` calls it too, for a restore without that pass.
+   */
+  postRestore(w = this.world) {
+    if (!w) return;
+    if (this._haulLoad) {
+      const L = this._haulLoad;
+      this._haulLoad = null;
+      const train = (L.train || []).map((id) => w.byId(id)).filter(Boolean);
+      this._haul = { x: L.x, z: L.z, speed: L.speed, train: train.map((p) => ({ p, dx: p.x - this.x, dz: p.z - this.z })) };
+      for (const t of this._haul.train) { t.p._hauledBy = this; t.p._navRest(); }
+      this._navRest(); // (moving again: no rest block, as before the save)
+    }
+    if (this._pusherLoad != null) { this.pusher = w.byId(this._pusherLoad) || null; this._pusherLoad = null; }
+  }
   update(dt) {
     super.update?.(dt);
     const w = this.world, g = this.goal;
+    if (w && (this._haulLoad || this._pusherLoad != null)) this.postRestore(w);
+    if (this._haul && !this.destroyed) { this._haulStep(dt); return; }
+    if (this._hauledBy) return; // coupled: the engine moves it
     if (!g && !this.destroyed && (this._navAt?.x !== this.x || this._navAt?.z !== this.z)) this._navRest(); // moved by a load
     if (!g || !w || this.destroyed) return;
     const p = this.pusher;
@@ -190,10 +312,19 @@ export class Pushable extends Interactable {
       w.events.emit('device', { id: this.tag ?? this.id, sfx: 'push', x: this.x, z: this.z, on: false });
       return;
     }
+    // a link-span that is up closes the rail: the wagon stops with its nose at the span's edge (e06)
+    if (d > 1e-6 && this.rail && this.spanAhead(this.x + (dx / d) * step, this.z + (dz / d) * step, Math.atan2(dz, dx))) {
+      this.goal = null; this.pusher = null; this._navRest();
+      w.events.emit('device', { id: this.tag ?? this.id, sfx: 'push', x: this.x, z: this.z, on: false });
+      w.events.emit('message', { text: 'The span is up.', kind: 'hint', unit: p });
+      return;
+    }
+    const px = this.x, pz = this.z;
     if (d > 1e-6) { this.x += (dx / d) * step; this.z += (dz / d) * step; this.heading = Math.atan2(dz, dx); }
     p.x = this.x + this._off.x; p.z = this.z + this._off.z;
     if ((this._noiseT -= dt) <= 0) { this._noiseT = 1; w.emitNoise(this.x, this.z, CONFIG.bcd.push.noiseRadius, 'push', p); }
     if (this.object3d) this.object3d.position.set(this.x, this.object3d.position.y, this.z);
+    if (this._dropPassed(px, pz)) { this._drop(); return; }
     if (d <= 0.05) { this.goal = null; this.pusher = null; this._navRest(); }
   }
   /**
@@ -219,8 +350,17 @@ export class Pushable extends Interactable {
     if (!this.destroyed && !this.removed) grid.stampDynamic(this.x, this.z, this.size[0], this.size[1], this.heading);
   }
   takeDamage(amount, source, cause) {
-    if (this.variant !== 'tank' || this.destroyed) return;
-    const bullet = ['pistol', 'rifle', 'sniper', 'sniperRifle', 'smg', 'mg', 'bullet', 'shot', 'luger', 'mp40'].includes(cause);
+    if (this.destroyed) return;
+    const bullet = ['pistol', 'rifle', 'sniper', 'sniperRifle', 'smg', 'mg', 'bullet', 'shot', 'luger', 'mp40', 'leeEnfield', 'harpoon'].includes(cause);
+    if (this.variant !== 'tank') {
+      // `bombable` (a shunting engine): a charge or a grenade wrecks it where it stands; bullets do not
+      if (!this.params.bombable || bullet) return;
+      this.destroyed = true;
+      if (this._haul) this._endHaul();
+      this._navRest();
+      this.world?.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: 'pushable', owner: this.owner, cause: cause ?? 'explosion' });
+      return;
+    }
     if (bullet && ++this.bulletHits < 3) return;
     this.destroyed = true;
     this._navRest();
@@ -228,7 +368,40 @@ export class Pushable extends Interactable {
     this.world?.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: 'pushable', owner: this.owner });
     explode(this.world, this.x, this.z, 'fuelTank', source, { exclude: this });
   }
-  serialize() { return { ...super.serialize(), goal: this.goal, bulletHits: this.bulletHits }; }
+  serialize() {
+    const H = this._haul;
+    // (a push in progress: its goal, the man pushing and where he stands on the body — a load resumes the push)
+    // (links a load has not made yet — `postRestore` — are saved as they were loaded)
+    return { ...super.serialize(), goal: this.goal, bulletHits: this.bulletHits, dropped: this.dropped,
+      pusher: this.goal ? (this.pusher?.id ?? this._pusherLoad ?? null) : null, off: this.goal && this._off ? { ...this._off } : null,
+      haul: H ? { x: H.x, z: H.z, speed: H.speed, train: H.train.map((t) => t.p.id) } : (this._haulLoad ? { ...this._haulLoad } : null) };
+  }
+  /**
+   * The destroyed state a load restores (Interactable.deserialize): the look the live run left. A wagon that went off
+   * the end of the rail (`dropped`, e06) lies at the bottom of the harbour: its body is hidden — live, the mission's art
+   * tipped it off the span and sank it (art/e06-dressing.js wagonDrop) — and nothing of it stands or burns where it went
+   * over (verifier r2: a load drew the sealed wagon back, charred, on the end of the lowered span).
+   */
+  _applyDestroyedState() {
+    if (!this.dropped) { super._applyDestroyedState(); return; }
+    this.destroyed = true;
+    if (this.object3d) this.object3d.visible = false;
+  }
+  deserialize(d) {
+    this.dropped = !!d.dropped; // (before the base restores `destroyed`: `_applyDestroyedState` reads it)
+    super.deserialize?.(d);
+    this.bulletHits = d.bulletHits ?? 0;
+    this._haul = null;
+    this._hauledBy = null; // (a car coupled in the run being left: its engine's saved haul couples it again, or not)
+    this._haulLoad = d.haul ?? null; // re-coupled once every car is restored (`postRestore`)
+    // a push saved mid-way: its goal and offset now, the pusher once every entity is back (`postRestore`: he may be
+    // restored after this)
+    this.goal = d.goal && d.pusher != null ? { x: d.goal.x, z: d.goal.z } : null;
+    this._off = d.off ? { x: d.off.x, z: d.off.z } : (this.goal ? { x: 0, z: 0 } : this._off);
+    this.pusher = null;
+    this._pusherLoad = this.goal ? d.pusher : null;
+    this._navRest();
+  }
 }
 
 /** What perception reads for a man riding an enclosed cage (`insideStructure` with no owner: nobody sees him). */
@@ -428,6 +601,8 @@ export class Drawbridge extends Interactable {
   /** Start raising / lowering (5 s; the deck stops carrying walkers as soon as it starts rising). */
   toggle() {
     if (this.moving > 0) return false;
+    // a wagon standing on the lowered span holds it down (a link-span is never lifted under a load, e06)
+    if (!this.raised && (this.world?.interactables || []).some((p) => p instanceof Pushable && !p.destroyed && !p.removed && p.overSpan(this))) return false;
     this.moving = CONFIG.bcd.drawbridge.time;
     this._target = !this.raised;
     if (this._target) { this.raised = true; this._apply(); }
@@ -439,16 +614,18 @@ export class Drawbridge extends Interactable {
     if (this.moving <= 0) return;
     if ((this.moving -= dt) > 0) return;
     this.raised = this._target;
+    if (!this.raised) this.downAt = this.world?.time ?? 0; // (a keeper's timer reads how long it has been down: e06)
     this._apply();
   }
   /** Fully down (a walkable deck, the channel closed to boats)? */
   get down() { return !this.raised && !(this.moving > 0); }
-  serialize() { return { ...super.serialize(), raised: this.raised, moving: this.moving, target: this._target ?? null }; }
+  serialize() { return { ...super.serialize(), raised: this.raised, moving: this.moving, target: this._target ?? null, downAt: this.downAt ?? null }; }
   deserialize(d) {
     super.deserialize(d);
     this.raised = !!d.raised;
     this.moving = d.moving ?? 0;
     this._target = d.target ?? this._target;
+    this.downAt = d.downAt ?? null;
     this._apply();
   }
 }

@@ -2,7 +2,8 @@
  * Line extras of the LIGHTS OUT expansion missions (the same VISUAL data as world/line-extras.js, which keeps the base
  * missions' table): trodden ground, fans and lines the road look paints over the splat's GPU bytes only. Nothing here
  * reaches the simulation (the nav grid, LOS, footprints, the road network the sim reads are untouched);
- * `lineExtrasFor(id)` (world/line-extras.js) serves both tables. tests/unit/line-extras-expansion.test.mjs checks them.
+ * `lineExtrasFor(id)` (world/line-extras.js) serves both tables. tests/unit/line-extras-expansion.test.mjs checks them
+ * (tests/unit/line-extras-e06.test.mjs e06's).
  * @module world/line-extras-expansion
  */
 
@@ -110,5 +111,16 @@ export const EXPANSION_LINE_EXTRAS = {
         pts: [[34.6, 27.4], [36.4, 27.2], [37, 28.8], [36.6, 30.2], [34.9, 30.1]] },
       { kind: 'foot', w: 1.0, passes: 8, strength: 0.85, pts: [[49.2, 6.4], [49, 8.2], [49, 9.5], [49.3, 11.6]] },
     ],
+  },
+  // ---- LIGHTS OUT e06 Thin Ice: the fishermen's trodden way out over the basin ice from the families' quay to their
+  //      holes and a sledge's runners beside it; coal grit trodden into the snow under the yard's coal bunker
+  e06: {
+    lines: [
+      { kind: 'foot', w: 1.1, strength: 0.8, pts: [[38, 66.4], [43, 63.7], [48.6, 61.3], [54, 59.6]] },
+      { kind: 'foot', w: 0.9, strength: 0.7, pts: [[55.2, 58.6], [58.7, 57.5], [62, 57.5]] },
+      { kind: 'foot', w: 0.8, strength: 0.6, pts: [[63.2, 57.6], [67, 58.7], [71, 59.2]] },
+      { kind: 'sled', gauge: 0.8, passes: 2, strength: 0.6, pts: [[39.4, 66.5], [44.4, 64.6], [50.2, 62.1], [55.6, 60.5]] },
+    ],
+    fans: [{ x: 119.4, z: 116.9, r: 2.4, dir: [0, 1], recipe: 'fan' }, { x: 126.6, z: 117.4, r: 1.6, dir: [0.4, 1], recipe: 'fan' }],
   },
 };

@@ -329,11 +329,12 @@ export class Alarm {
     const units = [];
     const spots = this._doorSpots(door, n, s);
     for (let k = 0; k < n; k++) {
-      const e = new Enemy({
-        soldierType: k === 0 ? 'sergeant' : 'trooper', x: spots[k].x, z: spots[k].z, heading: 0,
-        id: `${squadId}.${s.gen ?? 0}.${k}`, squad: { id: squadId, leader: k === 0 ? undefined : null, columns: s.columns ?? 1 },
-        flags: { investigates: true, followsTracks: true, firesOnSight: false }, jail: s.jail ?? null,
-      });
+      const spec = { squad: { id: squadId, leader: k === 0 ? undefined : null, columns: s.columns ?? 1 },
+        flags: { investigates: true, followsTracks: true, firesOnSight: false }, jail: s.jail ?? null };
+      const e = new Enemy({ soldierType: k === 0 ? 'sergeant' : 'trooper', x: spots[k].x, z: spots[k].z, heading: 0, id: `${squadId}.${s.gen ?? 0}.${k}`, ...spec });
+      // (what a quick load needs to build him again — save.js respawn: his squad, his flags, his jail; else the
+      // followers came back as lone men and stood at the barracks door)
+      e.respawnSpec = JSON.parse(JSON.stringify(spec));
       w.add(e);
       if (k === 0) { const sq = w.ai.squad(squadId); sq.leader = e; }
       e.brain.reinforce((s.exitRoute || []).map(P), (s.loop || []).map(P));
