@@ -69,7 +69,11 @@ const STATIC_TYPES = new Set(['train_car', 'railway_gun', 'aa_gun', 'plane', 'ub
 /** Is this structure drawn with a library vehicle? (a static type, or an explicit `vehicleArt` opt-in) */
 const isStaticVehicle = (type, def) => STATIC_TYPES.has(type) || !!def?.vehicleArt;
 
-/** Library assets the mission's static structures need (for the preload). */
+/**
+ * Library assets the mission's static structures need (for the preload), and `def.vehicleArtExtra`: library models a
+ * mission's own dressing draws on other entities (e07: the fuel bowser on its pushable, its burnt wreck) — preloaded
+ * with their wrecks behind the loading screen like the rest.
+ */
 export function staticVehicleAssets(def) {
   const out = new Set();
   for (const s of def?.structures || []) {
@@ -77,6 +81,7 @@ export function staticVehicleAssets(def) {
     const a = staticVehicleAsset(s.type, s.variant, s);
     if (a) out.add(a);
   }
+  for (const a of def?.vehicleArtExtra || []) if (typeof a === 'string' && a) out.add(a);
   return [...out].sort();
 }
 

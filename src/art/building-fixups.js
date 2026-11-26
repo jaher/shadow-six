@@ -124,6 +124,9 @@ export const NUDGE_ASSETS = new Set([
   'hq_colonial_tunis', 'warehouse_harbour_tunis', 'minaret_tunis', 'house_flat_white_a', 'house_flat_white_b',
   'house_flat_white_c', 'drum_stack_ms', 'crate_stack_ms_c', 'crate_stack_ms_d', 'dam_arch', 'dam_arch_snow',
   'barn_b', 'guard_hut_a', 'guard_hut_a_snow',
+  // LIGHTS OUT e07 (zfight.mjs --mission e07): the cable-car stations' doubled painted boards, beams and trims, the snow
+  // twins of the guard hut and the henhouse
+  'cable_station_upper_snow', 'cable_station_lower_snow', 'guard_hut_b_snow', 'henhouse_no_snow',
 ]);
 
 /**

@@ -200,6 +200,8 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `e04:shaft` | `{stage}` | e04 shaft script (missions/scripts/e04.js) → ui, tests: office, shaft, ring, down |
 | `pushable:drop` | `{pushable, x, z, heading}` | BCD rail wagon tipped off its rail's `drop` point (bcd-interactables.js Pushable: e06 link-span) → mission scripts (e06 o1 message), art (the splash) |
 | `pushable:hauled` | `{pushable, x, z}` | BCD pushable's scripted haul ended (a shunting engine run up / pulled out, e06) → mission scripts, tests |
+| `e07:pass-closed` | `{how}` | e07 set-piece (missions/scripts/e07.js): the pass is closed, `how` 'cornice' or 'bowser' → art (the slide, the wreck), tests |
+| `e07:aboard` / `e07:car-shot` | `{unit}` / `{x, z, y}` | e07 set-piece: Vering berthed in the cable car / the flak has shot the car down → tests |
 | `vehicle:enter`/`vehicle:exit` | `{vehicle, unit}` | vehicles → ui, AI (tainted §3.7) |
 | `vehicle:move` / `vehicle:stop` | `{vehicle, speed}` / `{vehicle}` | vehicles → audio |
 | `vehicle:gear` | `{vehicle, reverse}` | vehicles → audio (a change of gear in a multi-point turn) |

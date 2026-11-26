@@ -29,5 +29,6 @@ import './e05_cold_iron.js';
 import './e06_thin_ice.js';
 
 // e07
+import './e07_white_out.js';
 
 // e08

@@ -188,6 +188,7 @@ function buildPortal(M, ry, ground) {
  * @param {(x:number, z:number) => number} ground ground height
  */
 export function buildCableLine(track, ground, theater = 'temperate') {
+  if (track.length > 2) return buildCableLineBent(track, ground, theater);
   const M = cabinMaterials(theater), R = CABLE_CAR_ROPES, g = new THREE.Group(); g.name = 'kit:cable_line';
   const [a, b] = [track[0], track[track.length - 1]];
   const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, px = -uz, pz = ux;
@@ -213,6 +214,55 @@ export function buildCableLine(track, ground, theater = 'temperate') {
   const line = consolidate(g);
   // the ropes: their own mesh, groove to groove (tests/power-lines measures its ends against the portals' nodes)
   const spans = conductorSpans(fix[0], fix[1]);
+  const geo = wireGeometry(spans, { sag: 0, seg: 1, sides: 8 });
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+  const ropes = mesh(geo, M.iron); ropes.name = 'kit:cable_ropes';
+  ropes.userData.cableSpans = spans.map((s) => ({ a: s.an, b: s.bn }));
+  line.add(ropes);
+  return line;
+}
+
+/**
+ * A line with intermediate rope supports (a track of more than two points: LIGHTS OUT e07, where the ropes break over a
+ * head frame at the cliff's rim). The end portals stand on the first and last spans' lines; each interior point carries
+ * a portal from the ground, or — `support: false` — only the rope grooves, the frame being the mission's own art.
+ * The ropes run straight from support to support.
+ */
+function buildCableLineBent(track, ground, theater) {
+  const M = cabinMaterials(theater), R = CABLE_CAR_ROPES, g = new THREE.Group(); g.name = 'kit:cable_line';
+  const n = track.length, E = R.portal;
+  const dirOf = (a, b) => { const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1; return { ux: dx / L, uz: dz / L, L, slope: ((b.y ?? 0) - (a.y ?? 0)) / L }; };
+  const d0 = dirOf(track[0], track[1]), d1 = dirOf(track[n - 2], track[n - 1]);
+  const endAt = (q, d, s) => [q.x + d.ux * s, (q.y ?? 0) + d.slope * s + R.track, q.z + d.uz * s];
+  const supports = [];
+  const portalAt = ([x, y, z], yaw) => { const p = buildPortal(M, y, Math.min(ground(x, z), y - 1)); p.position.set(x, 0, z); p.rotation.y = yaw; g.add(p); return p; };
+  supports.push(portalAt(endAt(track[0], d0, -E), Math.atan2(d0.ux, d0.uz)));
+  for (let k = 1; k < n - 1; k++) {
+    const q = track[k], a = dirOf(track[k - 1], q), b = dirOf(q, track[k + 1]);
+    const yaw = Math.atan2(a.ux + b.ux, a.uz + b.uz), ry = (q.y ?? 0) + R.track;
+    if (q.support === false) {
+      const p = new THREE.Group(); p.name = 'kit:cable_saddle';
+      addCableNode(p, 0, -R.gauge, ry, 0, { r: R.trackR });
+      addCableNode(p, 1, R.gauge, ry, 0, { r: R.trackR });
+      addCableNode(p, 2, 0, ry - (R.track - R.haul), 0, { r: R.haulR });
+      p.position.set(q.x, 0, q.z); p.rotation.y = yaw; g.add(p);
+      supports.push(p);
+    } else supports.push(portalAt([q.x, ry, q.z], yaw));
+  }
+  supports.push(portalAt(endAt(track[n - 1], d1, E), Math.atan2(d1.ux, d1.uz)));
+  const fix = supports.map((p) => cablePoints(p));
+  for (const [k, d] of [[0, d0], [supports.length - 1, d1]]) { // the guy stays to their ground anchors behind the end portals
+    const p = supports[k], out = k === 0 ? -1 : 1, x = p.position.x, z = p.position.z, ax = x + d.ux * out * 3.2, az = z + d.uz * out * 3.2, ag = ground(ax, az);
+    for (const q of fix[k].slice(0, 2)) {
+      const sx = Math.sign((q.p[0] - x) * -d.uz + (q.p[2] - z) * d.ux);
+      g.add(rope(q.p, [ax - d.uz * sx * 0.5, ag + 0.3, az + d.ux * sx * 0.5], 0.022, M.iron));
+    }
+    const blk = tbox(1.6, 0.6, 0.8, dressingMaterial('concrete'), ax, ag + 0.2, az, 1); blk.rotation.y = Math.atan2(d.ux, d.uz);
+    g.add(blk);
+  }
+  const line = consolidate(g);
+  const spans = [];
+  for (let k = 0; k + 1 < fix.length; k++) spans.push(...conductorSpans(fix[k], fix[k + 1]));
   const geo = wireGeometry(spans, { sag: 0, seg: 1, sides: 8 });
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
   const ropes = mesh(geo, M.iron); ropes.name = 'kit:cable_ropes';
@@ -248,7 +298,12 @@ export function createCableCarModel(type = 'cable_car', def = {}, spawn = {}, th
       buildLine(v);
       if (!v || !(dt > 0)) return;
       // carriage pitch along the ropes (the cabin's +z faces uphill or down depending on the trip)
-      const a = track[0], b = track[track.length - 1];
+      let a = track[0], b = track[track.length - 1];
+      if (track.length > 2 && v.segLen?.length) { // (a bent line: the span the cabin is on)
+        let s = v.railS ?? 0, k = 0;
+        while (k < v.segLen.length - 1 && s > v.segLen[k]) { s -= v.segLen[k]; k++; }
+        a = track[k]; b = track[k + 1];
+      }
       if (a && b && a.y != null && b.y != null) {
         const L = Math.hypot(b.x - a.x, b.z - a.z) || 1, s = Math.atan((b.y - a.y) / L);
         const up = Math.cos(v.heading) * (b.x - a.x) + Math.sin(v.heading) * (b.z - a.z) >= 0;

@@ -126,6 +126,11 @@ export function restoreWorld(w, S) {
     }
   }
   if (w.rules?.id === 'BCD') bcdPostRestore(w); // BCD: links to entities restored after their owner
+  // the men a vehicle carries, back in it now that every entity is restored — not at its own first update: the
+  // set-pieces tick (the 20 Hz scheduler) and the men update before the vehicles do on the load's first tick, and found
+  // a man saved aboard on foot beside it (LIGHTS OUT e07: the Major berthed in the docked cabin was put aboard again
+  // and his line said twice)
+  for (const v of w.vehicles || []) if (v._pendingOccupants) v._relinkOccupants();
   // running actions that survive a load (the Spy's distraction), now that every target is restored
   for (const c of w.commandos || []) if (c._savedAction || c._savedTransition) c.resumeSavedAction?.();
   // ids of entities spawned during play (placed traps, deployed rafts …) are kept from the save, so the

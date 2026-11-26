@@ -641,6 +641,9 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
     paintKey: paintKeyOf(ctx),
     exclude: groundExclude(ctx, mission, grid),
     onSpray: ctx.onSpray, texRes: terrainLoadRes(quality, theater), mission, // mission → vegetation profile (season, mix)
+    // falling snow: the mission's `snowfall` scales the flakes (0: none — a clear day on old snow; default 1 in the
+    // snow theatre: art/terrain/snowfx.js)
+    ...(Number.isFinite(mission?.snowfall) ? { snowfall: mission.snowfall } : null),
     gate: ctx.gate, // (the map builder's: nothing of the terrain's async build takes effect before the map is built)
   });
   // loaded with the smaller layer arrays (terrainLoadRes): the full ones after the loading screen, in the HD queue

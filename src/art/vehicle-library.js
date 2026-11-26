@@ -34,8 +34,10 @@ import { nudgeCoplanar } from './coplanar-nudge.js';
 
 const DEG = Math.PI / 180;
 /** Models whose coplanar parts are nudged apart as they load (art/coplanar-nudge.js: z-fighting; drawn geometry only —
- *  a vehicle's hull height is measured on the authored one, entities/vehicle.js). */
-const NUDGE_MODELS = /^(opel_blitz_cargo|kubelwagen)_(grey|dak|winter)(_top)?$/;
+ *  a vehicle's hull height is measured on the authored one, entities/vehicle.js). The winter bowser (LIGHTS OUT e07's
+ *  convoy bowser; M10 / M11 draw the dak paint): faces of its whitewashed body flush in one plane (tools/art/zfight.mjs
+ *  --mission e07). */
+const NUDGE_MODELS = /^((opel_blitz_cargo|kubelwagen)_(grey|dak|winter)(_top)?|fuel_bowser_winter)$/;
 const YAW_KINDS = new Set(['turret', 'turret_yaw', 'gun_yaw', 'weapon_traverse', 'gun_yaw_pitch']);
 const PITCH_KINDS = new Set(['gun', 'gun_pitch', 'weapon_elev']);
 const SPIN_KINDS = new Set(['prop', 'propeller', 'rotor']);

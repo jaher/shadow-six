@@ -941,9 +941,22 @@ function nearPad(vx, vz, sx, sz, pad) {
 /** The eight headings (× 45°) a squad man wheeling round at a corner may face. */
 const WHEEL = Object.freeze([0, 1, 2, 3, 4, 5, 6, 7]);
 
-/** routeClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
-export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null, wheel = true } = {}) {
+/** With routeClearGen's `ticks`: a walker is tried every this many ticks of the world's clock (0.1 s). */
+const TICK_WALK = 6;
+
+/**
+ * routeClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back).
+ * `ticks` (opt-in): the moments tried are ticks of the world's own clock — a sweeping post's head at every tick (the
+ * game's perception rate), a walker every TICK_WALK-th tick counted from tick 0 — not steps from each window's start.
+ * Two look-aheads made at different moments for the same plan then try the very same moments wherever their windows
+ * meet, so an earlier look with the wider window covers every moment the later one will try; and the far band's tip
+ * (longest straight ahead) crossing a point at the edge of a post's reach for a few ticks of each half sweep is not
+ * stepped over between two 0.15 s steps (LIGHTS OUT e07: the take's look and the carry's look sampled h1's half
+ * sweeps at different phases, one caught his tip on the press lorry's tail and the other did not). Unset: as before.
+ */
+export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null, wheel = true, ticks = false } = {}) {
   const w = D.world;
+  const tick = ticks ? (D.dt ?? CONFIG.sim.dt) : 0, tick0 = ticks ? (w.tick ?? 0) : 0;
   const sp = speed ?? (mode === 'boat' ? 2.5 : mode === 'crawl' ? 0.9 : 1.5);
   let [x, z] = from ?? (() => { throw new Error('routeClear: from'); })();
   let t = delay;
@@ -968,6 +981,8 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
     const far = (e.vision.far ?? 36) + 1;
     // (a post sweeping his head may swing his cone across a point within half a second: finer steps for him)
     const ostep = Math.min(!moving && e.sweepActive ? 0.15 : 0.5, Math.max(0.1, slack));
+    // (`ticks`: a sweeping post every tick, a walker every TICK_WALK-th; a still post's cone does not change: as before)
+    const fine = tick > 0 && (moving || !!e.sweepActive), every = moving ? TICK_WALK : 1;
     const mc = { m: null };
     let ep = -1, noCries = true, hs = null, box = null;
     const fresh = () => { ep = epoch; mc.m = null; noCries = !w.sneakCries?.length; hs = moving ? null : postHeadings(e); box = moving ? reachBox(e) : null; };
@@ -987,10 +1002,17 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
         d1 = dummyFor(w, mode, sx, sz, e.x, e.z);
         d2 = p2 && padded(dummyFor(w, mode, p2[0], p2[1], e.x, e.z), w.grid.elevAt?.(sx, sz) ?? 0);
       }
-      for (let o = -sl; o <= sl + 1e-6; o += ostep) {
+      // (the moments: from st - sl in ostep steps; `fine`, every `every`-th tick of the world's clock within [st - sl, st + sl])
+      let o = -sl, k = 0, k1 = -1;
+      if (fine) {
+        k = Math.max(0, Math.ceil((st - sl) / tick - 1e-6)); k1 = Math.floor((st + sl) / tick + 1e-6);
+        if (every > 1) k += (every - ((tick0 + k) % every)) % every;
+      }
+      for (;;) {
+        let tt;
+        if (fine) { if (k > k1) break; tt = k * tick; k += every; } else { if (o > sl + 1e-6) break; tt = Math.max(0, st + o); o += ostep; }
         if ((++looks & 15) === 0) { yield; epoch++; }
         if (ep !== epoch) fresh();
-        const tt = Math.max(0, st + o);
         let seen;
         if (moving) {
           const q = predict(e, tt), dd = hypot2(q.x - sx, q.z - sz);

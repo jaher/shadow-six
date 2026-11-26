@@ -162,6 +162,7 @@ export const EVENT_NAMES = Object.freeze([
   'alarm:start', 'alarm:end', 'alarm:lamp', 'alarm:zone', 'reinforcements', 'noise',
   // world
   'shot', 'explosion', 'fire', 'structure:destroyed', 'door', 'device', 'lift:arrived', 'documents:taken', 'e04:shaft', 'pushable:drop', 'pushable:hauled',
+  'e07:pass-closed', 'e07:aboard', 'e07:car-shot',
   'vehicle:enter', 'vehicle:exit', 'vehicle:move', 'vehicle:stop', 'vehicle:gear', 'vehicle:fire', 'vehicle:runover', 'vehicle:destroyed',
   'vehicle:tainted', 'train:pass', 'wind:gust', 'wind:flag', 'ambient:flush', 'ambient:call', 'ambient:fishjump',
   // mission / flow

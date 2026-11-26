@@ -85,6 +85,8 @@ VARIANT_HINTS.mobile_bridge = { mobile_bridge_sliding: null }; // M17: missions/
 Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
 // M5 art pass: the village privy is drawn by missions/scripts/m05-art.js (castle-kit plank privy), never the sentry box
 VARIANT_HINTS.hut.outhouse_plank = null;
+// LIGHTS OUT e07: the hamlet's dog kennel is drawn by art/e07-dressing.js (the library's kennel is M19's)
+VARIANT_HINTS.hut.dog_kennel_tyrol = null;
 // M20 art pass 2: the set dressing missions/scripts/m20-art.js draws (art/m20-dressing.js), never a library crate stack
 Object.assign(VARIANT_HINTS.crates, { log_pile_spruce: null, sandbag_point: null, target_rack: null, flak_ammo_pallet: null,
   rangefinder_tripod: null, barrel_cases: null, ls_fire_point: null, wayside_cross: null });

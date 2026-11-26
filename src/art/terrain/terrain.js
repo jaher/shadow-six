@@ -448,7 +448,8 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   let quality = TERRAIN_QUALITY[opts.quality] ? opts.quality : 'high';
   const ctx = { gl, scene, sun: renderer.sun || null, grid, theater, src, P, splat, W, D, heightAt, materialAt, trails, windDir, tNoise, opts, addSnowCover, waterSD: wetAt, deepSD: deepAt, veg, scrubPlan };
   const grass = opts.grass === false ? null : await runSliced(createGrassG(ctx, TERRAIN_QUALITY[quality]));
-  const snowfx = src === 'snow' || opts.snowfall ? createSnowFx(ctx, TERRAIN_QUALITY[quality]) : null;
+  // (falling snow in the snow theatre unless the mission's sky is clear: `snowfall: 0`)
+  const snowfx = (src === 'snow' && opts.snowfall !== 0) || opts.snowfall > 0 ? createSnowFx(ctx, TERRAIN_QUALITY[quality]) : null;
 
   const _sun = new THREE.Vector3();
   let time = 0;
