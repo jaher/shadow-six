@@ -75,6 +75,9 @@ export async function restore(game, snap) {
     if (cam && Number.isFinite(cam.x)) game.cameraController.centerOn(cam.x, cam.z);
   }
   if (snap.flow) game.flow?.deserialize?.(snap.flow);
+  // the set-pieces' lazy init, their restored state, the triggers and the alarm-fail rule now, not on the director's
+  // first 20 Hz tick: an alarm raised before it (on the load's first tick) would find nobody listening
+  w.setpieces?.prime?.();
   game.pendingEnd = snap.end ? { ...snap.end } : null;
   game._endFlags = snap.endFlags ? { ...snap.endFlags } : {};
   const sel = w.commandos.filter((c) => c.selected && c.alive);

@@ -33,6 +33,12 @@ const DOG = {
   idle: ['idle'], walk: ['walk'], run: ['run'], crawl: ['sniff_walk'], crawl_idle: ['sit'], aim: ['bark'], shoot: ['bark'],
   punch: ['attack'], stab: ['attack'], die: ['die'], dead: ['dead'], look_around: ['sniff'], use: ['sniff'],
 };
+/** The circus animals (assets/characters/animals on the dog runtime; clips idle walk trot run attack die dead): the
+ *  animal brain strikes with 'stab' (ai/animal-brain.js); walk / run pick walk, trot or run by ground speed. */
+const ANIMAL = {
+  idle: ['idle'], walk: ['walk'], run: ['run'], crawl: ['walk'], crawl_idle: ['idle'], aim: ['idle'], shoot: ['attack'],
+  punch: ['attack'], stab: ['attack'], attack: ['attack'], die: ['die'], dead: ['dead'], look_around: ['idle'], use: ['idle'],
+};
 /** Locomotion names whose playback rate follows the unit's ground speed (feet planted). */
 export const LOCOMOTION = new Set(['walk', 'run', 'crawl', 'swim', 'dive', 'carry_walk', 'carry_barrel', 'drag_walk', 'downed_crawl']);
 
@@ -69,13 +75,14 @@ function proneAnim(name, wc, c) {
 /**
  * Clip candidates for a gameplay animation.
  * @param {string} name gameplay name (ARCHITECTURE contract)
- * @param {{dog?:boolean, faction?:string, role?:string, actionId?:string|null, stance?:string, carried?:boolean,
+ * @param {{dog?:boolean, animal?:string|null, faction?:string, role?:string, actionId?:string|null, stance?:string, carried?:boolean,
  *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string, mounted?:boolean, waterLayer?:boolean}} [c]
  *   mounted: at a platform MG; waterLayer: the swim layer poses him in the water (art/swim-pose.js); load: how this man is being transported
  *   (bodies-design §C.10) — overrides his own clip; weapon: prop in hand (prone clips follow its carry class)
  * @returns {string[]} ordered candidates; the caller plays the first the character has (else 'idle')
  */
 export function mapAnim(name, c = {}) {
+  if (c.animal) return ANIMAL[name] || ['idle'];
   if (c.dog) return DOG[name] || ['idle'];
   if (c.load === 'drag' && LOAD_NAMES.has(name)) return ['being_dragged', 'dead'];
   if ((c.load === 'shoulder' || (c.carried && c.load == null)) && LOAD_NAMES.has(name)) return ['carried', 'dead'];

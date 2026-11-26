@@ -29,6 +29,8 @@ export const ITEM_ICONS = {
   lethalInjection: S(`<rect x="7" y="13" width="16" height="6" fill="#cfe3e6" stroke="${DARK}"/><path d="M23 16h7M3 16h4M5 12v8" stroke="${STEEL}" stroke-width="1.5"/>`),
   uniform: S(`<path d="M9 6l7 3 7-3 5 6-4 3v12H8V15l-4-3z" fill="#56604a" stroke="${DARK}"/><circle cx="16" cy="14" r="1" fill="${BRASS}"/><circle cx="16" cy="19" r="1" fill="${BRASS}"/>`),
   firstAid: S(`<rect x="5" y="9" width="22" height="16" rx="2" fill="#e8e2d0" stroke="${DARK}"/><path d="M16 12v10M11 17h10" stroke="${RED}" stroke-width="3"/>`),
+  // a buff binder with a red classified band and a ring spine (BCD documents: key tables, archives)
+  documents: S(`<rect x="7" y="5" width="19" height="23" rx="1.5" fill="#c8b48a" stroke="${DARK}"/><rect x="7" y="5" width="4" height="23" fill="#7a5a32" stroke="${DARK}"/><path d="M11 12h15" stroke="${RED}" stroke-width="3"/><path d="M14 18h9M14 21h9M14 24h6" stroke="#6b5a3a" stroke-width="1"/><circle cx="9" cy="10" r="1" fill="${STEEL}"/><circle cx="9" cy="23" r="1" fill="${STEEL}"/>`),
   cartridge: S(`<rect x="13" y="8" width="6" height="18" rx="1" fill="${BRASS}" stroke="#6b5520"/><path d="M13 12h6" stroke="#6b5520"/><path d="M13 8q3-6 6 0" fill="#b07a3a"/>`, '0 0 32 32'),
 };
 

@@ -55,6 +55,9 @@ export const BCD_ITEMS = {
   leeEnfield: { label: 'Lee-Enfield rifle', key: 'E', stack: true, hiddenCount: true, weapon: 'leeEnfield', campaigns: ['BCD'] },
   lipstick: { label: 'Lipstick', key: 'D', stack: false, unlimited: true, campaigns: ['BCD'] },
   beretta: { label: 'Pocket pistol', key: 'Q', stack: false, unlimited: true, weapon: 'pistol', campaigns: ['BCD'] },
+  // a mission's papers (a key-table binder, an archive, an index): picked up with the hand, carried out (no key);
+  // a `bcd_item_objective` set-piece (missions/setpieces-errands.js) turns holding them into the objective
+  documents: { label: 'Documents', key: '', stack: true, campaigns: ['BCD'] },
 };
 
 /** Item definition from the BEL table or the BCD table (null when unknown). */
@@ -198,6 +201,7 @@ export const PICKUP_ROLES = Object.freeze({
   // BCD (bcd-plan §1.5, §1.10): packs are looted by everyone incl. both guests; knapsacks by their owner
   cigarettes: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe', 'tonino'],
   leeEnfield: ['driver'], handcuffs: ['greenberet', 'spy'],
+  documents: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'grethe', 'tonino'],
 });
 
 /** May `role` pick up `thing` (item id, 'body', 'barrel', 'raft')? Guests never pick anything up (§3.5). */

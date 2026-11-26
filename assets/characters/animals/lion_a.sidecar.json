@@ -1,0 +1,64 @@
+{
+ "id": "lion_a",
+ "kind": "lion",
+ "glb": "lion_a.glb",
+ "bytes": 951468,
+ "tris": {
+  "LOD0": 5199,
+  "LOD1": 1899,
+  "LOD2": 699
+ },
+ "materials": 1,
+ "lods": [
+  "LOD0",
+  "LOD1",
+  "LOD2"
+ ],
+ "lod_rule": "LOD0 >= 60 px/m, LOD1 >= 28 px/m, else LOD2",
+ "skeleton": "root, pelvis, spine, chest, neck, head, jaw, ear_l, ear_r, upperarm_l, forearm_l, fpaw_l, upperarm_r, forearm_r, fpaw_r, tail1, tail2, tail3, tail4, thigh_l, shin_l, hpaw_l, thigh_r, shin_r, hpaw_r",
+ "clips": {
+  "walk": {
+   "loop": true,
+   "duration": 1.15,
+   "groundSpeed": 0.684
+  },
+  "trot": {
+   "loop": true,
+   "duration": 0.72,
+   "groundSpeed": 1.912
+  },
+  "run": {
+   "loop": true,
+   "duration": 0.56,
+   "groundSpeed": 3.77
+  },
+  "idle": {
+   "loop": true,
+   "duration": 4.0
+  },
+  "attack": {
+   "loop": true,
+   "duration": 0.6,
+   "events": {
+    "strike": [
+     0.22
+    ]
+   }
+  },
+  "die": {
+   "loop": false,
+   "duration": 1.5
+  },
+  "dead": {
+   "loop": true,
+   "duration": 1.0
+  }
+ },
+ "variation": {
+  "seed": 11,
+  "species": "lion"
+ },
+ "licence": "project-authored geometry, rig and clips (CC0)",
+ "withers_m": 1.0,
+ "sex": "male"
+}

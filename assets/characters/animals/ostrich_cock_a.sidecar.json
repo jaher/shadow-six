@@ -1,0 +1,58 @@
+{
+ "id": "ostrich_cock_a",
+ "kind": "ostrich",
+ "glb": "ostrich_cock_a.glb",
+ "bytes": 716172,
+ "tris": {
+  "LOD0": 4200,
+  "LOD1": 1600,
+  "LOD2": 599
+ },
+ "materials": 1,
+ "lods": [
+  "LOD0",
+  "LOD1",
+  "LOD2"
+ ],
+ "lod_rule": "LOD0 >= 60 px/m, LOD1 >= 28 px/m, else LOD2",
+ "skeleton": "root, pelvis, body, neck1, neck2, neck3, neck4, neck5, head, wing_l, wing_r, tail, thigh_l, shin_l, tarsus_l, toe_l, thigh_r, shin_r, tarsus_r, toe_r",
+ "clips": {
+  "walk": {
+   "loop": true,
+   "duration": 1.2,
+   "groundSpeed": 1.157
+  },
+  "run": {
+   "loop": true,
+   "duration": 0.55,
+   "groundSpeed": 6.766
+  },
+  "idle": {
+   "loop": true,
+   "duration": 3.0
+  },
+  "attack": {
+   "loop": true,
+   "duration": 0.5,
+   "events": {
+    "strike": [
+     0.2
+    ]
+   }
+  },
+  "die": {
+   "loop": false,
+   "duration": 1.3
+  },
+  "dead": {
+   "loop": true,
+   "duration": 1.0
+  }
+ },
+ "variation": {
+  "seed": 21,
+  "species": "ostrich_cock"
+ },
+ "licence": "project-authored geometry, rig and clips (CC0)",
+ "height_m": 2.13
+}

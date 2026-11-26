@@ -15,7 +15,7 @@ const meta = (model) => JSON.parse(readFileSync(new URL(MAN.models[model].meta, 
 const BEL_TYPES = ['atgunM20', 'autogyro', 'cable_car', 'cannon', 'car', 'citroen15', 'halftrack', 'horch', 'ju52', 'ju87',
   'kubelwagen', 'mgNest', 'mine_cart', 'minisub', 'mortar210', 'motorcycle', 'opel_blitz_tanker', 'panzer2', 'panzer3',
   'panzer4', 'patrolboat', 'raft', 'rowboat', 'sdkfz', 'train', 'tram', 'truck', 'van', 'willys'];
-const PLACEHOLDER = new Set(['atgunM20', 'cable_car']); // van → the Citroën Traction (placeholder-art pass)
+const PLACEHOLDER = new Set(['atgunM20', 'cable_car', 'rope_ferry']); // van → the Citroën Traction (placeholder-art pass); e03's ferry punt is mission art
 
 test('vehicles: every mission vehicle type maps to a library model (atgunM20, cable_car → placeholder)', async () => {
   await loadVehicleLibrary(null, { manifest: MAN });

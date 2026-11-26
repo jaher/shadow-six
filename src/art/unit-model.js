@@ -16,6 +16,9 @@
 import { MeshDepthMaterial, Object3D, Matrix4, Vector3, Quaternion, BufferAttribute, LoopOnce } from 'three';
 import { applyClothWind } from './cloth-wind.js';
 import { createHumanoid } from './humanoid.js';
+import { createAnimal } from './animal-placeholder.js';
+import { animalLook } from './circus-animals.js';
+import { ANIMAL_TYPES } from '../ai/bcd-ranks.js';
 import { CONFIG } from '../config.js';
 import * as HR from './humanoid-real.js';
 import { idleWarm } from '../engine/idle-warm.js';
@@ -91,11 +94,13 @@ export async function prepareCharacters(def, { timeoutMs = 20000 } = {}) {
     await Promise.race([HR.loadCharacterLibrary(),
       new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('character library timeout')), timeoutMs); })]);
   } finally { clearTimeout(timer); }
-  const spawns = (def.enemies || []).filter((e) => e.soldierType !== 'dog' && e.id != null)
+  const spawns = (def.enemies || []).filter((e) => e.soldierType !== 'dog' && !ANIMAL_TYPES.includes(e.soldierType) && e.id != null)
     .map((e) => ({ id: String(e.id), soldierType: lookType(e, ctx.theater, ctx.missionId), x: e.x || 0, z: e.z || 0, squad: squadId(e) }));
   HR.assignEnemyLooks(ctx.missionId, spawns);
   // the men's body GLBs download now, while the map builds (engine/early-fetch.js): the units stage builds them later
-  earlyFetch(HR.missionCharacterUrls(ctx.missionId, { roles: (def.commandos || []).map((c) => c.role).filter(Boolean), mission: ctx.missionNo }));
+  // (+ the circus animals' bodies: animalModel)
+  const animals = (def.enemies || []).filter((e) => ANIMAL_TYPES.includes(e.soldierType)).map((e) => animalLook(e.soldierType, e.id)?.character);
+  earlyFetch(HR.missionCharacterUrls(ctx.missionId, { roles: (def.commandos || []).map((c) => c.role).filter(Boolean), mission: ctx.missionNo, ids: animals }));
   ctx.ready = true;
   return true;
 }
@@ -309,6 +314,7 @@ function realOpts(o) {
  *   guestId?:string, colors?:object}} opts
  */
 export function createUnitModel(opts = {}) {
+  if (opts.animal) return animalModel(opts);
   if (!ctx.ready || !HR.characterLibrary()) return createHumanoid(opts);
   const k = aheadKey(opts), pre = k && AHEAD.get(k);
   if (pre) { AHEAD.delete(k); return new UnitModel(pre, opts); }
@@ -316,6 +322,20 @@ export function createUnitModel(opts = {}) {
     console.warn('[unit-model] real character failed, placeholder used', e);
     return createHumanoid(opts);
   }
+}
+
+/**
+ * A BCD animal's model (ai/bcd-enemy.js bcdModelOpts `animal`: lion, ostrich, chicken): its modelled body from the
+ * character library (manifest group 'animals', the dog runtime: LODs, embedded clips, gait by ground speed, paw prints
+ * from the lions' paws) — the look art/circus-animals.js animalLook picks by the spawn id — else, without the library
+ * (node, `?chars=0`, a missing entry), the procedural animal of the same look (art/animal-placeholder.js).
+ */
+function animalModel(opts) {
+  const id = animalLook(opts.animal, opts.spawnId ?? undefined)?.character;
+  if (ctx.ready && id && HR.characterLibrary()?.manifest.characters[id]) {
+    try { return new UnitModel(HR.createRealHumanoid({ id }), opts); } catch (e) { console.warn('[unit-model] real animal failed, procedural used', e); }
+  }
+  return createAnimal(opts.animal, { id: opts.spawnId ?? undefined });
 }
 
 const _rq = new Quaternion(), _bq = new Quaternion(), _bq2 = new Quaternion(), _bq3 = new Quaternion(), _bq3b = new Quaternion(), _v1 = new Vector3(), _v2 = new Vector3();
@@ -373,7 +393,11 @@ export class UnitModel {
       if (this._mwTok === FRAME.n && this.parent && this.parent.isScene) return;
       baseUpdateMW.call(this, force);
     };
-    this.dog = real.entry?.group === 'dogs';
+    // the dog runtime's bodies (art/characters/guests/dogkit.js): the dogs and the circus animals — no man's pose layers
+    const group = real.entry?.group;
+    this.dog = group === 'dogs' || group === 'animals';
+    /** A circus animal ('lion' | 'ostrich' | 'chicken'): its clips map by unit-anim-map's ANIMAL table. */
+    this.animal = group === 'animals' ? (opts.animal || real.entry.soldierType) : null;
     this.player = opts.faction === 'player' && opts.role !== 'guest';
     /** The Marine: swims and dives (art/swim-pose.js poses him in the water; his wetsuit body while he is in it). */
     this.swimmer = this.player && opts.role === 'diver';
@@ -419,7 +443,7 @@ export class UnitModel {
     if (!R.inner) {   // body failed to build → placeholder inside the same root
       this.isReal = false;
       delete this.root.updateMatrixWorld;   // placeholder: plain three.js matrix updates
-      this.fallback = createHumanoid(this.opts);
+      this.fallback = this.animal ? createAnimal(this.animal, { id: this.opts.spawnId ?? undefined }) : createHumanoid(this.opts);
       this.root.add(this.fallback.root);
       this.fallback.setAnim(this.anim, this._o);
       this.fallback.setDisguise?.(this.disguised);
@@ -436,7 +460,7 @@ export class UnitModel {
   _ctx() {
     const u = this.unit;
     const st = this.dog ? null : transportState(u);
-    const c = { dog: this.dog, faction: this.opts.faction, role: this.opts.role, actionId: u?.currentActionId ?? null,
+    const c = { dog: this.dog, animal: this.animal, faction: this.opts.faction, role: this.opts.role, actionId: u?.currentActionId ?? null,
       stance: u?.stance ?? 'stand', carried: u?.state === 'carried', tool: u?.readyTool ?? (u?.pendingAbility?.def?.id === 'knife' ? 'knife' : null), load: st ? transportClip(st) : null,
       mounted: !!u?._mgManned,   // at a platform MG (render/mg-mount.js): kneeling behind it
       waterLayer: this.swimmer,   // the Marine's swim / dive poses (art/swim-pose.js)

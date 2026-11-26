@@ -39,6 +39,7 @@ import { BEACHED, REST, hullUndersideTris, sampleXZ, boatRest, groundOf, waterOf
  */
 export const LIB_VEHICLE = Object.freeze({
   van: 'citroen15', atgunM20: null, atgun: null, cable_car: null, // van: M15's civilian grey van → the Citroën Traction (placeholder-art pass)
+  rope_ferry: null, // LIGHTS OUT e03: the mission draws the ferry's punt over the placeholder (art/e03-dressing.js)
 });
 /** Library asset per registry type when the type's first asset is not the right one for a game vehicle. */
 export const LIB_ASSET = Object.freeze({

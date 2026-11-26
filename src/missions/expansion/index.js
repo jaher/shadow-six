@@ -17,6 +17,7 @@ import './e01_dry_stone.js';
 import './e02_curfew.js';
 
 // e03
+import './e03_winter_quarters.js';
 
 // e04
 import './e04_black_rain.js';

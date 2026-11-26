@@ -3,7 +3,8 @@
  * vehicle rut and per-road look option the terrain audits name — keyed by mission id. Nothing here reaches the
  * simulation: the nav grid, LOS, footprints and the road network the sim reads (normalizeRoadNetwork) are untouched;
  * the splat painter (terrainPainter), the pre-trampled ruts (pretrampleRoads, stamped with no gameplay record) and the
- * non-blocking telegraph poles (expandFurniture) are the only readers.
+ * non-blocking telegraph poles (expandFurniture) are the only readers. The LIGHTS OUT missions' entries live in their own
+ * table (world/line-extras-expansion.js, EXPANSION_LINE_EXTRAS); lineExtrasFor serves both.
  *
  * Entry fields (all optional):
  *   recipe      'thaw' — the theatre's verge / rut table variant (M6, Masi in May)
@@ -23,10 +24,17 @@
  *   campRuts    {seed, mask: [{pts, w}], scuff: {poly, a, patches?}} art/camp-ruts.js (matched by the decal spec's seed):
  *                 lanes masked where a road already runs, low-alpha scuff patches over the hardpan
  *   fans        [{x, z, r, dir: [dx, dz], recipe}] mud / grit / gravel fans painted where wheels leave a surface or stop
+ *   fills       [{poly: [[x, z], …], recipe, recipe2?, scale?, cut?, scale2?, amp2?, edge?, lobes?, strength?, seed?}]
+ *                 a polygon of ground laid wholly to a recipe (a pen trodden to mud), `recipe2` drifting through it in
+ *                 `scale` m patches cut at `cut` [lo, hi] (a finer `scale2` field of weight `amp2` breaks their edges),
+ *                 its edge ragged and feathered over `edge` m and pushed out in `lobes` (m) past the polygon, never into
+ *                 it; painted under the fans
  * Road references key on geometry (`near`), not on positional ids, so a mission whose roads another lane re-lays keeps
  * working, and a reference that matches nothing is a no-op.
  * @module world/line-extras
  */
+
+import { EXPANSION_LINE_EXTRAS } from './line-extras-expansion.js';
 
 /** @type {Record<string, object>} */
 export const LINE_EXTRAS = {
@@ -352,7 +360,9 @@ export const LINE_EXTRAS = {
   },
 };
 
-/** The line extras of a mission (null when it has none). */
+/** The line extras of a mission (null when it has none): the base missions' here, the expansion's in their own table. */
 export function lineExtrasFor(id) {
-  return (id && Object.prototype.hasOwnProperty.call(LINE_EXTRAS, id) && LINE_EXTRAS[id]) || null;
+  if (!id) return null;
+  if (Object.prototype.hasOwnProperty.call(LINE_EXTRAS, id)) return LINE_EXTRAS[id];
+  return (Object.prototype.hasOwnProperty.call(EXPANSION_LINE_EXTRAS, id) && EXPANSION_LINE_EXTRAS[id]) || null;
 }

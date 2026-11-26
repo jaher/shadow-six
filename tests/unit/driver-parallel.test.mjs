@@ -92,3 +92,34 @@ test('D.parallel: a flow that hands the frame back while it plans keeps its turn
   );
   assert.equal(log.join(' '), 'a1 b1 a2 b2 a3 b3');
 });
+
+test('D.parallel nested: the last inner flow hands its place to the caller — no world step until the caller waits, frame-paced or not', async () => {
+  // (e03: a side flow (its pacer) parked all along while a stage's own D.parallel ended: counting the caller out let the
+  // side flow step the world before the caller's next order in a logic run, after it in a live replay whose step waited
+  // for a frame — the walkthrough parted from the tested run at A4)
+  const runs = [];
+  for (const paced of [false, true]) {
+    const w = { time: 0, tick: 0, events: { on: () => () => {} }, commandos: [], enemies: [], vehicles: [], objectives: [], interactables: [] };
+    const tick = () => { w.time += 1 / 60; w.tick++; };
+    let n = 0;
+    // (paced: every other tick waits for a "frame" — a macrotask — first, as the replay's step does when its budget is spent)
+    const step = paced ? () => ((n++ % 2) ? new Promise((r) => setTimeout(r, 0)).then(tick) : tick()) : tick;
+    const D = makeDriver(w, { step, dt: 1 / 60, quiet: true, watch: false, log: () => {} });
+    const log = [];
+    await D.parallel(
+      async () => {
+        await D.parallel(
+          async () => { await D.wait(5 / 60); log.push(`i1@${w.tick}`); },
+          async () => { await D.wait(10 / 60); log.push(`i2@${w.tick}`); },
+        );
+        log.push(`caller@${w.tick}`); // its next order: on the tick its two flows ended
+        await D.wait(3 / 60);
+        log.push(`caller+3@${w.tick}`);
+      },
+      async () => { await D.until(() => w.tick >= 30, 5); log.push(`side@${w.tick}`); },
+    );
+    runs.push(log.join(' '));
+  }
+  assert.equal(runs[0], 'i1@5 i2@10 caller@10 caller+3@13 side@30');
+  assert.equal(runs[1], runs[0], 'a frame-paced step: the same order, the same ticks');
+});

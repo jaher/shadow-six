@@ -202,9 +202,12 @@ export class AnimalBrain {
   reacts() { return false; }
   isAware() { return this.state === 'CHARGE' || this.state === 'ATTACK'; }
   distractBy() { return false; }
-  serialize() { return { animal: true, state: this.state, t: this.t, hitT: this.hitT, targetId: this.target?.id ?? null, provokedBy: this.provokedBy?.id ?? null, chaseFrom: this.chaseFrom, calm: this.calm }; }
+  // (the wander timer too: without it every penned animal picked a new spot on the first tick after a load and drew
+  // from the shared w.rng, and the whole world went another way — e03's lions and ostriches 4 m apart 30 s on, then
+  // the guards. The spot he walks to is his path, saved with the unit)
+  serialize() { return { animal: true, state: this.state, t: this.t, hitT: this.hitT, wanderT: this.wanderT, targetId: this.target?.id ?? null, provokedBy: this.provokedBy?.id ?? null, chaseFrom: this.chaseFrom, calm: this.calm }; }
   deserialize(d) {
-    this.state = d.state ?? 'IDLE'; this.t = d.t ?? 0; this.hitT = d.hitT ?? 0; this.chaseFrom = d.chaseFrom ?? null; this.calm = d.calm ?? null;
+    this.state = d.state ?? 'IDLE'; this.t = d.t ?? 0; this.hitT = d.hitT ?? 0; this.wanderT = d.wanderT ?? 0; this.chaseFrom = d.chaseFrom ?? null; this.calm = d.calm ?? null;
     this.target = d.targetId != null ? this.world?.byId(d.targetId) ?? null : null;
     this.provokedBy = d.provokedBy != null ? this.world?.byId(d.provokedBy) ?? null : null;
   }

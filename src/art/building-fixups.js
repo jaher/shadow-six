@@ -70,6 +70,8 @@ const setMat = (o, fn) => { o.material = Array.isArray(o.material) ? o.material.
  * stays as it was).
  *  - guard_hut_b: the painted sentry box's striped boards and their tarred backing share the shelf's top and underside
  *  - comms_hut_antenna_bq: the door's stone threshold and timber sill lie with their tops flush with the ground
+ * (LIGHTS OUT e03's barn_b and guard_hut_a are NUDGE_ASSETS' and its hut_brick_be COPLANAR_SPLIT's: one mechanism per
+ * asset; a depth step per material cannot part two faces of ONE material, which those three also had)
  */
 export const ZFIGHT_NEAR = {
   guard_hut_b: [/^kit:wood_paint$/],
@@ -107,14 +109,18 @@ export const DROP_LODS = { dam_arch: [2], dam_arch_snow: [2], dam_arch_destroyed
  * z-fighting in the geometry"): those tools/art/zfight.mjs found fighting — sills flush in their recesses, plinth bands
  * and trims flush with the walls, corner boards across band trims, ridge / barge trims on the roofs, doubled boards —
  * in M3 and M12, with the other theatre's twin of each (the LIGHTS OUT colliery's buildings are COPLANAR_SPLIT's: one
- * mechanism per asset). Render only (gameplay measures the authored geometry; the dam's deck lift too:
- * world/map-library.js calibrateDeck casts on it).
+ * mechanism per asset); LIGHTS OUT e03's garrison barn (barn_b: a painted board doubled on itself on its door face, the
+ * corrugated sheets and grey timber overlapping their own copies, granite quoins in the fieldstone's plane) and its gate
+ * hut (guard_hut_a, also the base game's guard_hut / relay / hut variant: a beam overlapping its own copy, painted trims
+ * on the boards, battens on the tar paper). Render only (gameplay measures the authored geometry; the dam's deck lift
+ * too: world/map-library.js calibrateDeck casts on it).
  */
 export const NUDGE_ASSETS = new Set([
   'barracks_c_snow', 'barracks_b', 'barracks_b_snow', 'barn_a', 'barn_a_snow', 'house_timber_b', 'house_timber_b_snow', 'house_timber_c',
   'house_timber_c_snow', 'log_cabin_a', 'log_cabin_a_snow', 'log_cabin_b', 'log_cabin_b_snow', 'stabbur_no', 'stabbur_no_snow',
   'hq_colonial_tunis', 'warehouse_harbour_tunis', 'minaret_tunis', 'house_flat_white_a', 'house_flat_white_b',
   'house_flat_white_c', 'drum_stack_ms', 'crate_stack_ms_c', 'crate_stack_ms_d', 'dam_arch', 'dam_arch_snow',
+  'barn_b', 'guard_hut_a', 'guard_hut_a_snow',
 ]);
 
 /**

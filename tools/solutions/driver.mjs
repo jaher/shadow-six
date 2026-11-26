@@ -931,17 +931,25 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * first error ends the others at their next tick and is thrown.
      */
     async parallel(...fns) {
+      if (!fns.length) return [];
       flows += fns.length - 1;
-      let first = null;
+      let first = null, left = fns.length;
       const run = async (fn) => {
         try { return await fn(); } catch (e) { if (!first) { first = e; parFail = e; } throw e; } finally {
-          flows--;
-          if (queue) advance();
-          else if (parked.length && parked.length >= flows) release();
+          // A flow that ends while others of this call go on is one flow fewer: the next one parked goes on, or the
+          // world steps for them. The last one to end hands its place back to the flow that called parallel, which goes
+          // on in its stead — nothing is released or advanced until that one waits on a tick itself (or ends). Counting
+          // it out meanwhile let flows parked elsewhere (a side flow of an outer parallel: e03's pacer) step the world
+          // before the caller's next order in a logic run, but after it in a live replay whose step waited for a frame
+          // — e03's walkthrough parted from its tested run at A4, where stage A's two flows end.
+          if (--left > 0) {
+            flows--;
+            if (queue) advance();
+            else if (parked.length && parked.length >= flows) release();
+          }
         }
       };
       const rs = await Promise.allSettled(fns.map(run));
-      flows++;
       parFail = null;
       if (first) throw first;
       return rs.map((r) => r.value);

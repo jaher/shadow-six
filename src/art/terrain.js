@@ -34,6 +34,7 @@ import { buildShoreFieldG, shoreFeatures } from '../world/shore-field.js';
 import { due, runSync, runSliced } from '../engine/slice.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
+import { polygonSetTest } from '../core/math.js';
 import { vegetationWetAt, onDryLand } from '../world/veg-shore.js';
 
 /** Base colour per terrain code, per theater tint. */
@@ -498,15 +499,17 @@ function drawnRoads(ctx, grid) {
 
 /**
  * Where no ground cover (grass tufts, clutter) is planted: hard pavement (step 3p) and the mission's `bareGround`
- * polygons (render-only: e.g. the bank under a bridge deck's ends, where tufts poked up between the planks).
+ * polygons (render-only: e.g. the bank under a bridge deck's ends, where tufts poked up between the planks). Every grass,
+ * clutter and apron candidate asks it: the polygons are tested through core/math.js polygonSetTest (each one's bounding
+ * box first — the same answers; a full even-odd test over all of them made e03's seventeen cost ~2.3 s of its load).
  */
 function groundExclude(ctx, mission, grid) {
   const roads = ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? drawnRoads(ctx, grid) : null;
   const bare = (mission?.bareGround || []).map((b) => b.points || b).filter((p) => Array.isArray(p) && p.length >= 3);
   if (!roads && !bare.length) return undefined;
   if (!bare.length) return (x, z) => roads.covers(x, z);
-  const inside = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
-  return (x, z) => (roads ? roads.covers(x, z) : false) || bare.some((P) => inside(x, z, P));
+  const inBare = polygonSetTest(bare);
+  return (x, z) => (roads ? roads.covers(x, z) : false) || inBare(x, z);
 }
 
 /** buildTerrain() as a sliced job (engine/slice.js): the same ground, pausing inside the apron / shore fields. */

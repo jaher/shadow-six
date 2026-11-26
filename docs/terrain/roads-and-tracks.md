@@ -79,7 +79,15 @@ trodden lines the pre-trampled prints press them flat (the grass shader reads th
 `roads` (per-road options matched by geometry, `{near: [x, z]}`, so a re-laid road keeps working and a reference that
 matches nothing is a no-op: widths, pairs, gauge, wear, glaze, verge caps, ends, a visual `course` such as M10's curve
 through the N gate), `lines` (foot / boot / drag / cart / vehicle / tracked / sled), `stamps` (outrigger and
-track-link marks), `fans` (mud / grit / gravel where wheels leave a surface or stop), `areas` (slab wash, pad rings),
+track-link marks), `fans` (mud / grit / gravel where wheels leave a surface or stop), `fills` (a polygon of ground
+laid wholly to a recipe, optionally drifting to a second one in fbm patches — `scale` m, cut at `cut` [lo, hi], their
+edges broken by a finer `scale2` field of weight `amp2` — its edge ragged and feathered over `edge` m and pushed out in
+`lobes` (m: tongues spilling past the polygon, never into it): a pen trodden to mud from rail to rail, so none of the
+base splat's own mix shows through; painted before the fans, which then lay their patches and grass strips over it —
+e03's paddock, kennel yard and hens' run, whose drier ground is the temperate `trodden` recipe: the pale packed layers
+with mud only in its low spots, since a mix that keeps much mud shows mud clods all over through the terrain shader's
+height blend), `areas`
+(slab wash, pad rings),
 `poles` (non-blocking pole slides), `toRoad` (desire lines from doors to the nearest road), `campRuts` (M9 decal mask
 + scuff, matched by the decal's seed), `recipe: 'thaw'` (M6). Every line and door path keeps out of buildings, huts and
 tents (a unit test walks them against the structures' footprints): lanes go round the houses door to door. A wheel

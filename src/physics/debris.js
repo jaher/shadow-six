@@ -31,6 +31,30 @@ const DEFAULTS = { settleV: 0.2, settleW: 0.5, settleHold: 0.35, timeout: 9, thu
   upright: 0.7, toppleGap: 0.4, hingeDamp: 3.2, jamDepth: 0.015, jamTear: 0.15, tearDepth: 0.2, slowHold: 1, jamWait: 1.2,
   stickV: 1, stickMul: 3, restDrift: 0.05, restV: 1.5 };
 
+/**
+ * Can anything ever ram one of this world's gates? Only a vehicle off the water can (vehicle._breakBarriers): a world
+ * whose vehicles are all boats — the ones on the map at load and none the mission brings on later (a trigger's
+ * `spawnVehicle`, the extraction's `spawnAt`; the Marine's raft is a boat) — never smashes a gate, so its load skips
+ * the gate warm-up (LIGHTS OUT e03: a rope ferry and a boom gate; the warm-up was a 0.64 s main-thread task bought
+ * for nothing). Any later vehicle of any type keeps the warm-up (no type lookup here: a patrol boat brought on by a
+ * trigger, as M13's, costs the warm-up it always had).
+ */
+export function gateRammerPossible(w) {
+  if ((w?.vehicles || []).some((v) => !v.isBoat)) return true;
+  const m = w?.mission;
+  if (!m) return true; // (no def to read: as before)
+  if (m.extraction?.spawnAt) return true;
+  let later = false;
+  const walk = (o, depth) => {
+    if (later || !o || typeof o !== 'object' || depth > 12) return;
+    if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+    for (const k of Object.keys(o)) { if (k === 'spawnVehicle') { later = true; return; } walk(o[k], depth + 1); }
+  };
+  walk(m.triggers, 0);
+  walk(m.setpieces, 0);
+  return later;
+}
+
 /** Gate frame (gate interactable → world): origin at the gate centre on the ground, yaw from the structure rot. */
 function frameOf(w, gate) {
   const rot = gate.params?.rot ?? gate.params?.structure?.rot ?? 0;
@@ -66,7 +90,7 @@ export class GateDebris {
       this.gates.push(g);
     }
     this.owners = new Set(this.gates.map((g) => g.owner));
-    if (this.gates.length) this._warm();
+    if (this.gates.length && gateRammerPossible(w)) this._warm();
     this._off = w.events.on('gate:smash', (e) => { if (e?.gate) this.queue.push(e); });
     this._offDoor = w.events.on('door', (e) => this._doorChanged(e));
   }

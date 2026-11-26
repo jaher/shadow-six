@@ -318,3 +318,42 @@ def _cmini(mode):
     P = []; charge(P)
     D.group('chargemini', P, rot=(0, 0, 8))
     S.shoot('charge.mini', 'item', box=(9, 7), margin=0.02, scale=16, shadow=False, slot=0)
+
+
+def documents():
+    """A buff card binder (key tables, an archive): two boards over a thick block of typed sheets, a cloth spine with two
+    steel eyelets, a red cross band, a typed paper label (own design, no insignia) and a tape tie."""
+    card = paper('doc_card', M.lin((0.46, 0.37, 0.21)), wrinkle=0.45, rough=0.6)
+    sheets = paper('doc_sheets', M.lin((0.66, 0.64, 0.56)), wrinkle=0.25, rough=0.7)
+    label = paper('doc_label', M.lin((0.74, 0.71, 0.60)), wrinkle=0.15, rough=0.65)
+    spine = M.solid('doc_spine', M.lin((0.17, 0.10, 0.05)), rough=0.75, var=0.15, vscale=90.0, bump=0.05)
+    red = M.solid('doc_red', M.lin((0.40, 0.035, 0.03)), rough=0.6, var=0.1)
+    ink = M.solid('doc_ink', M.lin((0.05, 0.045, 0.04)), rough=0.7, var=0.05)
+    tape = M.solid('doc_tape', M.lin((0.52, 0.45, 0.33)), rough=0.8, var=0.12)
+    steel = nickel()
+    W, T, H = 70, 14, 94
+    P = [D.box('board_f', (W * MM, 1.6 * MM, H * MM), card, loc=(0, -(T / 2 - 0.8) * MM, H / 2 * MM), bevel=0.5 * MM),
+         D.box('board_b', (W * MM, 1.6 * MM, H * MM), card, loc=(0, (T / 2 - 0.8) * MM, H / 2 * MM), bevel=0.5 * MM),
+         D.box('sheets', ((W - 4) * MM, (T - 3.6) * MM, (H - 4) * MM), sheets, loc=(1.6 * MM, 0, (H / 2 - 0.6) * MM), bevel=0.3 * MM),
+         D.box('spine', (6 * MM, (T + 0.6) * MM, (H + 0.4) * MM), spine, loc=(-(W / 2 - 2.4) * MM, 0, H / 2 * MM), bevel=1.4 * MM, segs=4)]
+    # the sheets fan out a little at the open edge (a few proud of the block)
+    for i, (dy, dz, dx) in enumerate(((-3.2, 2.0, 1.4), (-0.6, -1.5, 2.2), (2.4, 1.0, 1.0))):
+        P.append(D.box(f'sheet{i}', ((W - 6) * MM, 0.35 * MM, (H - 7) * MM), sheets, loc=((2.4 + dx) * MM, dy * MM, (H / 2 + dz - 1.2) * MM), bevel=0.1 * MM))
+    yf = -(T / 2) * MM - 0.25 * MM
+    P.append(D.box('band', ((W - 7) * MM, 0.5 * MM, 10 * MM), red, loc=(3 * MM, yf, (H - 22) * MM), bevel=0.1 * MM))
+    P.append(D.box('label', (40 * MM, 0.4 * MM, 22 * MM), label, loc=(4 * MM, yf - 0.1 * MM, 34 * MM), bevel=0.1 * MM))
+    for k, (lw, z) in enumerate(((31, 40), (26, 35.5), (29, 31), (17, 26.5))):
+        P.append(D.box(f'type{k}', (lw * MM, 0.3 * MM, 1.1 * MM), ink, loc=((4 - (31 - lw) / 2) * MM, yf - 0.35 * MM, z * MM), bevel=0.0))
+    for k, z in enumerate((22, 72)):
+        P.append(cy(f'eyelet{k}', 2.6, 1.2, steel, -(W / 2 - 2.4), -(T / 2 + 0.4), z, 'Y', 20, 0.2))
+    # the tape tie round the boards, knotted at the open edge
+    P.append(D.box('tie_f', (W * 0.55 * MM, 0.5 * MM, 5 * MM), tape, loc=(W * 0.24 * MM, yf - 0.05 * MM, 52 * MM), bevel=0.1 * MM))
+    P.append(D.box('tie_e', (0.6 * MM, (T + 1.4) * MM, 5 * MM), tape, loc=((W / 2 + 0.6) * MM, 0, 52 * MM), bevel=0.1 * MM))
+    P.append(D.box('tie_end', (14 * MM, 0.5 * MM, 4 * MM), tape, loc=((W / 2 + 6) * MM, yf, 47 * MM), rot=(0, 28, 0), bevel=0.1 * MM))
+    return P
+
+
+@S.shot('documents')
+def _docs(mode):
+    D.group('documents', documents(), rot=(0, 0, 18))
+    S.shoot('documents', mode, box=(30, 36), margin=0.04)

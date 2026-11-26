@@ -133,6 +133,50 @@ export function pointInPolygon(x, z, pts) {
 }
 
 /**
+ * One point test for a set of polygons ([[x,z],...] each): is (x, z) inside any of them? The same even-odd test as
+ * pointInPolygon, with each polygon's bounding box checked first. Made for callers that ask for very many points while
+ * most of them lie far from every polygon (art/terrain.js groundExclude: every grass tuft, litter and apron candidate
+ * against a mission's `bareGround`; e03's seventeen polygons, 404 vertices, made the full test ~29× dearer). It answers
+ * exactly as testing every polygon would: a point outside a polygon's box (boundaries included in the box) crosses its
+ * edges an even number of times, or not at all.
+ * @param {Array<Array<[number, number]>>} polys
+ * @returns {(x: number, z: number) => boolean}
+ */
+export function polygonSetTest(polys) {
+  const P = [];
+  for (const pts of polys) {
+    const n = pts.length;
+    if (n < 3) continue;
+    const v = new Float64Array(n * 2);
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const x = pts[i][0], z = pts[i][1];
+      v[2 * i] = x; v[2 * i + 1] = z;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (z < z0) z0 = z;
+      if (z > z1) z1 = z;
+    }
+    P.push({ v, n, x0, z0, x1, z1 });
+  }
+  const m = P.length;
+  return (x, z) => {
+    for (let k = 0; k < m; k++) {
+      const p = P[k];
+      if (!(x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1)) continue;
+      const v = p.v, n = p.n;
+      let c = false;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const xi = v[2 * i], zi = v[2 * i + 1], xj = v[2 * j], zj = v[2 * j + 1];
+        if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+      }
+      if (c) return true;
+    }
+    return false;
+  };
+}
+
+/**
  * Seeded deterministic RNG (mulberry32). Use `world.rng` in simulation code — never Math.random —
  * so replays, tests and quick-load behave identically.
  */

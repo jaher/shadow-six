@@ -56,6 +56,15 @@
     "embedded in each dog GLB"
    ],
    "weapons": null
+  },
+  "animals": {
+   "module": "../../src/art/characters/guests/dogkit.js",
+   "create": "createDog (the circus animals of e03 share the dog runtime: LODs, embedded clips, gait by ground speed)",
+   "anims": [
+    "embedded in each animal GLB"
+   ],
+   "weapons": null,
+   "build": "tools/characters/animals/build_animal.py (Blender; project-authored geometry, rig, clips: CC0)"
   }
  },
  "roles": {
@@ -861,7 +870,7 @@
    "sidecar": "commandos/spy.sidecar.json",
    "faction": "player",
    "role": "spy",
-   "name": "Ren\u00e9 Duchamp \"Spooky\"",
+   "name": "René Duchamp \"Spooky\"",
    "key": 6,
    "heightM": 1.79,
    "tris": {
@@ -909,7 +918,7 @@
    "sidecar": "commandos/spy_disguise.sidecar.json",
    "faction": "player",
    "role": "spy",
-   "name": "Ren\u00e9 Duchamp disguised as a German officer (same face)",
+   "name": "René Duchamp disguised as a German officer (same face)",
    "key": 6,
    "heightM": 1.79,
    "tris": {
@@ -8306,6 +8315,240 @@
     "sniff",
     "sniff_walk",
     "trot",
+    "walk"
+   ]
+  },
+  "lion_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/lion_a.glb",
+   "bytes": 413149,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/lion_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "lion",
+   "variant": "lion",
+   "tris": {
+    "LOD0": 5199,
+    "LOD1": 1899,
+    "LOD2": 699
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "trot",
+    "walk"
+   ]
+  },
+  "lion_b": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/lion_b.glb",
+   "bytes": 430995,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/lion_b.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "lion",
+   "variant": "lion",
+   "tris": {
+    "LOD0": 5200,
+    "LOD1": 1899,
+    "LOD2": 699
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "trot",
+    "walk"
+   ]
+  },
+  "lioness_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/lioness_a.glb",
+   "bytes": 294611,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/lioness_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "lion",
+   "variant": "lioness",
+   "tris": {
+    "LOD0": 4200,
+    "LOD1": 1899,
+    "LOD2": 699
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "trot",
+    "walk"
+   ]
+  },
+  "ostrich_cock_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/ostrich_cock_a.glb",
+   "bytes": 369286,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/ostrich_cock_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "ostrich",
+   "variant": "ostrich_cock",
+   "tris": {
+    "LOD0": 4200,
+    "LOD1": 1600,
+    "LOD2": 599
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "walk"
+   ]
+  },
+  "ostrich_hen_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/ostrich_hen_a.glb",
+   "bytes": 401127,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/ostrich_hen_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "ostrich",
+   "variant": "ostrich_hen",
+   "tris": {
+    "LOD0": 4200,
+    "LOD1": 1599,
+    "LOD2": 600
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "walk"
+   ]
+  },
+  "hen_brown_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/hen_brown_a.glb",
+   "bytes": 162106,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/hen_brown_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "chicken",
+   "variant": "hen_brown",
+   "tris": {
+    "LOD0": 1800,
+    "LOD1": 700,
+    "LOD2": 300
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
+    "walk"
+   ]
+  },
+  "hen_white_a": {
+   "group": "animals",
+   "runtime": "dogs",
+   "glb": "animals/hen_white_a.glb",
+   "bytes": 170459,
+   "meshes": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "lods": [
+    "LOD0",
+    "LOD1",
+    "LOD2"
+   ],
+   "sidecar": "animals/hen_white_a.sidecar.json",
+   "faction": "enemy",
+   "soldierType": "chicken",
+   "variant": "hen_white",
+   "tris": {
+    "LOD0": 1799,
+    "LOD1": 699,
+    "LOD2": 300
+   },
+   "clips": [
+    "attack",
+    "dead",
+    "die",
+    "idle",
+    "run",
     "walk"
    ]
   }

@@ -170,15 +170,18 @@ function buildLinear(type, p, def, ctx = {}) {
     : dressed && type === 'wall' && /clothesline/.test(String(p.variant ?? '')) ? clotheslineRun(points)
       : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways, flushAt: p.flushAt, gatePiers: p.gatePiers, theater: ctx.theater }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
-  const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
+  // (`visual: false`: gameplay only for a fence too — its art is drawn by the mission: e03's ring kerb, veranda rail)
+  const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) && p.visual !== false ? wireTypeOf({ ...p, type, h }, ctx) : null;
   let dressedFence = false;
   // placeholder-art pass: textured fence kit (railings on dwarf walls, palisades, rock rims, post-and-rail)
-  if (type === 'fence' && !wire && dressingOn(ctx)) {
+  if (type === 'fence' && !wire && dressingOn(ctx) && p.visual !== false) {
     root.add(buildFenceKit(points, { variant: p.variant, h, width, id: p.id ?? `fence@${points[0]}` }));
     dressedFence = true;
   }
   if (wire && !root.userData.wireRun) root.userData.wireRun = { type: wire, def: { ...p, type, h, width }, points, coping: type === 'wall' ? { top: h } : null };
-  for (let k = 0; !dressed && !dressedFence && !(wire && type === 'fence') && k + 1 < points.length; k++) {
+  // (`visual: false` draws nothing here either: the placeholder posts and three strands at 0.5 / 1.2 / 1.9 m, whatever
+  // the run's height, hung in the air over e03's 0.6 m ring kerb and its veranda rail)
+  for (let k = 0; p.visual !== false && !dressed && !dressedFence && !(wire && type === 'fence') && k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1];
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-6) continue;

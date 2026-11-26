@@ -1,11 +1,14 @@
 /**
  * Placeholder quadruped / bird meshes for the BCD animals (docs/bcd-plan.md §1.9, §4: "NOW placeholder").
  * Same model interface as art/humanoid.js ({root, setAnim, update, setColors, setDisguise, dispose}) so the
- * Unit class drives it unchanged. The LATER art step replaces these one for one.
+ * Unit class drives it unchanged. The lion, ostrich and hen are the procedural art/circus-animals.js models; in the
+ * game they stand in only while no modelled body can be shown (art/unit-model.js createUnitModel: the character
+ * library's animals, assets/characters/animals).
  * @module art/animal-placeholder
  */
 
 import * as THREE from 'three';
+import { createLion, createOstrich, createHen, lookSeed, animalLook } from './circus-animals.js';
 
 const LOOK = {
   lion: { color: 0xb88a3e, len: 1.9, h: 0.9, w: 0.6, head: 0.42, mane: 0x6a4420 },
@@ -18,6 +21,13 @@ const LOOK = {
  * @param {{color?: number}} [o]
  */
 export function createAnimal(kind, o = {}) {
+  // the LATER art step (art/circus-animals.js): shaded, jointed procedural animals — a maned lion or a lioness, an
+  // ostrich cock or hen, a brown or white hen — picked steadily by the spawn's id (o.id), as the modelled library
+  // bodies that stand for them when the character library is loaded (animalLook, art/unit-model.js)
+  const id = o.id ?? o.seed ?? kind, seed = lookSeed(id), look = animalLook(kind, id);
+  if (kind === 'lion') return createLion({ variant: look.variant, seed });
+  if (kind === 'ostrich') return createOstrich({ variant: look.variant, seed });
+  if (kind === 'chicken') return createHen({ variant: look.variant, seed });
   const L = LOOK[kind] || LOOK.lion;
   const mat = new THREE.MeshStandardMaterial({ color: o.color ?? L.color, roughness: 0.9 });
   const root = new THREE.Group();

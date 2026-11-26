@@ -63,14 +63,23 @@ export function installSetpieces(world, mission, opts = {}) {
       world.scriptFail = reason || 'MISSION FAILED';
       world.events.emit('message', { text: world.scriptFail, kind: 'warn' });
     },
-    tick(dt) {
-      // lazy init + restored state first, so 'start' triggers see the saved fired counts
+    /**
+     * What the first 20 Hz tick does before it ticks: each piece's lazy init and its restored state (so 'start'
+     * triggers see the saved fired counts), then the triggers, the alarm-fail rule and the mission script. A load runs
+     * it as soon as the world is restored (save.js restore): the pieces' and triggers' listeners must be there from
+     * the first tick after a load — an alarm raised before the director's first tick (a challenge running out on the
+     * load's first tick) was missed, and e03's well, kennel and the Oberst's withdrawal never heard it.
+     */
+    prime() {
       for (const p of pieces) {
         if (p.removed) continue;
         if (!p.inited) { p.inited = true; p.init(); }
         if (p._pendingLoad) { const s = p._pendingLoad; p._pendingLoad = null; p.load(s); }
       }
       if (!dir.started) start();
+    },
+    tick(dt) {
+      dir.prime();
       for (const p of pieces) if (!p.removed) p.tick(dt);
       runDelayed(dir, dt);
     },

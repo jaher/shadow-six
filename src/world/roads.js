@@ -411,6 +411,9 @@ const RECIPES = {
     fan: { mud: 0.75, road: 0.18, gravel: 0.07 }, grit: { gravel: 0.6, road: 0.25, mud: 0.15 }, gravel: { gravel: 0.7, road: 0.15, grassdry: 0.15 },
     gravelPath: { gravel: 0.76, road: 0.12, grassdry: 0.12 }, gutter: { mud: 0.84, leaves: 0.16 }, firm: { gravel: 0.6, road: 0.25, mud: 0.15 },
     base: { grass: 0.65, grassdry: 0.35 }, sig: ['road'],
+    // dry trodden earth (a pen's firmer, drier ground between its wet hollows): mostly the pale packed layers, mud only
+    // in its low spots, so the height blend shows smooth paler ground instead of the mud's clods
+    trodden: { road: 0.46, grassdry: 0.42, mud: 0.12 },
   },
   thaw: { // M6, Masi in May: the sward dead and pale, the ruts standing in water, the verge wet earth and dead grass
     shoulder: { mud: 0.58, road: 0.32, grassdry: 0.1 }, rut: { mud: 0.66, road: 0.34 }, verge: { mud: 0.36, grassdry: 0.38, road: 0.18, gravel: 0.08 },
@@ -1034,6 +1037,12 @@ function thinMix(w, thin, amt, li) {
 }
 
 /** Per-theatre recipe (with the mission's overrides: 'thaw', 'coast'). */
+/** The look recipes a theatre's painters know, by name (a line extra's fan names one of them). */
+export function lookRecipeNames(theater = 'temperate') {
+  const th = theater === 'desert' || theater === 'snow' ? theater : 'temperate';
+  return Object.keys(RECIPES[th] || {});
+}
+
 function recipeFor(model, extras) {
   const base = RECIPES[model.theatre];
   const over = extras?.recipe === 'thaw' ? RECIPES.thaw : model.theater === 'coast' ? RECIPES.coast : null;
@@ -1063,6 +1072,48 @@ export function roadLookPainter(index, theater, layers, o = {}) {
   const th = model.theatre, R = recipeFor(model, model.extras);
   const li = (n) => layers.indexOf(n);
   const fans = (model.extras?.fans || []).map((f) => { const d = Math.hypot(f.dir?.[0] ?? 1, f.dir?.[1] ?? 0) || 1; return { ...f, dx: (f.dir?.[0] ?? 1) / d, dz: (f.dir?.[1] ?? 0) / d }; });
+  // (many fans — a mission's trodden pens: e03 — are looked up through 8 m buckets: each bucket lists, in their order,
+  //  the fans whose reach (2.2 r) overlaps it, i.e. every fan the per-texel reach test below could let through)
+  const FB = 8, fanBuckets = fans.length > 12 ? new Map() : null;
+  if (fanBuckets) for (const f of fans) {
+    const e = f.r * 2.2;
+    for (let i = Math.floor((f.x - e) / FB); i <= Math.floor((f.x + e) / FB); i++) for (let j = Math.floor((f.z - e) / FB); j <= Math.floor((f.z + e) / FB); j++) {
+      const k = i * 65536 + j, L = fanBuckets.get(k);
+      if (L) L.push(f); else fanBuckets.set(k, [f]);
+    }
+  }
+  const NOFANS = [];
+  const fansAt = (x, z) => (fanBuckets ? fanBuckets.get(Math.floor(x / FB) * 65536 + Math.floor(z / FB)) || NOFANS : fans);
+  // fills (line extras `fills`): a polygon of ground laid wholly to a recipe — a pen trodden to mud from rail to rail —
+  // under its fans; its edge ragged (noise-shifted) and feathered over `edge` m, pushed out further in `lobes` (m:
+  // tongues spilling past the rails, never in), a second recipe drifting through it in `scale` m patches (cut at `cut`;
+  // a finer `scale2` field of weight `amp2` breaks their edges up). The defaults paint as before the options existed.
+  const fills = (model.extras?.fills || []).filter((f) => Array.isArray(f.poly) && f.poly.length >= 3).map((f, i) => {
+    const edge = f.edge ?? 0.6, lobes = f.lobes ?? 0, bb = bbox(f.poly), pad = edge * 1.6 + lobes * 1.7;
+    return { poly: f.poly, edge, lobes, scale: f.scale ?? 4, k: Math.min(1, f.strength ?? 1), seed: f.seed ?? i * 7.3 + 1.1,
+      a: R[f.recipe] || R.wash, b: f.recipe2 ? R[f.recipe2] || null : null, cut: f.cut ?? [0.34, 0.66], s2: f.scale2 ?? 1, a2: f.amp2 ?? 0,
+      bb: [bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad] };
+  });
+  const fillAt = (x, z, w, S) => {
+    let any = false;
+    for (const f of fills) {
+      if (x < f.bb[0] || x > f.bb[2] || z < f.bb[1] || z > f.bb[3]) continue;
+      const { d } = polygonEdgeDistance(x, z, f.poly), sd = pointInPolygon(x, z, f.poly) ? d : -d;
+      let rag = (fbm2(x * 0.8 + f.seed, z * 0.8 - f.seed * 1.3) - 0.5) * f.edge * 1.4;
+      if (f.lobes) rag += Math.max(0, fbm2(x * 0.3 + f.seed * 3.1, z * 0.3 - f.seed * 2.3) - 0.46) * 3 * f.lobes;
+      const k = sstep(-f.edge * 0.5, f.edge, sd + rag) * f.k;
+      if (k < 0.01) continue;
+      blendTo(w, f.a, k, S, li);
+      if (f.b) {
+        let n = fbm2(x / f.scale + f.seed * 2.1, z / f.scale - f.seed);
+        if (f.a2) n += (fbm2(x / f.s2 - f.seed * 1.7, z / f.s2 + f.seed * 0.9) - 0.5) * f.a2;
+        const t = sstep(f.cut[0], f.cut[1], n);
+        if (t > 0.01) blendTo(w, f.b, k * t, S, li);
+      }
+      any = true;
+    }
+    return any;
+  };
   const areaOpt = model.extras?.areas || {};
   // slab wash / pad ring per hard area (its bounding box kept here: the net is never written to)
   const areaBand = net.areas.map((a) => {
@@ -1071,7 +1122,7 @@ export function roadLookPainter(index, theater, layers, o = {}) {
     const wash = hard ? ao?.wash ?? (th === 'temperate' && /^(concrete|asphalt|asphalt_cracked)$/.test(a.surface) ? 0.25 : 0) : 0;
     return { a, ring, wash, reach: Math.max(ring, wash) + 0.9, bb: bbox(a.points) };
   }).filter((b) => b.ring > 0 || b.wash > 0);
-  if (!model.courses.length && !areaBand.length && !fans.length) return null;
+  if (!model.courses.length && !areaBand.length && !fans.length && !fills.length) return null;
   model.idx = courseIndex(model.courses);
   const sig = (R.sig || []).map(li).filter((i) => i >= 0);
   const shoreSig = [...new Set([...sig, li('mud'), li('wetsand')])].filter((i) => i >= 0);
@@ -1088,7 +1139,8 @@ export function roadLookPainter(index, theater, layers, o = {}) {
     let painted = false;
     // (1) the outside of hard areas: an oil / dirt wash at slab edges, a worn ring round pads; mud / grit fans
     if (areaBand.length && areaBands(x, z, w, S)) painted = true;
-    for (const f of fans) {
+    if (fills.length && fillAt(x, z, w, S)) painted = true;
+    for (const f of fansAt(x, z)) {
       const dx = x - f.x, dz = z - f.z;
       if (Math.abs(dx) > f.r * 2.2 || Math.abs(dz) > f.r * 2.2) continue;
       const u = dx * f.dx + dz * f.dz, v = -dx * f.dz + dz * f.dx;

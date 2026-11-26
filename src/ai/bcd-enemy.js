@@ -9,7 +9,6 @@
 import { CONFIG } from '../config.js';
 import { canSee } from './perception.js';
 import { isAnimal, ANIMAL_TYPES } from './bcd-ranks.js';
-import { createAnimal } from '../art/animal-placeholder.js';
 
 /** Brain states added by BCD (EnemyBrain.deserialize accepts them). */
 export const BCD_BRAIN_STATES = Object.freeze(['STUNNED', 'BOUND', 'PUPPET', 'STONE', 'CIGS', 'REVIVE', 'LIPSTICK', 'FLEE', 'REPORT', 'BRIDGE']);
@@ -25,9 +24,12 @@ const LOOK = {
   pow: { soldierType: 'soldier', colors: { body: 0x7a7468, hat: 0x5a564c } },
 };
 
-/** Unit constructor extras for BCD soldier types ({} for every BEL type). */
+/**
+ * Unit constructor extras for BCD soldier types ({} for every BEL type). An animal's model is built by
+ * art/unit-model.js createUnitModel (`animal`): its modelled library body, or the procedural one without the library.
+ */
 export function bcdModelOpts(soldierType, spawn = {}) {
-  if (ANIMAL_TYPES.includes(soldierType)) return { model: createAnimal(soldierType, spawn.colors || {}) };
+  if (ANIMAL_TYPES.includes(soldierType)) return { modelOpts: { animal: soldierType } };
   const L = LOOK[soldierType];
   return L ? { modelOpts: { soldierType: L.soldierType, colors: spawn.colors ?? L.colors } } : {};
 }
