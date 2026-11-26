@@ -418,8 +418,11 @@ export function buildCliff(p) {
       const [rx, y, rz] = top[i], [e, t] = edgeOf[i], A = off[e], B = off[(e + 1) % off.length];
       const X = r === 0 ? rx : A[0] + (B[0] - A[0]) * t, Z = r === 0 ? rz : A[1] + (B[1] - A[1]) * t;
       const k = Math.pow(r / RINGS, 0.8);   // blend from the rim height into the rolling top (no step at the rim)
-      const Y = flat ? (y + 0.05) * (1 - k) + (h - 0.06 - 0.14 * Math.abs(fbm(X * 0.3, 7.7, Z * 0.3, seed + 5, 3))) * k
-        : (y + 0.05) * (1 - k) + (h + 0.6 + 1.6 * fbm(X * 0.09, 7.7, Z * 0.09, seed + 5, 3) + 0.4 * fbm(X * 0.5, 1.3, Z * 0.5, seed + 6, 2)) * k;
+      // (the cap's outer ring IS the walls' top ring, vertex for vertex: lifted 5 cm off it, the rim was a slit the sea
+      // showed through wherever a face was seen edge-on past a notch — e05's north cliff, review r2)
+      const lift = r === 0 ? 0 : 0.05;
+      const Y = flat ? (y + lift) * (1 - k) + (h - 0.06 - 0.14 * Math.abs(fbm(X * 0.3, 7.7, Z * 0.3, seed + 5, 3))) * k
+        : (y + lift) * (1 - k) + (h + 0.6 + 1.6 * fbm(X * 0.09, 7.7, Z * 0.09, seed + 5, 3) + 0.4 * fbm(X * 0.5, 1.3, Z * 0.5, seed + 6, 2)) * k;
       pos.push(X, squeeze(X, Z, Y), Z); uv.push(X / 9 + 0.37, Z / 9 + 0.61);   // wider tiling seen from above
     }
   }

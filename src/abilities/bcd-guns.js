@@ -4,8 +4,9 @@
  *                (18 m); hidden count 50 (HUD shows ∞). CONFIG.weapons.leeEnfield. Like every bullet (§3.6) it sets
  *                off an explosive barrel or a fuel tanker — within its own 27 m, in sight (weapons.explosiveInReach).
  *   beretta   Q  Grethe's pocket pistol (internal id `beretta`): the BEL pistol's stats and rules.
- *   lipstick  D  Grethe: any rank but the Gestapo stares at her; his cone follows her until she leaves his far
- *                band, is attacked, or the player right-clicks her (ai/bcd-reactions.startLipstick).
+ *   lipstick  D  Grethe's small talk (internal id `lipstick`; the HUD says "Small talk"): any rank but the Gestapo
+ *                answers her and keeps his eyes on her; his cone follows her until she leaves his far band, is
+ *                attacked, or the player right-clicks her (ai/bcd-reactions.startLipstick).
  * The SMG keeps its BEL def; only its key moves to W through `rules.hotkeys` (§2).
  * @module abilities/bcd-guns
  */
@@ -63,7 +64,7 @@ registerAbility({
 }
 
 registerAbility({
-  id: 'lipstick', label: 'Lipstick', icon: '💄', hotkey: null, roles: ['grethe'], item: 'lipstick', targeting: 'enemy',
+  id: 'lipstick', label: 'Small talk', icon: '💬', hotkey: null, roles: ['grethe'], item: 'lipstick', targeting: 'enemy',
   cursor: 'talk', order: 12, campaigns: BCD, range: CONFIG.bcd.lipstick.range, visibleToEnemies: false,
   canUse(c, t, world) {
     if (!world.rules?.guests) return 'Not in this campaign.';

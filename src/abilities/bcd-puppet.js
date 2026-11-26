@@ -25,7 +25,8 @@ export function puppetOrder(c, p, t, world) {
   if (!t || t === p) return releasePuppet(c, world);
   if (t.kind === 'enemy') return puppetTalk(c, p, t, world);
   if (t.kind === 'interactable' && DEVICES.has(t.interactKind)) {
-    p.moveTo(t.x, t.z);
+    const at = deviceApproach(p, t, world);
+    p.moveTo(at.x, at.z);
     p._puppetJob = { fn: () => { if (Math.hypot(t.x - p.x, t.z - p.z) < 2.5) (t.puppetUse ? t.puppetUse(p) : t.interact(p)); } };
     return true;
   }
@@ -35,6 +36,23 @@ export function puppetOrder(c, p, t, world) {
     return true;
   }
   return p.moveTo(t.x, t.z);
+}
+
+/**
+ * Where the puppet stands to work device `t`: the device's own approach point (BCD machines), else its spot — unless a
+ * shut door or gate fills that cell (a gate structure's leaf: LIGHTS OUT e05's iron door), then a metre in front of it
+ * on his own side (a walk to the blocked cell itself found no path and he never set off).
+ */
+export function deviceApproach(p, t, world) {
+  const a = t.approachFrom?.(p) ?? t;
+  const g = world?.grid;
+  if (t.interactKind !== 'door' || !g?.walkableAt || g.walkableAt(a.x, a.z)) return a;
+  const dx = p.x - t.x, dz = p.z - t.z, d = Math.hypot(dx, dz) || 1;
+  for (const r of [1.0, 1.4, 1.8]) {
+    const q = { x: t.x + (dx / d) * r, z: t.z + (dz / d) * r };
+    if (g.walkableAt(q.x, q.z)) return q;
+  }
+  return g.nearestWalkable?.(t.x, t.z, 2.5) || t;
 }
 
 /** Distance at which the puppet talks (the Spy's distract reach, §1.3 "like the Spy's distract"). */

@@ -329,8 +329,10 @@ export class WaterSystem {
       causticsStrength: v(this.caustics ? (o.caustics ?? (type === 'river' ? 0.45 : 1.2)) : 0), flowDir: v(new THREE.Vector2(...(o.flow && o.flow.dir ? o.flow.dir : [1, 0])).normalize()), reflTex: v(null), reflMatrix: v(new THREE.Matrix4()), reflEnabled: v(0),
       refrStrength: v(o.refraction ?? 0.035), roughness: v(o.roughness ?? P.roughness), sssStrength: v(o.sss ?? P.sss),
       foamScale: v(o.foamScale ?? 3.5), shoreFoamDepth: v(o.shoreFoamDepth ?? (type === 'sea' ? 0.5 : 0.15)), shoreFoam: v(o.shoreFoam ?? (type === 'sea' ? 1 : type === 'river' ? 0.35 : 0.5)), foamAmount: v(o.foam ?? 1), sheen: v(o.sheen ?? P.sheen ?? 1), iceWidth: v(o.frozen ? 1e4 : (o.ice || 0)),
+      reflUnbias: v(o.reflUnbias ? 1 : 0),
       reflDistort: v(o.reflDistort ?? 0.06), maskCut: v(o.mask ? (o.maskCut ?? -0.35) : -1e9), fadeDepth: v(o.fadeDepth ?? 0.06),
       iceFree: v(Array.from({ length: 4 }, (_, k) => { const f = o.iceFree?.[k]; return f ? new THREE.Vector3(f.x, f.z, f.r) : new THREE.Vector3(0, 0, 0); })),
+      calmRect: v(Array.from({ length: 4 }, (_, k) => { const f = o.calm?.[k]; return f ? new THREE.Vector4(f[0], f[1], f[2], f[3]) : new THREE.Vector4(0, 0, 0, 0); })),
       absorb: v(V3(P.absorb).addScalar(o.turbidity ?? P.turbidity ?? 0)), scatterColor: v(V3(P.scatter)), foamColor: v(V3(P.foam)), iceColor: v(V3(o.iceColor || [0.72, 0.80, 0.86])),
     };
     if (!this.caustics) uniforms.causticsTex = v(this._flat);

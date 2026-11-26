@@ -441,6 +441,15 @@ export class Lift extends Interactable {
   }
   /** Seconds per trip (`travel`, else CONFIG.bcd.lift.travel). */
   get tripTime() { return this.travel ?? CONFIG.bcd.lift.travel; }
+  /**
+   * Where a man goes to work it (commando targetPoint): the stop nearer him — it is called or ridden from either end
+   * (its own x, z is the first stop: a man at the far stop was sent the whole way round to it, or nowhere at all).
+   */
+  approachFrom(c) {
+    const [a, b] = this.stops;
+    const q = Math.hypot(c.x - a.x, c.z - a.z) <= Math.hypot(c.x - b.x, c.z - b.z) ? a : b;
+    return { x: q.x, z: q.z };
+  }
   /** Call the cage to the user's stop, or ride it (everyone within `boardR` of the stop, up to the capacity). */
   interact(c) {
     if (this.ride || this.winchOnly) return false; // (a puppet's order reaches here without canUse)

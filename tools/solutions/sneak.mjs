@@ -41,13 +41,18 @@ const TURN = 3; // s: at a halt he turns to its look over a couple of seconds (u
 /**
  * canSee, and for a rowed boat's hull probe (dummyAt 'boat'): seen whenever it lies in the cone, any band, in the
  * line of sight (ai/director _rowedBoats → vehicle-ai canSeeVehicle), whoever sits in it.
+ * (`w.sneakOpen`, opt-in: a Set of grid owner ids — the doors a solution will have opened by the moment it looks at,
+ * set by it for that one look-ahead — whose cells do not block a sight line: perception's `passOwners`. The game's own
+ * grid is not touched; unset, every look is as before.)
  */
 function canSee(e, d, w, o = {}) {
+  const open = w.sneakOpen;
+  if (open) o = { ...o, passOwners: open }; // (a copy: callers refill one options object, some frozen)
   const r = canSee0(e, d, w, o);
   if (r !== 'none' || !d?.hull) return r;
   const cone = o.cone ?? coneAt(e, w.time);
   if (!cone || !pointInCone(cone, d.x, d.z)) return 'none';
-  return w.grid.lineOfSight(e.x, e.z, d.x, d.z, { viewerElevated: !!e.vision?.elevated, ownHull: e.ownHull }) ? 'far' : 'none';
+  return w.grid.lineOfSight(e.x, e.z, d.x, d.z, { viewerElevated: !!e.vision?.elevated, ownHull: e.ownHull, passOwners: open ?? undefined }) ? 'far' : 'none';
 }
 
 /**

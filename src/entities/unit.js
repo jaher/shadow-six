@@ -105,6 +105,16 @@ function noWalkAt(g, nw, x, z) {
   return g.inBounds(i, j) && nw[g.idx(i, j)] === 1;
 }
 
+
+/** A path waypoint as saved (Unit.serialize): x, z and, when it has them, steer, its height and its link (plain data). */
+function saveWaypoint(p) {
+  const q = { x: p.x, z: p.z };
+  if (p.steer) q.steer = true;
+  if (p.y != null) q.y = p.y;
+  if (p.link) q.link = { ...p.link };
+  return q;
+}
+
 export class Unit extends Entity {
   /**
    * @param {object} opts Entity options plus:
@@ -1614,7 +1624,14 @@ export class Unit extends Entity {
       }
       if (best) break;
     }
-    return !!best && !!this.moveTo(best.x, best.z);
+    if (!best || !this.moveTo(best.x, best.z)) return false;
+    // a plan that leaves him where he stands is no step aside (the spot lies beyond what his body clearance reaches:
+    // the planner's stand-in is his own cell). He says no, so the walker's ghost timer runs on. Taken for a yield, it
+    // reset that timer every second, his own yield pause, and the walker marked time for good (e05 under jitter: the
+    // Green Beret 180 s behind a cuffed man in the Gestapo office, the Spy beside him "stepping aside" on the spot)
+    const end = this.path?.[this.path.length - 1];
+    if (!end || hypot2(end.x - this.x, end.z - this.z) < 0.2) { this.stop(); return false; }
+    return true;
   }
 
   /**
@@ -1882,7 +1899,9 @@ export class Unit extends Entity {
       stance: this.stance,
       moveMode: this.moveMode,
       state: this.state,
-      path: this.path ? this.path.map((p) => (p.steer ? { x: p.x, z: p.z, steer: true } : { x: p.x, z: p.z })) : null,
+      // (a waypoint's height and its link — the stair or ladder that reaches it — travel with it: a man saved on his way
+      // up a flight walked it again after a load, not round the stair's foot into its cheek wall)
+      path: this.path ? this.path.map(saveWaypoint) : null,
       pathIndex: this.pathIndex,
       // step counters (footprints, running noise): a load mid-run keeps the same steps as the run it interrupted
       ...(this._footstepT ? { footstepT: this._footstepT } : null),

@@ -93,6 +93,18 @@ export function waterBodyDescriptors(grid, mission = {}, theater = 'temperate', 
     if (b.type === 'sea' && !frozen && theater !== 'snow') d.surf = { amp: 0.18, length: 7, period: 6.4 };
     if (b.type === 'river') d.sheen = 1.6;
     if (W?.iceFree?.length && !b.raised) d.iceFree = W.iceFree; // open water where a fall lands (M3 dam foot)
+    // sheltered water (`water.calm`: ≤ 4 rects [x0, z0, x1, z1]): no wind whitecaps there — a moat, a harbour basin
+    // behind its mole (LIGHTS OUT e05); the open sea round them keeps the gale's (unset: as before, everywhere)
+    if (W?.calm?.length) d.calm = W.calm;
+    // a mission's own foam weights (unset: the defaults, as before): `shoreFoam` (the contact line and surge),
+    // `foam` (all foam cover), `surf` ({amp, length, period} over the sea's default) — LIGHTS OUT e05's gale surf
+    // softened so the shore band reads as broken water, not a snow bank
+    if (W?.shoreFoam != null) d.shoreFoam = W.shoreFoam;
+    if (W?.foam != null) d.foam = W.foam;
+    if (W?.surf && d.surf) d.surf = { ...d.surf, ...W.surf };
+    // `reflUnbias`: the planar reflection displaced by the ripples only (unset: as before) — LIGHTS OUT e05's moat, where
+    // the level surface's own offset left a pale band of sky between every wall and its reflection
+    if (W?.reflUnbias) d.reflUnbias = true;
     if (b.raised?.iceFree?.length) d.iceFree = b.raised.iceFree; // open water against a dam's upstream face (M3 reservoir)
     return d;
   });

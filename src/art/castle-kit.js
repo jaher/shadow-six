@@ -490,18 +490,67 @@ export function offsetPoly(poly, d) {
 }
 const norm2 = (v) => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
 
+/** A repeatable value in [0, 1) for an (x, z) point and a salt: the same corner gives the same value to both its edges. */
+const cornerHash = (x, z, salt) => {
+  const h = Math.sin(x * 127.1 + z * 311.7 + salt * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+};
+
+/**
+ * The rubble plinth as one ring round a terrace's outline (buildTerrace's opt-in `mitre`). Along each run of faced edges
+ * its outer face and its top meet at every corner on the mitre (offsetPoly's construction); a box per edge left a wedge
+ * open there at every convex corner, 2·w·tan(turn/2) wide (0.15 m on a 16-sided bastion), a dark slit from its top down
+ * to the foot. Its top course rises and dips a few centimetres from corner to corner and its face stands a little in or
+ * out (rubble, not a ruled line), each corner's own for both its edges. Square ends where a run meets another body (a
+ * skipped edge), as the boxes had. No bottom: it stands in the ground or the water.
+ */
+function plinthRing(G, p, skipped, wi, wo, y0, y1, tone) {
+  const n = p.length, on = p.map((a, i) => !skipped(a, p[(i + 1) % n]));
+  if (!on.some(Boolean)) return;
+  const nrm = (a, b) => norm2([b[1] - a[1], a[0] - b[0]]); // outward: right of a→b on a CCW outline
+  const N = p.map((a, i) => nrm(a, p[(i + 1) % n]));
+  const top = p.map(([x, z]) => y1 + (cornerHash(x, z, 1) - 0.55) * 0.1);
+  const out = p.map(([x, z]) => wo + (cornerHash(x, z, 2) - 0.5) * 0.08);
+  // corner i of edge e (e's own start or end): on the mitre when the edge across that corner is faced too, else square
+  const at = (i, e, w) => {
+    const v = p[i], other = i === e ? (i - 1 + n) % n : i;
+    if (on[other] && other !== e) {
+      const n1 = N[(i - 1 + n) % n], n2 = N[i], m = norm2([n1[0] + n2[0], n1[1] + n2[1]]), cs = m[0] * n1[0] + m[1] * n1[1];
+      if (cs > 0.3) return [v[0] + (m[0] * w) / cs, v[1] + (m[1] * w) / cs];
+    }
+    return [v[0] + N[e][0] * w, v[1] + N[e][1] * w];
+  };
+  for (let e = 0; e < n; e++) {
+    if (!on[e]) continue;
+    const i = e, j = (e + 1) % n;
+    const Oa = at(i, e, out[i]), Ob = at(j, e, out[j]), Ia = at(i, e, wi), Ib = at(j, e, wi);
+    const ha = top[i], hb = top[j];
+    G.quad('rubble', [Oa[0], y0, Oa[1]], [Oa[0], ha, Oa[1]], [Ob[0], hb, Ob[1]], [Ob[0], y0, Ob[1]], tone);       // outer face
+    G.quad('rubble', [Oa[0], ha, Oa[1]], [Ia[0], ha, Ia[1]], [Ib[0], hb, Ib[1]], [Ob[0], hb, Ob[1]], tone);       // top
+    if (!on[(e - 1 + n) % n]) G.quad('rubble', [Ia[0], y0, Ia[1]], [Ia[0], ha, Ia[1]], [Oa[0], ha, Oa[1]], [Oa[0], y0, Oa[1]], tone * 0.9); // square start
+    if (!on[j]) G.quad('rubble', [Ob[0], y0, Ob[1]], [Ob[0], hb, Ob[1]], [Ib[0], hb, Ib[1]], [Ib[0], y0, Ib[1]], tone * 0.9);               // square end
+  }
+}
+
 /**
  * Masonry terrace / bastion raised to y over polygon `poly`: battered ashlar retaining walls on a rubble plinth,
  * a dressed coping band, a flagged top (the walk surface stays exactly at y), drain spouts.
- * o: {top='flags', side='ashlar', batter=0.25, spouts=true, seed, G}
+ * o: {top='flags', side='ashlar', batter=0.25, spouts=true, seed, G, skip: rects, skipEdge(a, b): bool, footY=-0.4,
+ * mitre=false}
+ * (`footY`: where the face and its plinth stop below ground — a terrace standing in water runs them down to the bed)
+ * (`mitre`, opt-in: the rubble plinth as one ring mitred at every corner — plinthRing — not a box per edge, whose ends
+ * leave a slit at every convex corner; a round bastion has sixteen. The default keeps the boxes: other missions' terraces
+ * are drawn as before)
  */
 export function buildTerrace(poly, y, o = {}) {
   const G = o.G || new Geo(o.seed ?? poly.flat().join(','));
-  const p = ccw(poly), bat = Math.min(o.batter ?? 0.25, y * 0.04);
+  const p = ccw(poly), bat = Math.min(o.batter ?? 0.25, y * 0.04), fy = o.footY ?? -0.4;
   const foot = offsetPoly(p, bat), cop = offsetPoly(p, 0.08), R = G.R;
   // edges standing against another body (o.skip: [[x0, z0, x1, z1]] rects, e.g. a building face) get no face,
   // coping, plinth or spouts: that body's own wall is the face (no doubled, interpenetrating masonry)
-  const skipped = (a, b) => (o.skip || []).some(([x0, z0, x1, z1]) => {
+  // (o.skipEdge(a, b): the caller's own test — LIGHTS OUT e05's rampart, where an edge running inside the next band or a
+  // bastion is no outline of the whole and its coping drew a line across the neighbour's walk)
+  const skipped = (a, b) => !!o.skipEdge?.(a, b) || (o.skip || []).some(([x0, z0, x1, z1]) => {
     const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
     return mx > x0 - 0.6 && mx < x1 + 0.6 && mz > z0 - 0.6 && mz < z1 + 0.6;
   });
@@ -511,14 +560,15 @@ export function buildTerrace(poly, y, o = {}) {
   for (let i = 0; i < p.length; i++) {
     const a = p[i], b = p[(i + 1) % p.length], a0 = foot[i], b0 = foot[(i + 1) % p.length], a1 = cop[i], b1 = cop[(i + 1) % p.length];
     if (skipped(a, b)) continue;
-    G.quad(o.side || 'ashlar', [a0[0], -0.4, a0[1]], [a[0], y - 0.3, a[1]], [b[0], y - 0.3, b[1]], [b0[0], -0.4, b0[1]], 0.97 + R() * 0.06);
+    G.quad(o.side || 'ashlar', [a0[0], fy, a0[1]], [a[0], y - 0.3, a[1]], [b[0], y - 0.3, b[1]], [b0[0], fy, b0[1]], 0.97 + R() * 0.06);
     G.quad('dressed', [a1[0], y - 0.32, a1[1]], [a1[0], y + 0.02, a1[1]], [b1[0], y + 0.02, b1[1]], [b1[0], y - 0.32, b1[1]], 1.04);
     G.quad('dressed', [a1[0], y + 0.02, a1[1]], [a[0], y + 0.02, a[1]], [b[0], y + 0.02, b[1]], [b1[0], y + 0.02, b1[1]], 1.04);
     G.quad('dressed', [a1[0], y - 0.32, a1[1]], [b1[0], y - 0.32, b1[1]], [b[0], y - 0.32, b[1]], [a[0], y - 0.32, a[1]], 0.8);
     const F = segFrame(a, b, null), L = Math.hypot(b[0] - a[0], b[1] - a[1]);   // n = right of a→b = outward (CCW)
-    if (y > 1.5) segBox(G, 'rubble', F, 0, L, -0.2, bat + 0.14, -0.4, Math.min(0.55, y * 0.2), 0.92);
+    if (y > 1.5 && !o.mitre) segBox(G, 'rubble', F, 0, L, -0.2, bat + 0.14, fy, Math.min(0.55, y * 0.2), 0.92);
     if (o.spouts !== false && y > 3 && L >= 6) for (let u = 3 + R() * 3; u < L - 2; u += 8 + R() * 4) segBox(G, 'dressed', F, u - 0.12, u + 0.12, 0, 0.55, y - 0.55, y - 0.35, 0.85);
   }
+  if (y > 1.5 && o.mitre) plinthRing(G, p, skipped, -0.2, bat + 0.14, fy, Math.min(0.55, y * 0.2), 0.92);
   return o.G ? G : G.build(o.name || 'terrace', { ground: 0 });
 }
 
@@ -692,7 +742,7 @@ export const archY = (u, a, y0, r) => {
  * Arch head over a passage: masonry slices from the intrados to yTop through w0..w1 (depth), a dressed voussoir ring
  * on both faces, and the soffit. u0..u1 = the passage (centre uc).
  */
-export function archHead(G, F, uc, half, w0, w1, spring, rise, yTop, mat = 'ashlar') {
+export function archHead(G, F, uc, half, w0, w1, spring, rise, yTop, mat = 'ashlar', proud = 0) {
   const n = Math.max(8, Math.round((half * 2) / 0.22)), du = (half * 2) / n;
   for (let i = 0; i < n; i++) {
     const u = -half + (i + 0.5) * du, y = Math.max(archY(u - du / 2, half, spring, rise), archY(u + du / 2, half, spring, rise));
@@ -714,8 +764,9 @@ export function archHead(G, F, uc, half, w0, w1, spring, rise, yTop, mat = 'ashl
       if (s > 0) q('dressed', D, A0, B0, C, tone); else q('dressed', D, C, B0, A0, tone);   // the ring's top edge
     }
   }
-  segBox(G, 'dressed', F, uc - half - 0.35, uc - half, w0 - 0.08, w1 + 0.08, spring - 0.25, spring, 1.05); // imposts
-  segBox(G, 'dressed', F, uc + half, uc + half + 0.35, w0 - 0.08, w1 + 0.08, spring - 0.25, spring, 1.05);
+  // imposts (`proud`: they stand that far out of the jambs into the opening; 0 = flush, their faces in the jambs' plane)
+  segBox(G, 'dressed', F, uc - half - 0.35, uc - half + proud, w0 - 0.08, w1 + 0.08, spring - 0.25, spring, 1.05);
+  segBox(G, 'dressed', F, uc + half - proud, uc + half + 0.35, w0 - 0.08, w1 + 0.08, spring - 0.25, spring, 1.05);
 }
 
 /** Raised portcullis in the arch (oak grid shod with iron), bottom at yb, inside the passage at depth w. */
@@ -781,6 +832,11 @@ export function buildTwinGatehouse(o) {
   const sideMerlons = o.sideMerlons ?? true;
   const sideParapet = o.sideParapet ?? {};
   const spring = 3.4, rise = 2.4;
+  // `o.zfix` (LIGHTS OUT e05's gate; off by default, so M20's gates are drawn exactly as before): no two faces share a
+  // plane — the outer face's plinth, band and string course run 1 / 2 / 1 cm past the tower's side faces and into the
+  // passage instead of ending flush in their planes, the imposts stand 2 cm out of the jambs, the rebates' floors sink
+  // under the setts (which run on under the leaves) instead of lying flush with the ground
+  const zf = o.zfix ? 0.01 : 0;
   // the open leaves stand in rebates cut into the passage walls (LEAF_W across, RB deep, up to LEAF_TOP), flush with the
   // stone: the whole passage width is the way through (M20: a Panzer III, 2.9 m, through the 4.5 m SW gate — leaves
   // standing proud of the walls took a cell of it on each side)
@@ -789,24 +845,25 @@ export function buildTwinGatehouse(o) {
     const ua = s < 0 ? -W2 : P2, ub = s < 0 ? -P2 : W2, uo = s * W2;
     const uf = s * P2, ur = s * (P2 + RB); // (the passage face, the rebate's back)
     segBox(G, 'ashlar', F, s < 0 ? ua : ur, s < 0 ? ur : ub, -D2, D2, -1.6, Y - 0.02, 1);
-    for (const [w0, w1, y0, y1] of [[-D2, LEAF_W[0], -1.6, Y - 0.02], [LEAF_W[1], D2, -1.6, Y - 0.02], [LEAF_W[0], LEAF_W[1], LEAF_TOP, Y - 0.02], [LEAF_W[0], LEAF_W[1], -1.6, 0]]) {
+    for (const [w0, w1, y0, y1] of [[-D2, LEAF_W[0], -1.6, Y - 0.02], [LEAF_W[1], D2, -1.6, Y - 0.02], [LEAF_W[0], LEAF_W[1], LEAF_TOP, Y - 0.02], [LEAF_W[0], LEAF_W[1], -1.6, zf ? -0.05 : 0]]) {
       segBox(G, 'ashlar', F, Math.min(uf, ur), Math.max(uf, ur), w0, w1, y0, y1, 1);
     }
     segBox(G, 'flags', F, ua, ub, -D2, D2, Y - 0.02, Y + 0.01, 1);
-    segBox(G, 'rubble', F, ua, ub, D2 - 0.02, D2 + 0.02, -1.6, 2.2, 0.95, { taperOut: 0.9 });
-    segBox(G, 'dressed', F, ua, ub, D2 - 0.04, D2 + 0.16, 2.15, 2.4, 1.02);
-    segBox(G, 'dressed', F, ua, ub, -D2 - 0.12, D2 + 0.12, Y - 1.5, Y - 1.3, 1.02);       // string course (both faces)
+    segBox(G, 'rubble', F, ua - zf, ub + zf, D2 - 0.02, D2 + 0.02, -1.6, 2.2, 0.95, { taperOut: 0.9 });
+    segBox(G, 'dressed', F, ua - 2 * zf, ub + 2 * zf, D2 - 0.04, D2 + 0.16, 2.15, 2.4, 1.02);
+    segBox(G, 'dressed', F, ua - zf, ub + zf, -D2 - 0.12, D2 + 0.12, Y - 1.5, Y - 1.3, 1.02);       // string course (both faces)
     corbelParapet(G, F, ua, ub, D2, 1, Y, R);                                            // outer face
     // the outer side face (perpendicular): a local frame turned 90°
     const Fs = { ...F, t: F.n.map((v) => v), n: F.t.map((v) => v * s), at: (u, w) => F.at(uo + s * w, u) };
     const sp = sideParapet[s < 0 ? 'west' : 'east'] ?? [-D2, D2];
     corbelParapet(G, Fs, sp[0], sp[1], 0, 1, Y, R, sideMerlons);
     bartizan(G, ...F.at(uo + s * 0.15, D2 + 0.15), Y, 1.25);
-    // cross loops on the outer face, a mullioned window on the inner face — the cross sits centred in the
-    // section between the dressed band (2.15-2.4) and the string course (Y-1.5..Y-1.3) (user 2026-11-17)
+    // cross loops on the outer face (o.loops: 'slit' = plain vertical slits, a later fort's gate), a mullioned window
+    // on the inner face — the cross sits centred in the section between the dressed band (2.15-2.4) and the string
+    // course (Y-1.5..Y-1.3) (user 2026-11-17)
     const um = (ua + ub) / 2;
     segBox(G, 'iron', F, um - 0.08, um + 0.08, D2, D2 + 0.02, 3.15, 4.75, 0.1);
-    segBox(G, 'iron', F, um - 0.4, um + 0.4, D2, D2 + 0.02, 3.85, 4.0, 0.1);
+    if (o.loops !== 'slit') segBox(G, 'iron', F, um - 0.4, um + 0.4, D2, D2 + 0.02, 3.85, 4.0, 0.1);
     segBox(G, 'iron', F, um - 0.45, um + 0.45, -D2 - 0.02, -D2, 3.2, 4.4, 0.15);
     // (windows z-fight fix: mullion top 5 mm above the iron light's top — the two top faces were coplanar at 4.4)
     segBox(G, 'dressed', F, um - 0.06, um + 0.06, -D2 - 0.06, -D2, 3.2, 4.405, 1.05);
@@ -816,7 +873,7 @@ export function buildTwinGatehouse(o) {
     segBox(G, 'planks', F, Math.min(s * (P2 + 0.01), s * (P2 + 0.13)), Math.max(s * (P2 + 0.01), s * (P2 + 0.13)), LEAF_W[0] + 0.05, LEAF_W[1] - 0.05, 0.05, LEAF_TOP - 0.05, 0.85);
     wallLantern(G, F, s * (P2 + 0.75), D2, 3.6);
   }
-  archHead(G, F, 0, P2, -D2, D2, spring, rise, Y - 0.02);
+  archHead(G, F, 0, P2, -D2, D2, spring, rise, Y - 0.02, 'ashlar', 2 * zf);
   // (user 2026-11-14, floor z-fight check: the deck flags top was exactly y=7.0,
   // coplanar with the flanking curtains' walk tops over the overlap where the
   // walls run onto the deck — 6.11 m2 at gh_sw after the cw_sw seat, 1.67 m2 at
@@ -828,7 +885,7 @@ export function buildTwinGatehouse(o) {
   corbelParapet(G, F, -P2, P2, D2, 1, Y, R);
   portcullis(G, F, 0, P2, D2 - 1.1, (u) => archY(u, P2, spring, rise) - 0.35, Y - 1.2);
   segBox(G, 'dressed', F, -0.7, 0.7, D2 + 0.02, D2 + 0.14, Y - 1.25, Y - 0.35, 1.08);                     // escutcheon panel
-  segBox(G, 'setts', F, -P2, P2, -D2 - 0.3, D2 + 0.3, -0.04, 0.03, 1);
+  segBox(G, 'setts', F, zf ? -P2 - RB : -P2, zf ? P2 + RB : P2, -D2 - 0.3, D2 + 0.3, -0.04, 0.03, 1);
   return G.build(o.name || 'gatehouse', { ground: 0 });
 }
 

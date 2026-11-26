@@ -34,7 +34,7 @@ where you can try it: **A** knock-out row (z 10–14), **B** lures (x 34–50, z
 | Lion | Charges a commando inside its pen (8 m); never raises the alarm | `animals` | `{ soldierType: 'lion', pen: { x, z, r } \| { points } }` | D `lion1` |
 | Ostrich | Kicks whoever comes within 3 m inside its pen | `animals` | `{ soldierType: 'ostrich', pen: {…}, penGate: '<gate id>', roam?: { x, z, r } }` | D `ostrich1` |
 | Chicken | Scatters and clucks (a level-1 noise) | `animals` | `{ soldierType: 'chicken', x, z }` | D `chicken1` |
-| Grethe Holm ("Lark") | Key 8. Pocket pistol (Q), lipstick (D: his cone follows her; not the Gestapo), packs; passes as a civilian until she acts or a Gestapo man sees her | `guests` | `{ role: 'grethe', x, z }` | D (x 100, z 72) |
+| Grethe Holm ("Lark") | Key 8. Pocket pistol (Q), small talk (D, the `lipstick` ability: his cone follows her; not the Gestapo), packs; passes as a civilian until she acts or a Gestapo man sees her | `guests` | `{ role: 'grethe', x, z }` | D (x 100, z 72) |
 | Tonino Esposito | Key 7. Stones, packs, hand; no weapon | `guests` | `{ role: 'tonino', x, z }` | E (joins at 104, 86) |
 | Guest joins when reached | Out of play until a commando comes within `r` | `guests` | `joinsAt: { x, z, r }` on any commando spawn | E Tonino |
 

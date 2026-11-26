@@ -53,7 +53,7 @@ export const BCD_ITEMS = {
   handcuffs: { label: 'Handcuffs', key: 'J', stack: false, unlimited: true, campaigns: ['BCD'] },
   hanger: { label: 'Hanger', key: 'T', stack: false, unlimited: true, campaigns: ['BCD'] },
   leeEnfield: { label: 'Lee-Enfield rifle', key: 'E', stack: true, hiddenCount: true, weapon: 'leeEnfield', campaigns: ['BCD'] },
-  lipstick: { label: 'Lipstick', key: 'D', stack: false, unlimited: true, campaigns: ['BCD'] },
+  lipstick: { label: 'Small talk', key: 'D', stack: false, unlimited: true, campaigns: ['BCD'] }, // Grethe's lure (her wristwatch on the pack: the time)
   beretta: { label: 'Pocket pistol', key: 'Q', stack: false, unlimited: true, weapon: 'pistol', campaigns: ['BCD'] },
   // a mission's papers (a key-table binder, an archive, an index): picked up with the hand, carried out (no key);
   // a `bcd_item_objective` set-piece (missions/setpieces-errands.js) turns holding them into the objective
@@ -68,7 +68,7 @@ export function itemDef(id) {
 /**
  * BCD fixed kit per role, merged under the mission inventory when the campaign is BCD (bcd-plan §1.1–§1.8):
  * stones (hidden count 50) for all six and Tonino, handcuffs for GB and Spy, the Spy's hanger, the Driver's
- * Lee-Enfield (hidden count 50), Grethe's pocket pistol and lipstick. Knock-outs and the puppet need no item.
+ * Lee-Enfield (hidden count 50), Grethe's pocket pistol and small talk (item `lipstick`). Knock-outs and the puppet need no item.
  */
 export const BCD_KIT = {
   greenberet: { stones: 50, handcuffs: 1 },

@@ -171,9 +171,11 @@ function openBoatOf(target) {
  * @param {object} viewer enemy, or {x, z, heading, vision, elevated?, y?}
  * @param {object} target unit/body/footprint/vehicle: {x, z, y?, kind?, isLow?, isVisibleToEnemies?, disguised?, falling?}
  * @param {import('../world/world.js').World} world
- * @param {{ignoreDisguise?: boolean, cone?: Cone, dynamic?: boolean}} [o] ignoreDisguise: suspicious-act
- *   check on a disguised spy; cone: precomputed coneAt(viewer) (perf); dynamic: false ignores the vehicle
- *   occluder layer (used when the target IS a vehicle, whose own hull is stamped there)
+ * @param {{ignoreDisguise?: boolean, cone?: Cone, dynamic?: boolean, passOwners?: Set<number>}} [o] ignoreDisguise:
+ *   suspicious-act check on a disguised spy; cone: precomputed coneAt(viewer) (perf); dynamic: false ignores the
+ *   vehicle occluder layer (used when the target IS a vehicle, whose own hull is stamped there); passOwners: grid owner
+ *   ids whose static cells do not block the sight line (grid.sightTop) — a look-ahead's doors it will have opened by
+ *   then (tools/solutions sneak.mjs `sneakOpen`); never set in play
  * @returns {'none'|'near'|'far'}
  */
 export function canSee(viewer, target, world, o = {}) {
@@ -212,14 +214,15 @@ export function canSee(viewer, target, world, o = {}) {
     const L = _sightOpts;
     L.eyeY = cone.y; L.targetY = ty + targetHeight(low); L.targetLow = low; L.viewerY = cone.vy; L.targetBaseY = ty; L.lowCover = lowCoverMode(cone);
     L.heightOf = ownerHeight(world); L.dynamic = dynamic; L.ownHull = viewer.ownHull; L.ownOwner = postOwner(viewer, world); L.targetHull = targetHull;
+    L.passOwners = o.passOwners;
     los = world.grid.sightLine(cone.x, cone.z, target.x, target.z, L);
-    L.heightOf = null; L.ownHull = undefined; L.targetHull = undefined;
-  } else los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull });
+    L.heightOf = null; L.ownHull = undefined; L.targetHull = undefined; L.passOwners = undefined;
+  } else los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull, passOwners: o.passOwners });
   return los ? zone : 'none';
 }
 // (every field is set before each use: the numbers start as doubles so each store refills the field in place — a field
 // that once held `undefined` boxes a fresh number per store)
-const _sightOpts = { eyeY: 0.5, targetY: 0.5, targetLow: false, viewerY: 0.5, targetBaseY: 0.5, lowCover: 'block', heightOf: null, dynamic: true, ownHull: undefined, ownOwner: 0, targetHull: undefined };
+const _sightOpts = { eyeY: 0.5, targetY: 0.5, targetLow: false, viewerY: 0.5, targetBaseY: 0.5, lowCover: 'block', heightOf: null, dynamic: true, ownHull: undefined, ownOwner: 0, targetHull: undefined, passOwners: undefined };
 
 /**
  * §4.2 low cover (B.LOW) and a low target, BEL's rule: from the ground it hides him wherever he lies behind it

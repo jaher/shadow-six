@@ -373,7 +373,7 @@ def to_box(cam, p):
 # ---------------------------------------------------------------- placing the kit
 from guns import colt1911, p38, beretta, no4, thompson, speargun, cartridge303
 from blades import knife as fs_knife
-from tools import shovel, wire_cutters, handcuffs, hanger, lipstick, syringe, stones
+from tools import shovel, wire_cutters, handcuffs, hanger, wristwatch, syringe, stones
 from misc import mills, bear_trap, diving_gear, folded_tunic, rubber_mat
 from boxes import time_bomb, remote_bomb, detonator, first_aid, cigarettes, decoy, activator, charge
 
@@ -693,7 +693,9 @@ MOUNTS = {
     'hanger': (lambda m: [mount('hanger', built(hanger), size=250, at=(92, -60, 452), anchor='top', swing=-14)], 8),
     'stones': (lambda m: hang(m, 'stones', stones_pouch(m), 'lowright', 105, drop=14, swing=-5), 6),
     'cigarettes': (lambda m: against(m, 'cigarettes', built(cigarettes), 64, 372, 92, swing=-8, tie=(0.62,)) + [stencil((mx(64), surf_y(64, 318) - 3, 318), 'light')], 7),
-    'lipstick': (lambda m: against(m, 'lipstick', built(lipstick), 64, 372, 72, swing=-14, tie=(0.5,)), 7),
+    # the `lipstick` item is Grethe's small talk (design: "a question, a light, the time"): her wristwatch, its strap through a
+    # webbing tie on the flap left of the packs' pocket (a guest who carries both, e05's Grethe, shows both)
+    'lipstick': (lambda m: against(m, 'lipstick', built(wristwatch), -10, 368, 100, swing=-8, tie=(0.8,)), 7),
 }
 
 

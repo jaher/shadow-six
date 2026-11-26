@@ -183,7 +183,7 @@ Two guests of our own (the 1999 expansion's guests are not used; the two ability
 **Grethe Holm**, code name *Lark* (role `grethe`, nickname "Lark")
 - 27. A switchboard operator at the Copenhagen telephone exchange and a courier for the resistance since 1942. She grew up in Flensburg and speaks German like a native. Soldiers see a pretty civilian; the Gestapo know her face.
 - **Kit:** a pocket pistol from her handbag (Q; ability and item id `beretta`, the BEL pistol's stats) and cigarette packs (V). No stones, knock-out or cuffs.
-- **Lipstick** (`lipstick`, D): targeting `enemy`, range 6 m [rec; the Spy's distract range].
+- **Small talk** (`lipstick`, D; labelled "Small talk" in the HUD, the id stays `lipstick`): targeting `enemy`, range 6 m [rec; the Spy's distract range].
   - It works on **any rank**, officers included, but **not the Gestapo**.
   - The soldier stares at her until the player right-clicks to end it. His **cone follows her as she moves**: his facing tracks her position every tick, and his sweep stops.
   - She can lead him: while he stares, she can walk and he turns (he does not walk after her) [rec].
@@ -200,7 +200,7 @@ All new types are `soldierType` values in `src/ai/archetypes.js` and `CONFIG.ste
 
 | Type | Missions | Vision | Weapon | Behaviour |
 |---|---|---|---|---|
-| `gestapo` | M8 (5 men) | `soldier` profile | Luger, **accuracy 1.25×** the BEL pistol [rec: "crack shots"]: BEL enemy fire never misses, so it is 1.25× the damage per hit (`gestapoLuger` 100 vs the Luger's 80) | Black leather coat and cap. **Always** sees through the Spy's disguise and Grethe's cover (§1.6, §1.8). Cannot be distracted (D, lipstick, puppet). Ignores cigarette packs. Can be knocked out when unaware. Rank level 3. |
+| `gestapo` | M8 (5 men) | `soldier` profile | Luger, **accuracy 1.25×** the BEL pistol [rec: "crack shots"]: BEL enemy fire never misses, so it is 1.25× the damage per hit (`gestapoLuger` 100 vs the Luger's 80) | Black leather coat and cap. **Always** sees through the Spy's disguise and Grethe's cover (§1.6, §1.8). Cannot be distracted (D, small talk, puppet). Ignores cigarette packs. Can be knocked out when unaware. Rank level 3. |
 | `lieutenant` | M5, M8 [rec: armed officers in the files] | `soldier` | Luger | An armed officer (rank level 2). Behaves as a BEL officer (reinforces, leads searches) but fights. |
 | `zookeeper` | M2 (1) | `soldier` | none | Unarmed civilian of rank level 1. Walks among the lions unharmed. If he sees a commando he **raises the alarm and flees into the barracks** [gap-5 §7]. Knock-out and hanger work on him; his uniform has level 1 (§1.6). |
 | `firingSquad` | M2 (2 riflemen + a corporal) | `soldier` | Kar98k | Stands at the execution post. An alarm in its linked zones makes it **shoot the hostages: mission lost**. Built as the mission's `alarmFail: {zones, message, onFail}` (§1.10), not a new brain. |
@@ -301,7 +301,7 @@ BCD moved the most-used keys to the left of the keyboard, with **no remapping** 
 | Crawl / stand | all | C / S | **C / S** | same |
 | Diving gear (`dive`) | Marine | D | **D** | same |
 | Distract (`distract`) | Spy | D | **D** | same; not on Gestapo |
-| Lipstick (`lipstick`) | Grethe | – | **D** | new |
+| Small talk (`lipstick`) | Grethe | – | **D** | new |
 | Grenade (`grenade`) | Sapper | E | **E** | same |
 | Harpoon (`harpoon`) | Marine | J | **E** | moved |
 | Sniper rifle (`sniper`) | Sniper | R | **E** | moved |
@@ -348,7 +348,7 @@ Each step keeps `node tests/unit/run.mjs` and `node tests/run.mjs` green, **with
 | **N6** Puppet | `puppet` (R); blue range disc; order routing; doors, `use` interactables, Driver + puppet vehicle; rank-based distract; loss rules (range, LOS, controller seen or shot, house rule). | Each loss rule raises the alarm; rank distract table; puppet opens a door. |
 | **N7** Spy | `hanger` (T); wardrobe and U cycling; `disguiseRanks` recognition table; Gestapo never distracted. | The full recognition matrix; U cycle order; BEL disguise path unchanged. |
 | **N8** Driver | `rifle` (E, `CONFIG.weapons.leeEnfield`); SMG on W; `driverClub`. | One-shot kill at 27 m, none at 28 m; 2.5 s reload; pistol-class noise. |
-| **N9** Guests | guest roles `grethe` (pocket pistol, lipstick, packs; civilian cover) and `tonino` (stones, packs); selection keys 7/8; join triggers. | Lipstick cone tracks her; any rank but Gestapo; Gestapo blows her cover. |
+| **N9** Guests | guest roles `grethe` (pocket pistol, small talk, packs; civilian cover) and `tonino` (stones, packs); selection keys 7/8; join triggers. | Small-talk cone tracks her; any rank but Gestapo; Gestapo blows her cover. |
 | **N10** Units | `gestapo`, `lieutenant`, `zookeeper`, `snitch`, `pow`; `animal-brain.js` with `lion`, `ostrich`, `chicken`; the dog's BCD tuning. | Zookeeper flees and alarms; snitch reports; lion stays in its pen; ostrich provoke radius; dog barks an alarm. |
 | **N11** World mechanics | Generic interactables: `seaMine`, `lift`, `drawbridge` (+ switch), `pushable` (rail wagon, free tank), `jail`, `knapsack`, `animalZone`, pen gate. | Boat hits a mine; swimmer passes; lift ride; drawbridge blocks the patrol; wagon moves along rails; fuel tank explodes. |
 | **N12** UI and flow | Commando Warnings (blue/red portraits, option); Skill screen; `variants` merge in `schema.js`; the BCD career (start Major, max 24, separate key); BCD passwords. | Portrait states from perception and damage; Easy/Hard merge; rank arithmetic 36 → 60; a password replays one mission. |

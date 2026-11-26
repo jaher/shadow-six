@@ -8,7 +8,7 @@ import { packNormals } from '../../engine/vertex-pack.js';
 import { restoreChunkIndex } from '../../engine/chunking.js';
 import { missionCarves } from './carve.js';
 import * as THREE from 'three';
-import { PALETTES, buildSplatG, splatAt, undulation } from './terrain-layers.js';
+import { PALETTES, buildSplatG, splatAt, undulation, bumpField } from './terrain-layers.js';
 import { due, runSliced } from '../../engine/slice.js';
 import { planeGeometryG, applyMatrixToPositionsG, computeVertexNormalsG } from '../../engine/geometry-jobs.js';
 import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO, APRON_TRAIL, APRON_FLAT } from './terrain-glsl.js';
@@ -340,7 +340,11 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   const moundKey = scrubPlan ? dataKey((h) => { for (const p of scrubPlan) { h.num(p.x); h.num(p.z); h.num(p.s); h.num(p.mound); } }) : '-';
   // dry wadis / gullies cut into the heightfield (art/terrain/carve.js, mission `carves`)
   const dryCarve = missionCarves(opts.mission || null);
-  const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${dryCarve ? dataKey((h) => h.str(dryCarve.key)) : '-'}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}`;
+  // the mission's own landforms (`groundRelief`: knolls and hollows, LIGHTS OUT e05's heath): added to the undulation
+  // before the flattening (pads, roads, structures stay level), faded out from 3.5 m to 0.5 m off the water (no bank step)
+  const reliefList = opts.mission?.groundRelief || null, relief = bumpField(reliefList);
+  const reliefKey = relief ? dataKey((h) => { for (const b of reliefList) { h.num(b.x); h.num(b.z); h.num(b.r); h.num(b.h); } }) : '-';
+  const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${dryCarve ? dataKey((h) => h.str(dryCarve.key)) : '-'}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}:${reliefKey}`;
   const { geo, hgt } = await runSliced(cache.memoGen(geoKey, function* () {
     // = new THREE.PlaneGeometry(W, D, sx, sz).rotateX(-π/2).translate(W/2, 0, D/2), built a row at a time
     const geo = yield* planeGeometryG(W, D, sx, sz);
@@ -352,6 +356,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
       if (v % (sx + 1) === 0 && due()) yield;
       const x = pos.getX(v), z = pos.getZ(v);
       let y = undulation(src, x, z, opts.seed || 7);
+      if (relief) { const r = relief(x, z); if (r) y += r * Math.min(1, Math.max(0, (-wetAt(x, z) - 0.5) / 3)); } // (wetAt saturates ~4 m inland)
       if (flatAt) y *= 1 - flatAt(x, z);
       if (mound) y += mound(x, z) * (flatAt ? Math.max(0, 1 - flatAt(x, z) * 25) : 1); // footprints stay level
       const sdW = wetAt(x, z);

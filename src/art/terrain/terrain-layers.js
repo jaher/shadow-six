@@ -235,6 +235,27 @@ export function splatAt(splat, x, z, out = new Float32Array(8)) {
 }
 
 /** Undulation height (m) — subtle, anisotropic drifts for snow/desert. Water cells are sunk separately. */
+/**
+ * A mission's own landforms (`mission.groundRelief`: [{x, z, r, h}], visual only): smooth bumps, cos² from `h` m at the
+ * centre to 0 at `r` m (h < 0: a hollow), summed. Unset or empty: null (the heightfield is untouched). Pure.
+ * @param {{x:number, z:number, r:number, h:number}[]|undefined} list
+ * @returns {((x:number, z:number) => number)|null}
+ */
+export function bumpField(list) {
+  const B = (list || []).filter((b) => b && b.r > 0 && b.h);
+  if (!B.length) return null;
+  return (x, z) => {
+    let y = 0;
+    for (const b of B) {
+      const dx = x - b.x, dz = z - b.z, d2 = dx * dx + dz * dz;
+      if (d2 >= b.r * b.r) continue;
+      const c = Math.cos((Math.PI / 2) * (Math.sqrt(d2) / b.r));
+      y += b.h * c * c;
+    }
+    return y;
+  };
+}
+
 export function undulation(theater, x, z, seed = 7) {
   const P = PALETTES[theater] || PALETTES.temperate;
   const s = P.heightScale;

@@ -454,7 +454,11 @@ registerAbility({
   // a clothesline: to the spot in front of the uniform (she settles into it as she reaches up); a switch station: onto
   // the spot in front of its lever; anything else 1.2 m
   // (onto the stand spot while walking; once he has stopped, a step short of it is close enough)
-  range: (c, t, world) => (lineTake(c, t, world) ? 0.45 : standSpot(c, t, world) ? (c.path || c.isMoving ? 0.05 : 0.4) : 1.2),
+  // (BCD: a door leaf in a building's wall — LIGHTS OUT e05's hoist house — has its point inside its own blocked cells and
+  // the jamb cells beside them: the nearest cell a man can stand on is up to ~1.3 m away, so 1.6 m reaches it from
+  // either side. BEL keeps 1.2: its gates stand in fences, reached across one cell)
+  range: (c, t, world) => (lineTake(c, t, world) ? 0.45 : standSpot(c, t, world) ? (c.path || c.isMoving ? 0.05 : 0.4)
+    : t?.interactKind === 'door' && (world ?? c?.world)?.rules?.id === 'BCD' ? 1.6 : 1.2),
   approachPoint(c, t, world) { return lineTake(c, t, world) ?? standSpot(c, t, world) ?? undefined; }, // else the usual target point
   canUse(c, t, world) {
     const f = freeToAct(c);

@@ -497,7 +497,12 @@ export class Interactable extends Entity {
     switch (this.interactKind) {
       case 'door':
         if (this.enterable) return commando.carrying ? "Can't take that inside." : true;
-        return this.locked ? 'Locked.' : true;
+        if (this.locked) return 'Locked.';
+        // BCD `door: 'enemy'` on a gate structure (LIGHTS OUT e05's radio casemate): from outside only the garrison opens
+        // it — a puppet works it through interact(), which never asks canUse (abilities/bcd-puppet.js). From the inside
+        // (the side of the structure's `inside` point) it opens to anyone, and an open leaf is pulled to from either side
+        if (this.params?.structure?.door === 'enemy' && this.world?.rules?.puppet && !this.open && !onDoorInside(this, commando)) return 'Locked from their side.';
+        return true;
       case 'pickup': case 'ammo':
         if (this.count <= 0) return 'Empty.';
         return canPickUp(role, this.itemId) ? true : "Can't pick that up.";
@@ -866,6 +871,19 @@ const PICKUP_SIZE = [0.5, 0.4], BODY_NAV = RULES.bodyNav;
  * cuffed (`ko: 'bound'`, not on strings) in a world whose ruleset has handcuffs. Off under BEL (bodies never go inside:
  * "Can't take that inside.").
  */
+/**
+ * Is `c` on the inside of a `door: 'enemy'` gate (BCD): the side of the door's plane its structure's `inside` point is on?
+ * The plane runs along the leaf (the gate's `rot`). No `inside` given: no side opens to a commando (both are "outside").
+ */
+export function onDoorInside(door, c) {
+  const S = door?.params?.structure, ins = S?.inside;
+  if (!ins || !c) return false;
+  const r = S.rot ?? door.params?.rot ?? 0, nx = -Math.sin(r), nz = Math.cos(r);
+  const side = (x, z) => (x - door.x) * nx + (z - door.z) * nz;
+  const a = side(ins[0], ins[1]), b = side(c.x, c.z);
+  return a !== 0 && Math.sign(a) === Math.sign(b);
+}
+
 export function stowable(u, world) {
   return !!(u && u.kind === 'enemy' && u.alive && u.ko === 'bound' && !u.puppetOf && world?.rules?.handcuffs);
 }

@@ -408,7 +408,9 @@ function well(g, p, theater) {
     g.add(tcyl(0.16, 0.12, 0.26, dressingMaterial('planks'), 0.12, 0.95, 0, 10, 0.4));
     return;
   }
-  for (const s of [-1, 1]) { const roof = tbox(2 * r + 0.6, 0.05, r * 0.9, dressingMaterial('roofShingle'), 0, 2.25, s * r * 0.38, 0.8); roof.rotation.x = s * 0.55; g.add(roof); }
+  // (`roofW`: the roof's length along the axle, default 2r + 0.6; e05's yard well stands 0.2 m from a stores stack)
+  const roofW = p.roofW ?? 2 * r + 0.6;
+  for (const s of [-1, 1]) { const roof = tbox(roofW, 0.05, r * 0.9, dressingMaterial('roofShingle'), 0, 2.25, s * r * 0.38, 0.8); roof.rotation.x = s * 0.55; g.add(roof); }
   g.add(tcyl(0.12, 0.1, 0.22, dressingMaterial('planks'), 0.15, 0.95, 0, 10, 0.5));
 }
 /** Town fountain: a stepped stone basin with water, a central column / statue pedestal. */

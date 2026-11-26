@@ -68,10 +68,12 @@ uniform vec2 resolution; uniform mat4 projInv, camWorld, reflMatrix, viewMat;
 uniform float uOrtho, camNear, camFar, slopeA, slopeB, detailScale, causticsPatch, causticsStrength, reflEnabled, envIntensity;
 uniform float refrStrength, roughness, sssStrength, foamScale, shoreFoamDepth, iceWidth, flowPeriod, fogOn, fogNear, fogFar;
 uniform float rippleTexel, reflDistort, fadeDepth, envRot, night, shoreFoam, foamAmount, sheen, directFrac, maskCut, sheenCap, glitter;
+uniform float reflUnbias;   // 1: the planar lookup offset by the ripples' tilt only, not by the level surface's own view-space up (a body's opt-in)
 uniform vec2 flowDir; uniform int dbg;
 uniform vec3 plPos[4], plCol[4]; uniform int plCount;
 uniform vec3 sunDir, sunColor, skyIrr, absorb, scatterColor, foamColor, fogColor, iceColor;
 uniform vec3 iceFree[4]; // (x, z, radius m): open water kept free of the shore ice (M3: where the dam's water lands)
+uniform vec4 calmRect[4]; // (x0, z0, x1, z1): sheltered water, no wind whitecaps (a moat, a basin behind its mole); x1 <= x0: unused
 // submerged divers (WaterSystem.setSubmerged): depth mask (R = their gl_FragCoord.z, 1 = none; G = selected), on/off,
 // look (absorption scale, view-path cap m, rim strength, blur px at zoom 1), screen box (uv min / max) they are in
 uniform sampler2D subMask; uniform float subOn; uniform vec4 subLook, subBox;
@@ -258,7 +260,11 @@ void main(){
   vec3 planar = vec3(0.0); float planarA = 0.0;
   if (reflEnabled > 0.5) {
     vec4 rp = reflMatrix*vec4(vWorld.x, level, vWorld.z, 1.0);
-    vec4 pl = texture(reflTex, rp.xy/rp.w + nV.xy*reflDistort);
+    // (the offset is the normal's view-space xy; the level surface's own share — a constant under the orthographic
+    // camera, 0.77 x reflDistort of the screen up — slid the reflection off its object: a pale sky band along every
+    // wall foot. reflUnbias takes it out, so only the ripples displace the image)
+    vec2 rOff = nV.xy - reflUnbias*viewMat[1].xy;   // (mat3(viewMat)*up: the view matrix's second column)
+    vec4 pl = texture(reflTex, rp.xy/rp.w + rOff*reflDistort);
     planar = pl.rgb; planarA = pl.a;
   }
   vec3 col = vec3(0.0), refl = vec3(0.0); float Favg = 0.0;
@@ -337,19 +343,24 @@ void main(){
     fdens = mix(texture(foamTex, fuv/(foamScale*0.63)).r, texture(foamTex, fuv/(foamScale*0.23) + 0.5).r, 0.45);
   }
   float cover = 0.0;
+  // sheltered water (calmRect): no whitecaps, no surge or surf, only a thin broken line where it laps a wall or a
+  // bank; the open water's foam fades back in over the last 3 m inside the rect's edge (a basin's mouth)
+  float calmK = 0.0;
+  for (int k = 0; k < 4; k++) { vec4 r = calmRect[k]; if (r.z > r.x) {
+    vec2 dd = max(r.xy - vXZ, vXZ - r.zw); calmK = max(calmK, 1.0 - smoothstep(-3.0, 0.0, max(dd.x, dd.y))); } }
   // contact line hugging banks, piers and rocks (distance field), wider and broken on beaches
-  float cw = 0.10 + n1*(bodyType > 1.5 ? 0.5 : 0.3) + (bodyType > 1.5 ? 0.5 : 0.15)*(1.0 - smoothstep(0.3, 1.2, vBody.a));
-  cover += (1.0 - smoothstep(0.0, cw, shoreD))*0.6*shoreFoam;
+  float cw = 0.10 + (n1*(bodyType > 1.5 ? 0.5 : 0.3) + (bodyType > 1.5 ? 0.5 : 0.15)*(1.0 - smoothstep(0.3, 1.2, vBody.a)))*(1.0 - 0.85*calmK);
+  cover += (1.0 - smoothstep(0.0, cw, shoreD))*0.6*shoreFoam*(1.0 - 0.6*calmK);
   // sea: surge lines running up the beach (periodic: 65 cycles per TL)
   if (bodyType > 1.5) {
     float surge = pow(0.5 + 0.5*sin(shoreD*1.3 - time*(65.0*2.0*PI/TL) + n1*4.0), 6.0)*(1.0 - smoothstep(1.0, 9.0, shoreD))*(1.0 - smoothstep(0.4, 1.8, vBody.a));
-    cover += surge*0.5*shoreFoam + surfF*0.25*smoothstep(0.2, 0.8, n1 + 0.3);
+    cover += (surge*0.5*shoreFoam + surfF*0.25*smoothstep(0.2, 0.8, n1 + 0.3))*(1.0 - calmK);
   }
   // obstacle wakes / bank turbulence from the bake (rivers), modulated so streaks break up
   cover += vBody.b*(river ? smoothstep(0.1, 0.9, speed)*smoothstep(0.15, 0.75, n1)*0.6 : 0.6);
-  cover += smoothstep(0.45, 0.95, whitecap)*0.55 + smoothstep(0.0, 0.5, rFoam)*0.9; // wakes, splashes: readable at game zoom
+  cover += smoothstep(0.45, 0.95, whitecap)*0.55*(1.0 - calmK) + smoothstep(0.0, 0.5, rFoam)*0.9; // wakes, splashes: readable at game zoom
   // wind whitecaps (Beaufort 4-5 up), flaring as gust fronts sweep across open water
-  cover += smoothstep(0.5, 1.0, windK + gustW*0.5)*smoothstep(0.45, 0.85, nz.b)*(river ? 0.15 : bodyType > 1.5 ? 0.7 : 0.4);
+  cover += smoothstep(0.5, 1.0, windK + gustW*0.5)*smoothstep(0.45, 0.85, nz.b)*(river ? 0.15 : bodyType > 1.5 ? 0.7 : 0.4)*(1.0 - calmK);
   cover *= foamAmount;
   // soft lace edge (wider when the pixel covers more lace cells) and never fully opaque: foam is aerated water
   float foam = smoothstep(1.0 - cover, 1.0 - cover + 0.16 + footprint*0.3, fdens)*mix(0.35, river ? 0.65 : 0.82, smoothstep(0.25, 0.9, cover));

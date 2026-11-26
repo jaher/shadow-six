@@ -23,6 +23,7 @@ import './e03_winter_quarters.js';
 import './e04_black_rain.js';
 
 // e05
+import './e05_cold_iron.js';
 
 // e06
 import './e06_thin_ice.js';

@@ -1,4 +1,5 @@
-# tools.py - hand tools & small kit: shovel, climbing axe, wire cutters, handcuffs, hanger, lipstick, pencil, syringe, stones.
+# tools.py - hand tools & small kit: shovel, climbing axe, wire cutters, handcuffs, hanger, wristwatch (Grethe's small talk), pencil,
+# syringe, stones.
 import sys, os, math, bmesh
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import bpy, studio as S, mats as M, mdl as D
@@ -193,27 +194,53 @@ def brass_mat():
     return M.metal('brass', M.lin((0.80, 0.64, 0.36)), rough=0.22, wear=0.3, wear_color=M.lin((0.95, 0.85, 0.6)), grain=0.2)
 
 
-def lipstick():
-    """Brass swivel lipstick: base + sleeve, red stick with a slanted tip; cap lying beside."""
-    br = brass_mat()
-    red = M.solid('lip_red', M.lin((0.62, 0.05, 0.07)), rough=0.3, var=0.05, coat=0.3, bevel=0.0004)
+def wristwatch():
+    """Grethe's wristwatch (the `lipstick` item, design: her lure is small talk, "a question, a light, the time"; no
+    lipstick anywhere): a plain rolled-gold case with a low domed crystal over a cream dial, a winding crown at three,
+    four lugs, and a worn brown strap: the buckle half above, the holed half below. Read face to -Y, strap along Z, mm."""
+    st = M.metal('watch_gold', M.lin((0.78, 0.60, 0.34)), rough=0.2, wear=0.35, wear_color=M.lin((0.86, 0.80, 0.70)), grain=0.15)   # rolled gold
+    lt = M.textured('watch_strap', 'brown_leather', tint=(0.40, 0.25, 0.15), scale=0.03, nstrength=0.9, coat=0.15)
+    dial = M.image('dial', os.path.join(S.LABELS, 'dial.png'), rough=0.35, coat=0.0, alpha=True)
+    gl = M.glass('watch_crystal', rough=0.05)
     P = []
-    base = [(0, 0), (9.6, 0), (10, 1), (10, 30), (9.6, 31), (9.0, 31), (9.0, 32), (8.6, 32.4), (8.6, 58), (8.2, 59), (0, 59)]
-    P.append(D.lathe('base', [(r * MM, z * MM) for r, z in base], br, segs=64))
-    st = D.lathe('stick', [(0, 55 * MM), (7.3 * MM, 55 * MM), (7.3 * MM, 90 * MM), (0, 90 * MM)], red, segs=64)
-    D.deform(st, lambda v: Vector((v.x, v.y, min(v.z, 0.084 - 0.0009 * (v.x * 1000) * 1.0))))
-    P.append(st)
-    for z in (6, 24):   # decorative rings
-        P.append(D.lathe(f'rib{z}', [(0, (z - 0.6) * MM), (10.25 * MM, (z - 0.6) * MM), (10.25 * MM, (z + 0.6) * MM), (0, (z + 0.6) * MM)], br, segs=64))
-    cap = D.lathe('cap', [(r * MM, z * MM) for r, z in [(0, 0), (10.4, 0), (10.6, 1), (10.6, 44), (10.0, 45), (0, 45)]], br, segs=64)
-    cap.rotation_euler = (math.radians(90), 0, math.radians(-30)); cap.location = (26 * MM, 10 * MM, 10.6 * MM)
-    P.append(cap)
+    yb = 3.4                                     # the case back; the face looks to -Y
+    case = [(0, 0), (12.6, 0), (13.6, 0.9), (14.0, 2.6), (14.0, 5.2), (13.4, 6.4), (12.4, 6.9), (11.8, 6.9), (11.8, 6.0), (0, 6.0)]
+    P.append(D.lathe('watch_case', [(r * MM, z * MM) for r, z in case], st, segs=64, loc=(0, yb * MM, 0), rot=(90, 0, 0)))
+    P.append(D.decal('watch_dial', dial, 23.4 * MM, 23.4 * MM, loc=(0, (yb - 6.02) * MM, 0), rot=(90, 0, 0)))
+    cr = [(0, 7.4), (6.0, 7.3), (10.0, 7.0), (11.85, 6.8), (11.85, 6.5), (0, 6.5)]
+    P.append(D.lathe('watch_crystal', [(r * MM, z * MM) for r, z in cr], gl, segs=64, loc=(0, yb * MM, 0), rot=(90, 0, 0)))
+    P.append(cy('watch_stem', 0.7, 1.6, st, 14.4, yb - 3.6, 0, 'X', 16, 0.1))
+    crown = cy('watch_crown', 1.9, 2.4, st, 16.2, yb - 3.6, 0, 'X', 20, 0.4)
+    D.deform(crown, lambda v: (lambda f: Vector((v.x * f, v.y * f, v.z)))(1.0 + 0.07 * math.cos(math.atan2(v.y, v.x) * 12)))   # knurled
+    P.append(crown)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            P.append(D.box(f'watch_lug{sx}{sz}', (1.7 * MM, 3.4 * MM, 6.0 * MM), st, loc=(sx * 7.9 * MM, (yb - 2.0) * MM, sz * 14.6 * MM),
+                           rot=(sz * 8, 0, 0), bevel=0.6 * MM))
+    # the strap: 14 mm, leather 2.2 mm thick, in the lugs' plane (no gap to the case: it starts under the case's rim)
+    ys = yb - 2.0
+    up = sl('strap_up', [(-7, 11), (7, 11), (7, 38), (-7, 38)], 2.2, lt, y=ys, bevel=0.6)
+    P.append(up)
+    keeper = sl('strap_keeper', [(-8.2, 30), (8.2, 30), (8.2, 34), (-8.2, 34)], 3.6, lt, y=ys - 0.2, bevel=0.8)
+    P.append(keeper)
+    # the buckle: a steel frame round the strap's end, its tongue down the middle
+    fr = [(-9.4, 37), (9.4, 37), (9.4, 46), (-9.4, 46)]
+    inner = [(-7.6, 38.6), (7.6, 38.6), (7.6, 44.4), (-7.6, 44.4)]
+    bk = sl('buckle', fr, 1.6, st, y=ys - 0.4, bevel=0.5)
+    D.cut(bk, [sl('buckle_hole', inner, 4.0, st, y=ys - 0.4, bevel=0.0)])
+    P.append(bk)
+    P.append(sl('buckle_tongue', [(-0.7, 37.4), (0.7, 37.4), (0.6, 45.6), (-0.6, 45.6)], 1.2, st, y=ys - 1.0, bevel=0.3))
+    lo = sl('strap_lo', D.chaikin([(-7, -11), (7, -11), (7, -48), (5.2, -54), (0, -56.5), (-5.2, -54), (-7, -48)], 2, True, keep=(0, 1)),
+            2.2, lt, y=ys, bevel=0.6)
+    D.cut(lo, [cy(f'strap_hole{k}', 1.0, 6.0, lt, 0, ys, -30 - 5.2 * k, 'Y', 16, 0.0) for k in range(4)])
+    P.append(lo)
     return P
 
 
 @S.shot('lipstick')
 def _lipstick(mode):
-    D.group('lipstick', lipstick())
+    """The `lipstick` item's icon: Grethe's small talk, drawn as her wristwatch (the time), face propped to the camera."""
+    D.group('lipstick', wristwatch(), rot=(-18, 0, 10))
     S.shoot('lipstick', mode, box=(22, 32), margin=0.04)
 
 
